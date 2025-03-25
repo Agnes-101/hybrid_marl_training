@@ -1,9 +1,9 @@
-import ray
-from ray import tune
-from ray.rllib.algorithms.ppo import PPOConfig
-from envs.custom_channel_env import NetworkEnvironment
-from hybrid_trainer.metaheuristic_opt import run_metaheuristic
-from hybrid_trainer.kpi_logger import KPI
+import sys
+import os
+
+# Add project root to Python's path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 import ray
 from ray import tune
