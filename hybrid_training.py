@@ -21,7 +21,7 @@ def hybrid_training(config):
     - Real-time KPI tracking
     """
     
-    # kpi_tracker = KPITracker(enabled=config["enable_logging"], real_time_plot=config["real_time_plot"])
+    
     kpi_tracker = KPITracker(
     enabled=config["logging"]["enable_logging"],
     real_time_plot=config["logging"]["real_time_plot"]
@@ -38,7 +38,7 @@ def hybrid_training(config):
     kpi_tracker.plot_kpis(final=True)  # Generate final comparison graph
 
     print(f" Starting RLlib MARL training with {config['marl_algorithm']}...")
-    marl_config = PPOConfig().environment(NetworkEnvironment, env_config=config["env_config"]).resources(num_gpus=1, num_cpus=2).training()
+    marl_config = PPOConfig().environment(NetworkEnvironment, env_config=config["env_config"]).resources(num_gpus=1).training()
 
     results = tune.run(
         "PPO",

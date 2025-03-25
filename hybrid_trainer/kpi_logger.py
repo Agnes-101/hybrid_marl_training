@@ -72,7 +72,7 @@ class KPITracker:
         return avg_reward, avg_sinr, fairness, load_balance
 
     def plot_kpis(self, live_update=True, final=False):
-        """Efficient real-time plotting without flickering or redundant figure creation."""
+        """Ensures real-time plot updates continuously."""
         if not self.kpi_data or not self.real_time_plot:
             return
 
@@ -83,7 +83,6 @@ class KPITracker:
 
             for metric in ['reward', 'sinr', 'fairness', 'load_balance']:
                 if metric not in self.lines[algo]:
-                    # ✅ Create line once and store it
                     self.lines[algo][metric], = self.ax.plot(
                         df["episode"], df[metric],
                         label=f"{algo} - {metric}",
@@ -91,18 +90,17 @@ class KPITracker:
                         linestyle=self._get_linestyle(metric)
                     )
                 else:
-                    # ✅ Just update the existing line’s data
                     self.lines[algo][metric].set_xdata(df["episode"])
                     self.lines[algo][metric].set_ydata(df[metric])
 
-        # ✅ Update axes limits correctly
-        self.ax.relim()  # Recompute limits based on new data
-        self.ax.autoscale_view()  # Autoscale the view dynamically
+        # ✅ Proper axes updates
+        self.ax.relim()
+        self.ax.autoscale_view()
 
-        # ✅ Smart legend update
+        # ✅ Ensure smooth GUI updates
         self._update_legend()
+        self.fig.canvas.draw_idle()
+        plt.pause(0.01)  # Ensure updates are processed
 
-        # ✅ Ensure proper GUI event handling
-        self.fig.canvas.draw_idle()  # Redraw only the changed parts
-        self.fig.canvas.flush_events()  # Ensure immediate update
-        plt.pause(0.001)  # ✅ Critical for real-time updates
+        if final:  
+            plt.ioff()  # Disable interactive mode if finalizing plot
