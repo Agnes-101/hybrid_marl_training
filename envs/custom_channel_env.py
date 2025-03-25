@@ -8,7 +8,7 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 import torch
 import numpy as np
 from typing import Dict, List
-from hybrid_trainer.kpi_logger import KPI_Logger  # Import the KPI logger
+from hybrid_trainer.kpi_logger import KPITracker # Import the KPI logger
 
 class UE:
     def __init__(self, id, position, velocity, demand):
@@ -43,7 +43,7 @@ class NetworkEnvironment:
         self.log_kpis = log_kpis
         
         # Initialize KPI logger if logging is enabled
-        self.kpi_logger = KPI_Logger() if log_kpis else None
+        self.kpi_logger = KPITracker() if log_kpis else None
 
         self.base_stations = [
             BaseStation(id=i, position=[np.random.uniform(0,100), np.random.uniform(0,100)],
