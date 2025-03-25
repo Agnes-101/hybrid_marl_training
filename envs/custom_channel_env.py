@@ -1,7 +1,14 @@
+import sys
+import os
+
+# Add project root to Python's path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, project_root) if project_root not in sys.path else None
+
 import torch
 import numpy as np
 from typing import Dict, List
-from utils.kpi_logger import KPI_Logger  # Import the KPI logger
+from kpi_logger import KPI_Logger  # Import the KPI logger
 
 class UE:
     def __init__(self, id, position, velocity, demand):
