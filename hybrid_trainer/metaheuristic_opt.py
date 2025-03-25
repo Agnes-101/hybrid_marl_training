@@ -6,7 +6,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 import numpy as np
-from hybrid_trainer.kpi_logger import KPI_Logger
+from hybrid_trainer.kpi_logger import KPITracker
 from algorithms import aco, bat, cs, de, fa, ga, gwo, hs, ica, pfo, pso, sa, tabu, woa
 
 def run_metaheuristic(algorithm, num_bs, num_ue):
@@ -48,7 +48,7 @@ def run_metaheuristic(algorithm, num_bs, num_ue):
     handover_rate = np.random.uniform(0, 0.2)  # Placeholder Handover Rate
 
     # Log KPIs for tracking
-    logger = KPI_Logger(enable_tracking=True)
+    logger = KPITracker(enable_tracking=True)
     logger.log_kpis(episode=0, sinr=sinr, fairness=fairness, load_balance=load_balance, handover_rate=handover_rate)
 
     return {
