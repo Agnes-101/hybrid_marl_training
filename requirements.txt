@@ -1,4 +1,3 @@
-ray[default]
 ray[rllib]
 ray[tune]
 numpy
@@ -6,6 +5,7 @@ matplotlib
 pandas
 networkx
 scipy
-gym
-torch
+gymnasium  # Replaces gym if using newer RLlib versions
+torch>=1.10
 tensorboard
+seaborn  # (Optional) for better visualization
