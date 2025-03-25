@@ -66,7 +66,7 @@ class KPITracker:
         load_balance = random.uniform(0, 1)
         return avg_reward, avg_sinr, fairness, load_balance
 
-    def plot_kpis(self, live_update=False, final=False):
+    def plot_kpis(self, live_update=True, final=False):
         """
         Plots KPI trends over episodes. If `live_update` is True, updates in real-time.
         If `final=True`, plots final results for all algorithms.
