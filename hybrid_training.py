@@ -38,13 +38,14 @@ def hybrid_training(config):
     kpi_tracker.plot_kpis(final=True)  # Generate final comparison graph
 
     print(f" Starting RLlib MARL training with {config['marl_algorithm']}...")
-    marl_config = PPOConfig().environment(NetworkEnvironment, env_config=config["env_config"]).resources(num_gpus=1).training()
+    marl_config = PPOConfig().environment(NetworkEnvironment, env_config=config["env_config"]).resources(num_gpus=1, num_cpus=2).training()
 
     results = tune.run(
         "PPO",
         config=marl_config.to_dict(),
         stop={"training_iteration": config["training_iterations"]},
         checkpoint_at_end=True
+        resources_per_trial={"cpu": 2, "gpu": 1}  # Adjust to your system
     )
 
     # Log final KPIs
