@@ -24,7 +24,7 @@ def hybrid_training(config):
     # kpi_tracker = KPITracker(enabled=config["enable_logging"], real_time_plot=config["real_time_plot"])
     kpi_tracker = KPITracker(
     enabled=config["logging"]["enable_logging"],
-    real_time_plot=config["logging"]["real_time_plot"]
+    real_time_plot=config["logging"]["live_plot"]
                             )
 
     for algo_name in config["metaheuristic_algorithms"]:
