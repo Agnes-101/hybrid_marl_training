@@ -8,7 +8,7 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 import pandas as pd
 import matplotlib.pyplot as plt
 from IPython.display import display, clear_output
-plt.ion()  # Enable interactive plotting
+
 
 class KPITracker:
     def __init__(self, enabled=True, log_dir="logs", real_time_plot=True):
@@ -24,7 +24,11 @@ class KPITracker:
         self.log_dir = log_dir
         os.makedirs(self.log_dir, exist_ok=True)
         self.kpi_data = {}
-
+        
+        # ✅ Create figure & axis ONCE
+        self.fig, self.ax = plt.subplots(figsize=(12, 6))
+        self.lines = {}  # Store line objects for each metric-algorithm pair
+        plt.ion()  # Enable interactive mode
 
     def log_kpis(self, episode, avg_reward, avg_sinr, fairness, load_balance, meta_algorithm):
         """
@@ -68,62 +72,39 @@ class KPITracker:
         return avg_reward, avg_sinr, fairness, load_balance
 
     def plot_kpis(self, live_update=True, final=False):
-        """
-        Plots KPI trends. If `live_update=True`, refreshes dynamically.
-        If `final=True`, generates the final KPI comparison plot.
-        """
+        """ Updates the existing plot instead of creating new figures """
         if not self.kpi_data:
             return
-
-        # if live_update:
-        #     clear_output(wait=True)  # Only clear in live mode
         
-        plt.figure(figsize=(12, 6))
+        self.ax.clear()  # ✅ Clear the axis instead of making new figures
         
         for algo, data in self.kpi_data.items():
             df = pd.DataFrame(data)
-            plt.plot(df["episode"], df["reward"], label=f"{algo} - Reward", marker="o")
-            plt.plot(df["episode"], df["sinr"], label=f"{algo} - SINR", linestyle="dashed")
-            plt.plot(df["episode"], df["fairness"], label=f"{algo} - Fairness", linestyle="dotted")
-            plt.plot(df["episode"], df["load_balance"], label=f"{algo} - Load Balance", linestyle="dashdot")
 
-        plt.xlabel("Episodes")
-        plt.ylabel("KPI Values")
-        plt.title("Final KPI Comparison" if final else "Live KPI Trends")
-        plt.legend()
-        plt.grid()
+            # ✅ Check if lines exist; if not, create them
+            if algo not in self.lines:
+                self.lines[algo] = {
+                    "reward": self.ax.plot(df["episode"], df["reward"], label=f"{algo} - Reward", marker="o")[0],
+                    "sinr": self.ax.plot(df["episode"], df["sinr"], label=f"{algo} - SINR", linestyle="dashed")[0],
+                    "fairness": self.ax.plot(df["episode"], df["fairness"], label=f"{algo} - Fairness", linestyle="dotted")[0],
+                    "load_balance": self.ax.plot(df["episode"], df["load_balance"], label=f"{algo} - Load Balance", linestyle="dashdot")[0],
+                }
+            else:
+                # ✅ Update line data instead of replotting
+                self.lines[algo]["reward"].set_xdata(df["episode"])
+                self.lines[algo]["reward"].set_ydata(df["reward"])
+                self.lines[algo]["sinr"].set_xdata(df["episode"])
+                self.lines[algo]["sinr"].set_ydata(df["sinr"])
+                self.lines[algo]["fairness"].set_xdata(df["episode"])
+                self.lines[algo]["fairness"].set_ydata(df["fairness"])
+                self.lines[algo]["load_balance"].set_xdata(df["episode"])
+                self.lines[algo]["load_balance"].set_ydata(df["load_balance"])
 
-        plt.pause(0.1)  # Allow time for plot to render
-        plt.show(block=False)  # Non-blocking display
-        
-        if final:
-            plt.savefig(os.path.join(self.log_dir, "final_kpi_plot.png"))
+        self.ax.set_xlabel("Episodes")
+        self.ax.set_ylabel("KPI Values")
+        self.ax.set_title("Final KPI Comparison" if final else "Live KPI Trends")
+        self.ax.legend()
+        self.ax.grid()
 
-    
-    # def plot_kpis(self, live_update=True, final=True):
-    #     """
-    #     Plots KPI trends over episodes. If `live_update` is True, updates in real-time.
-    #     If `final=True`, plots final results for all algorithms.
-    #     """
-    #     if not self.kpi_data:
-    #         return
-        
-    #     if live_update:
-    #         clear_output(wait=True)  # Clears previous plots for live updating
-        
-    #     plt.figure(figsize=(12, 6))
-        
-    #     for algo, data in self.kpi_data.items():
-    #         df = pd.DataFrame(data)
-    #         plt.plot(df["episode"], df["reward"], label=f"{algo} - Reward")
-    #         plt.plot(df["episode"], df["sinr"], label=f"{algo} - SINR", linestyle="dashed")
-    #         plt.plot(df["episode"], df["fairness"], label=f"{algo} - Fairness", linestyle="dotted")
-    #         plt.plot(df["episode"], df["load_balance"], label=f"{algo} - Load Balance", linestyle="dashdot")
-
-    #     plt.xlabel("Episodes")
-    #     plt.ylabel("KPI Values")
-    #     title = "Final KPI Comparison" if final else "Live KPI Trends"
-    #     plt.title(title)
-    #     plt.legend()
-    #     plt.grid()
-    #     plt.show()
+        self.fig.canvas.draw()  # ✅ Force update without blocking execution
+        self.fig.canvas.flush_events()  # ✅ Flush GUI events for smooth update
