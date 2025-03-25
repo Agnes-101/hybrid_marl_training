@@ -1,6 +1,5 @@
 import sys
 import os
-
 # Add project root to Python's path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root) if project_root not in sys.path else None
@@ -8,8 +7,7 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 import torch
 import numpy as np
 from typing import Dict, List
-from hybrid_trainer.kpi_logger import KPITracker # Import the KPI logger
-
+from hybrid_trainer.kpi_logger import KPITracker  # Import the KPI logger
 class UE:
     def __init__(self, id, position, velocity, demand):
         self.id = id
@@ -46,13 +44,13 @@ class NetworkEnvironment:
         self.kpi_logger = KPITracker() if log_kpis else None
 
         self.base_stations = [
-            BaseStation(id=i, position=[np.random.uniform(0,100), np.random.uniform(0,100)],
+            BaseStation(id=i, position=[np.random.uniform(0, 100), np.random.uniform(0, 100)],
                         frequency=100, bandwidth=1000)
             for i in range(num_bs)
         ]
         self.ues = [
-            UE(id=i, position=[np.random.uniform(0,100), np.random.uniform(0,100)],
-               velocity=[np.random.uniform(-1,1), np.random.uniform(-1,1)],
+            UE(id=i, position=[np.random.uniform(0, 100), np.random.uniform(0, 100)],
+               velocity=[np.random.uniform(-1, 1), np.random.uniform(-1, 1)],
                demand=np.random.randint(50, 200))
             for i in range(num_ue)
         ]
@@ -60,22 +58,22 @@ class NetworkEnvironment:
     def reset(self):
         self.current_step = 0
         for ue in self.ues:
-            ue.position = torch.tensor([np.random.uniform(0,100), np.random.uniform(0,100)])
+            ue.position = torch.tensor([np.random.uniform(0, 100), np.random.uniform(0, 100)])
             ue.associated_bs = None
         return self._get_obs()
 
-    def _calculate_sinr(self, ue, bs):
+    def calculate_sinr(self, ue, bs):
         distance = torch.norm(ue.position - bs.position)
         path_loss = 32.4 + 20 * torch.log10(distance + 1e-6) + 20 * torch.log10(bs.frequency)
-        tx_power = 30
+        tx_power = 30  # dBm
         noise_floor = -174 + 10 * torch.log10(bs.bandwidth * 1e6)
         sinr_linear = 10 ** ((tx_power - path_loss - noise_floor) / 10)
         return 10 * torch.log10(sinr_linear + 1e-10)
 
-    def _calculate_reward(self):
+    def calculate_reward(self):
         throughput = sum(torch.log2(1 + 10**(ue.sinr/10)) for ue in self.ues)
         loads = torch.tensor([bs.load for bs in self.base_stations])
-        jain = (loads.sum() ** 2) / (self.num_bs * (loads ** 2).sum())
+        jain = (loads.sum() ** 2) / (self.num_bs * (loads ** 2).sum() + 1e-6)  # Avoid div by zero
         overload_penalty = torch.sum(torch.relu(loads - 1.0))
         return throughput + 2.0 * jain - 0.5 * overload_penalty
 
@@ -92,9 +90,9 @@ class NetworkEnvironment:
         for ue in self.ues:
             if ue.associated_bs is not None:
                 bs = next(bs for bs in self.base_stations if bs.id == ue.associated_bs)
-                ue.sinr = self._calculate_sinr(ue, bs)
+                ue.sinr = self.calculate_sinr(ue, bs)
         
-        reward = self._calculate_reward()
+        reward = self.calculate_reward()
         self.current_step += 1
         done = self.current_step >= self.episode_length
         
@@ -105,3 +103,25 @@ class NetworkEnvironment:
     
     def _get_obs(self):
         return {f"BS_{bs.id}": {"load": bs.load} for bs in self.base_stations}
+
+# Added evaluate_detailed_solution function
+def evaluate_detailed_solution(env, solution, alpha=0.1, beta=0.1):
+    rewards = [env.calculate_reward() for _ in range(10)]  # Simulate over 10 steps
+    sinr_list = [ue.sinr for ue in env.ues]
+    throughput_list = [torch.log2(1 + 10**(ue.sinr/10)).item() for ue in env.ues]
+    bs_loads = [bs.load for bs in env.base_stations]
+    
+    fitness_value = np.sum(rewards)
+    average_sinr = np.mean(sinr_list)
+    average_throughput = np.mean(throughput_list)
+    fairness = (np.sum(throughput_list) ** 2) / (len(throughput_list) * np.sum(np.square(throughput_list)) + 1e-6)
+    load_variance = np.var(bs_loads)
+    
+    return {
+        "fitness": fitness_value,
+        "average_sinr": average_sinr,
+        "average_throughput": average_throughput,
+        "fairness": fairness,
+        "load_variance": load_variance,
+        "bs_loads": bs_loads
+    }

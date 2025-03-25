@@ -35,7 +35,7 @@ def hybrid_training(config):
             num_ue=config["env_config"]["num_ue"]
         )
 
-        print(f"🚀 Starting RLlib MARL training with {config['marl_algorithm']}...")
+        print(f" Starting RLlib MARL training with {config['marl_algorithm']}...")
         marl_config = PPOConfig().environment(NetworkEnvironment, env_config=config["env_config"]).resources(num_gpus=1).training()
 
         results = tune.run(
