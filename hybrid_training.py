@@ -44,7 +44,7 @@ def hybrid_training(config):
         "PPO",
         config=marl_config.to_dict(),
         stop={"training_iteration": config["training_iterations"]},
-        checkpoint_at_end=True
+        checkpoint_at_end=True,
         resources_per_trial={"cpu": 2, "gpu": 1}  # Adjust to your system
     )
 
