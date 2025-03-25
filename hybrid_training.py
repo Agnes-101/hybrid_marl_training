@@ -10,7 +10,7 @@ from ray import tune
 from ray.rllib.algorithms.ppo import PPOConfig
 from envs.custom_channel_env import NetworkEnvironment
 from hybrid_trainer.metaheuristic_opt import run_metaheuristic
-from utils.kpi_logger import KPI_Logger
+from hybrid_trainer.kpi_logger import KPITracker
 import time
 
 def hybrid_training(config):
@@ -20,7 +20,7 @@ def hybrid_training(config):
     - RLlib MARL training with adaptive tuning 
     - Real-time KPI tracking
     """
-    kpi_logger = KPI_Logger(log_file="logs/kpi_log.csv", live_plot=config["logging"]["live_plot"])
+    kpi_logger = KPITracker(log_file="logs/kpi_log.csv", live_plot=config["logging"]["live_plot"])
     
     if config["comparison_mode"]:
         algorithms_to_run = config["metaheuristic_algorithms"]
