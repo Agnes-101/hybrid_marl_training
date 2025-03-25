@@ -72,39 +72,37 @@ class KPITracker:
         return avg_reward, avg_sinr, fairness, load_balance
 
     def plot_kpis(self, live_update=True, final=False):
-        """ Updates the existing plot instead of creating new figures """
-        if not self.kpi_data:
+        """Efficient real-time plotting without flickering or redundant figure creation."""
+        if not self.kpi_data or not self.real_time_plot:
             return
-        
-        self.ax.clear()  # ✅ Clear the axis instead of making new figures
-        
+
         for algo, data in self.kpi_data.items():
             df = pd.DataFrame(data)
+            if df.empty:
+                continue
 
-            # ✅ Check if lines exist; if not, create them
-            if algo not in self.lines:
-                self.lines[algo] = {
-                    "reward": self.ax.plot(df["episode"], df["reward"], label=f"{algo} - Reward", marker="o")[0],
-                    "sinr": self.ax.plot(df["episode"], df["sinr"], label=f"{algo} - SINR", linestyle="dashed")[0],
-                    "fairness": self.ax.plot(df["episode"], df["fairness"], label=f"{algo} - Fairness", linestyle="dotted")[0],
-                    "load_balance": self.ax.plot(df["episode"], df["load_balance"], label=f"{algo} - Load Balance", linestyle="dashdot")[0],
-                }
-            else:
-                # ✅ Update line data instead of replotting
-                self.lines[algo]["reward"].set_xdata(df["episode"])
-                self.lines[algo]["reward"].set_ydata(df["reward"])
-                self.lines[algo]["sinr"].set_xdata(df["episode"])
-                self.lines[algo]["sinr"].set_ydata(df["sinr"])
-                self.lines[algo]["fairness"].set_xdata(df["episode"])
-                self.lines[algo]["fairness"].set_ydata(df["fairness"])
-                self.lines[algo]["load_balance"].set_xdata(df["episode"])
-                self.lines[algo]["load_balance"].set_ydata(df["load_balance"])
+            for metric in ['reward', 'sinr', 'fairness', 'load_balance']:
+                if metric not in self.lines[algo]:
+                    # ✅ Create line once and store it
+                    self.lines[algo][metric], = self.ax.plot(
+                        df["episode"], df[metric],
+                        label=f"{algo} - {metric}",
+                        marker="o" if metric == 'reward' else None,
+                        linestyle=self._get_linestyle(metric)
+                    )
+                else:
+                    # ✅ Just update the existing line’s data
+                    self.lines[algo][metric].set_xdata(df["episode"])
+                    self.lines[algo][metric].set_ydata(df[metric])
 
-        self.ax.set_xlabel("Episodes")
-        self.ax.set_ylabel("KPI Values")
-        self.ax.set_title("Final KPI Comparison" if final else "Live KPI Trends")
-        self.ax.legend()
-        self.ax.grid()
+        # ✅ Update axes limits correctly
+        self.ax.relim()  # Recompute limits based on new data
+        self.ax.autoscale_view()  # Autoscale the view dynamically
 
-        self.fig.canvas.draw()  # ✅ Force update without blocking execution
-        self.fig.canvas.flush_events()  # ✅ Flush GUI events for smooth update
+        # ✅ Smart legend update
+        self._update_legend()
+
+        # ✅ Ensure proper GUI event handling
+        self.fig.canvas.draw_idle()  # Redraw only the changed parts
+        self.fig.canvas.flush_events()  # Ensure immediate update
+        plt.pause(0.001)  # ✅ Critical for real-time updates
