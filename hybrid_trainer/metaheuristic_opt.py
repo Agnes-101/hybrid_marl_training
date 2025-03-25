@@ -6,8 +6,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 import numpy as np
-from kpi_logger import KPI_Logger
-from hybrid_algorithms import *
+from hybrid_trainer.kpi_logger import KPI_Logger
+from algorithms import aco, bat, cs, de, fa, ga, gwo, hs, ica, pfo, pso, sa, tabu, woa
 
 def run_metaheuristic(algorithm, num_bs, num_ue):
     """
