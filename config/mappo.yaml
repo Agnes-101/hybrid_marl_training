@@ -1,0 +1,8 @@
+algorithm: MAPPO
+env_config:
+  num_bs: 3
+  num_ue: 10
+  episode_length: 100
+training:
+  gamma: 0.99
+  lr: 1e-4
