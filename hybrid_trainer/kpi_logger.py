@@ -8,6 +8,7 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 import pandas as pd
 import matplotlib.pyplot as plt
 from IPython.display import display, clear_output
+plt.ion()  # Enable interactive plotting
 
 class KPITracker:
     def __init__(self, enabled=True, log_dir="logs", real_time_plot=True):
@@ -74,8 +75,8 @@ class KPITracker:
         if not self.kpi_data:
             return
 
-        if live_update:
-            clear_output(wait=True)  # Only clear in live mode
+        # if live_update:
+        #     clear_output(wait=True)  # Only clear in live mode
         
         plt.figure(figsize=(12, 6))
         
