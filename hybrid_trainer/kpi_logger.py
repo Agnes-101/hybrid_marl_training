@@ -68,28 +68,61 @@ class KPITracker:
 
     def plot_kpis(self, live_update=True, final=False):
         """
-        Plots KPI trends over episodes. If `live_update` is True, updates in real-time.
-        If `final=True`, plots final results for all algorithms.
+        Plots KPI trends. If `live_update=True`, refreshes dynamically.
+        If `final=True`, generates the final KPI comparison plot.
         """
         if not self.kpi_data:
             return
-        
+
         if live_update:
-            clear_output(wait=True)  # Clears previous plots for live updating
+            clear_output(wait=True)  # Only clear in live mode
         
         plt.figure(figsize=(12, 6))
         
         for algo, data in self.kpi_data.items():
             df = pd.DataFrame(data)
-            plt.plot(df["episode"], df["reward"], label=f"{algo} - Reward")
+            plt.plot(df["episode"], df["reward"], label=f"{algo} - Reward", marker="o")
             plt.plot(df["episode"], df["sinr"], label=f"{algo} - SINR", linestyle="dashed")
             plt.plot(df["episode"], df["fairness"], label=f"{algo} - Fairness", linestyle="dotted")
             plt.plot(df["episode"], df["load_balance"], label=f"{algo} - Load Balance", linestyle="dashdot")
 
         plt.xlabel("Episodes")
         plt.ylabel("KPI Values")
-        title = "Final KPI Comparison" if final else "Live KPI Trends"
-        plt.title(title)
+        plt.title("Final KPI Comparison" if final else "Live KPI Trends")
         plt.legend()
         plt.grid()
-        plt.show()
+
+        plt.pause(0.1)  # Allow time for plot to render
+        plt.show(block=False)  # Non-blocking display
+        
+        if final:
+            plt.savefig(os.path.join(self.log_dir, "final_kpi_plot.png"))
+
+    
+    # def plot_kpis(self, live_update=True, final=True):
+    #     """
+    #     Plots KPI trends over episodes. If `live_update` is True, updates in real-time.
+    #     If `final=True`, plots final results for all algorithms.
+    #     """
+    #     if not self.kpi_data:
+    #         return
+        
+    #     if live_update:
+    #         clear_output(wait=True)  # Clears previous plots for live updating
+        
+    #     plt.figure(figsize=(12, 6))
+        
+    #     for algo, data in self.kpi_data.items():
+    #         df = pd.DataFrame(data)
+    #         plt.plot(df["episode"], df["reward"], label=f"{algo} - Reward")
+    #         plt.plot(df["episode"], df["sinr"], label=f"{algo} - SINR", linestyle="dashed")
+    #         plt.plot(df["episode"], df["fairness"], label=f"{algo} - Fairness", linestyle="dotted")
+    #         plt.plot(df["episode"], df["load_balance"], label=f"{algo} - Load Balance", linestyle="dashdot")
+
+    #     plt.xlabel("Episodes")
+    #     plt.ylabel("KPI Values")
+    #     title = "Final KPI Comparison" if final else "Live KPI Trends"
+    #     plt.title(title)
+    #     plt.legend()
+    #     plt.grid()
+    #     plt.show()
