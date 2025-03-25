@@ -20,45 +20,43 @@ def hybrid_training(config):
     - RLlib MARL training with adaptive tuning 
     - Real-time KPI tracking
     """
-    kpi_logger = KPITracker(log_file="logs/kpi_log.csv", live_plot=config["logging"]["live_plot"])
     
-    if config["comparison_mode"]:
-        algorithms_to_run = config["metaheuristic_algorithms"]
-    else:
-        algorithms_to_run = [config["metaheuristic"]]
+    kpi_tracker = KPITracker(enabled=config["enable_logging"], real_time_plot=config["real_time_plot"])
 
-    for meta_alg in algorithms_to_run:
-        print(f"\n🔍 Running metaheuristic optimization: {meta_alg}...")
-        meta_solution = run_metaheuristic(
-            algorithm=meta_alg,
-            num_bs=config["env_config"]["num_bs"],
-            num_ue=config["env_config"]["num_ue"]
-        )
+    for algo_name in config["metaheuristic_algorithms"]:
+        print(f"Training with {algo_name}...")
+        
+        for episode in range(config["training_iterations"]):
+            avg_reward, avg_sinr, fairness, load_variance = kpi_tracker.evaluate_checkpoint("dummy_path")
+            kpi_tracker.log_kpis(episode, avg_reward, avg_sinr, fairness, load_variance, algo_name)
 
-        print(f" Starting RLlib MARL training with {config['marl_algorithm']}...")
-        marl_config = PPOConfig().environment(NetworkEnvironment, env_config=config["env_config"]).resources(num_gpus=1).training()
+    kpi_tracker.save_to_csv()
+    kpi_tracker.plot_kpis(final=True)  # Generate final comparison graph
 
-        results = tune.run(
-            "PPO",
-            config=marl_config.to_dict(),
-            stop={"training_iteration": config["training_iterations"]},
-            checkpoint_at_end=True
-        )
+    print(f" Starting RLlib MARL training with {config['marl_algorithm']}...")
+    marl_config = PPOConfig().environment(NetworkEnvironment, env_config=config["env_config"]).resources(num_gpus=1).training()
 
-        # Log final KPIs
-        final_metrics = kpi_logger.get_final_metrics()
-        print(f"\n📊 Final KPI Results for {meta_alg}: {final_metrics}")
+    results = tune.run(
+        "PPO",
+        config=marl_config.to_dict(),
+        stop={"training_iteration": config["training_iterations"]},
+        checkpoint_at_end=True
+    )
 
-        # Adaptive tuning: Re-run metaheuristic if performance stagnates
-        if config["adaptive_tuning"]["enabled"]:
-            stagnation_threshold = config["adaptive_tuning"]["stagnation_threshold"]
-            if final_metrics["reward"] < stagnation_threshold:
-                print(f"⚠️ Performance stagnated ({final_metrics['reward']} < {stagnation_threshold}). Re-running metaheuristic...")
-                time.sleep(2)
-                continue  # Restart loop for this algorithm
+    # Log final KPIs
+    final_metrics = kpi_tracker.get_final_metrics()
+    print(f"\n📊 Final KPI Results: {final_metrics}")
+
+    # Adaptive tuning: Re-run metaheuristic if performance stagnates
+    if config["adaptive_tuning"]["enabled"]:
+        stagnation_threshold = config["adaptive_tuning"]["stagnation_threshold"]
+        if final_metrics["reward"] < stagnation_threshold:
+            print(f"⚠️ Performance stagnated ({final_metrics['reward']} < {stagnation_threshold}). Re-running metaheuristic...")
+            time.sleep(2)
+            hybrid_training(config)  # Restart training
 
     print("\n✅ Hybrid training complete!")
-    kpi_logger.plot_final_comparison()
+    kpi_tracker.plot_final_comparison()
 
 if __name__ == "__main__":
     ray.init()
@@ -84,84 +82,3 @@ if __name__ == "__main__":
     }
 
     hybrid_training(config)
-
-
-# def hybrid_training(config):
-#     """
-#     Runs hybrid training: Sequential Metaheuristic optimization + RLlib MARL (MAPPO) training.
-#     Implements adaptive retraining if RL performance stagnates.
-#     """
-#     kpi_tracker = KPITracker(enabled=config["enable_logging"])
-#     comparison_results = {}
-
-#     for algo_name in config["metaheuristics"]:
-#         print(f"Running metaheuristic optimization: {algo_name}...")
-#         meta_solution = run_metaheuristic(
-#             algorithm=algo_name,
-#             num_bs=config["env_config"]["num_bs"],
-#             num_ue=config["env_config"]["num_ue"]
-#         )
-
-#         print(f"Starting RLlib training with {algo_name} initialization...")
-#         ppo_config = (
-#             PPOConfig()
-#             .environment(NetworkEnvironment, env_config=config["env_config"])
-#             .resources(num_gpus=1)
-#             .training(model={"custom_model_config": {"meta_solution": meta_solution}})
-#         )
-
-#         results = tune.run(
-#             "PPO",
-#             config=ppo_config.to_dict(),
-#             stop={"training_iteration": config["training_iterations"]},
-#             checkpoint_at_end=True
-#         )
-
-#         best_checkpoint = results.get_best_checkpoint()
-#         avg_reward, avg_sinr, fairness, load_variance = kpi_tracker.evaluate_checkpoint(best_checkpoint)
-
-#         comparison_results[algo_name] = {
-#             "reward": avg_reward,
-#             "sinr": avg_sinr,
-#             "fairness": fairness,
-#             "load_balance": load_variance
-#         }
-
-#         # Adaptive retraining if performance stagnates
-#         if avg_reward < config["adaptive_threshold"]:
-#             print(f"Performance stagnated for {algo_name}, re-running metaheuristic optimization...")
-#             meta_solution = run_metaheuristic(
-#                 algorithm=algo_name,
-#                 num_bs=config["env_config"]["num_bs"],
-#                 num_ue=config["env_config"]["num_ue"]
-#             )
-#             ppo_config.training(model={"custom_model_config": {"meta_solution": meta_solution}})
-#             results = tune.run(
-#                 "PPO",
-#                 config=ppo_config.to_dict(),
-#                 stop={"training_iteration": config["adaptive_retraining_iters"]},
-#                 checkpoint_at_end=True
-#             )
-
-#     return comparison_results
-
-# if __name__ == "__main__":
-#     ray.init()
-
-#     config = {
-#         "metaheuristics": ["pfo", "aco", "pso"],  # Algorithms to compare
-#         "env_config": {
-#             "num_bs": 20,
-#             "num_ue": 200,
-#             "episode_length": 1000
-#         },
-#         "training_iterations": 1000,
-#         "adaptive_threshold": -200,  # Retrain if reward stagnates below this value
-#         "adaptive_retraining_iters": 500,
-#         "enable_logging": True  # Toggle real-time logging ON/OFF
-#         "real_time_plot": True,  # Toggle live graph updates
-#     }
-
-#     results = hybrid_training(config)
-#     print("Comparison Results:", results)
-
