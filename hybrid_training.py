@@ -17,7 +17,7 @@ from hybrid_trainer.metaheuristic_opt import run_metaheuristic
 from hybrid_trainer.kpi_logger import KPITracker
 from hybrid_trainer.live_dashboard import LiveDashboard
 
-class HybridTrainingOrchestrator:
+class HybridTraining:
     def __init__(self, config: Dict):
         self.config = config
         self.env = NetworkEnvironment(**config["env_config"])
@@ -25,7 +25,7 @@ class HybridTrainingOrchestrator:
         self.dashboard = LiveDashboard(
             network_bounds=(0, 100),
             algorithm_colors=self._init_algorithm_colors(),
-            update_interval=config["visualization"]["update_interval_ms"]
+            # update_interval=config["visualization"]["update_interval_ms"]
         )
         
         ray.init(**config["ray_resources"])
@@ -204,7 +204,7 @@ if __name__ == "__main__":
         
         # Visualization parameters
         "visualization": {
-            "update_interval_ms": 500,
+            # "update_interval_ms": 500,
             "3d_resolution": 20,
             "heatmap_bins": 15
         },
@@ -223,8 +223,8 @@ if __name__ == "__main__":
         }
     }
 
-    orchestrator = HybridTrainingOrchestrator(config)
-    orchestrator.run()
+    trainer = HybridTraining(config)
+    trainer.run()
 # def hybrid_training(config):
 #     """
 #     Runs hybrid training: 
