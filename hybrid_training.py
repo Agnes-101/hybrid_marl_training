@@ -44,17 +44,8 @@ class HybridTraining:
         print(f"\n Initializing {algorithm.upper()} optimization...")
         
         # Run optimization with visualization callback
-        solution = run_metaheuristic(
-            self.env,
-            algorithm=algorithm,
-            params=self.config["metaheuristic_params"][algorithm],
-            visualize_callback=lambda agents: self.dashboard.update_agents(
-                algorithm=algorithm,
-                agents=agents,
-                phase="metaheuristic"
-            )
-        )
-        
+       
+        solution = run_metaheuristic(self.env, algorithm)
         # Log and visualize results
         self.kpi_logger.log_algorithm_performance(algorithm, solution["metrics"])
         self.dashboard.update_algorithm_metrics(algorithm, solution["metrics"])
