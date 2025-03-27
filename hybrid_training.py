@@ -48,7 +48,7 @@ class HybridTraining:
         solution = run_metaheuristic(self.env, algorithm)
         # Log and visualize results
         self.kpi_logger.log_algorithm_performance(algorithm=algorithm,metrics=solution["metrics"])
-        self.dashboard.update_algorithm_metrics(algorithm, solution["metrics"])
+        self.dashboard.update_algorithm_metrics(algorithm=algorithm,metrics=solution["metrics"] )
         
         return solution
 

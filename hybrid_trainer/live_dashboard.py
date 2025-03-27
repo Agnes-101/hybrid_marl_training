@@ -26,6 +26,8 @@ class LiveDashboard:
         self._initialize_traces()
         self._add_controls()
         self._setup_layout(network_bounds)
+        self.algorithm_metrics = {}  # Track metrics per algorithm
+        self.fitness_traces = {}  # For fitness progression plots
 
     def _initialize_traces(self):
         """Create all visualization traces (initially hidden)"""
@@ -208,7 +210,31 @@ class LiveDashboard:
     def save(self, filename="dashboard.html"):
         """Save as standalone HTML file"""
         self.fig.write_html(filename)
+    
+    def update_algorithm_metrics(self, algorithm: str, metrics: dict):
+        """Update visualization with algorithm-specific metrics"""
+        self.algorithm_metrics[algorithm] = metrics
         
+        # Example: Update fitness plot
+        if "fitness" in metrics:
+            self._update_fitness_plot(algorithm, metrics["fitness"])
+        
+        # Example: Update SINR heatmap
+        if "average_sinr" in metrics:
+            self._update_sinr_heatmap(algorithm, metrics["average_sinr"])
+
+    def _update_fitness_plot(self, algorithm: str, fitness: float):
+        """Example: Append fitness to a line chart"""
+        if algorithm not in self.fitness_traces:
+            self.fitness_traces[algorithm] = go.Scatter(
+                x=[], y=[], name=f"{algorithm.upper()} Fitness"
+            )
+            self.fig.add_trace(self.fitness_traces[algorithm], row=1, col=2)
+        
+        trace = self.fitness_traces[algorithm]
+        trace.x = list(trace.x) + [len(trace.x)]
+        trace.y = list(trace.y) + [fitness]
+    
     def finalize_visualizations(self):
         """Save final plots and clean up resources"""
         self.fig.write_html("results/final_dashboard.html")
