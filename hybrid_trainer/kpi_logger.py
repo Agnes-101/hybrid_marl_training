@@ -17,6 +17,7 @@ class KPITracker:
             'reward', 'sinr', 'fairness', 'load_variance'
         ])
         self.logs = []  # Initialize logs storage
+        self.algorithm_logs = []  # New: Store algorithm performance data
         
     def log_metrics(self, timestamp: float, phase: str, 
                 algorithm: str, metrics: dict):
@@ -39,6 +40,15 @@ class KPITracker:
             pd.DataFrame([new_row])
         ], ignore_index=True)
 
+    def log_algorithm_performance(self, algorithm: str, metrics: dict):
+        """Log metaheuristic algorithm performance metrics"""
+        if self.enabled:
+            self.algorithm_logs.append({
+                "algorithm": algorithm,
+                "timestamp": time.time(),
+                **metrics  # Unpack fitness, SINR, fairness, etc.
+            })
+    
     def get_recent_metrics(self, window_size: int = 100) -> dict:
         """Get metrics for visualization updates"""
         recent = self.history.tail(window_size)
@@ -78,8 +88,8 @@ class KPITracker:
             
     def generate_final_reports(self):
         """Save logs and plots (minimal example)"""
-      
-        pd.DataFrame(self.logs).to_csv("results/final_report.csv")
+        df = pd.DataFrame(self.algorithm_logs)
+        df.to_csv("results/algorithm_performance.csv", index=False)
 
 
 # import sys
