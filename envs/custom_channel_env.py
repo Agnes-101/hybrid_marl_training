@@ -41,6 +41,7 @@ class NetworkEnvironment:
         self.episode_length = episode_length
         self.current_step = 0
         self.log_kpis = log_kpis
+        self.current_metaheuristic_agents = []  # Initialize empty list
         
         # Initialize KPI logger if logging is enabled
         self.kpi_logger = KPITracker() if log_kpis else None

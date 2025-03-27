@@ -51,6 +51,12 @@ class DEOptimization:
             
             if visualize_callback and iteration % 5 == 0:
                 visualize_callback()
+                
+            # Update environment with agent positions
+            env.current_metaheuristic_agents = [
+                {"position": pos.tolist(), "fitness": fit} 
+                for pos, fit in zip(self.positions, self.fitness)
+            ]
 
         return {
             "solution": self.best_solution,
