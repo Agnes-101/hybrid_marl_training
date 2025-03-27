@@ -16,6 +16,7 @@ class UE:
         self.demand = demand  # Mbps
         self.associated_bs = None
         self.sinr = 0.0
+        self.sinr = torch.tensor(0.0)  # Initialize as tensor
 
     def update_position(self, delta_time=1.0):
         self.position += self.velocity * delta_time + torch.randn(2) * 0.1
@@ -81,10 +82,16 @@ class NetworkEnvironment:
         return torch.log2(1 + 10**(self.sinr/10)).item()
         
     def calculate_reward(self):
-        throughput = sum(torch.log2(1 + 10**(ue.sinr/10)) for ue in self.ues)
+        """Calculate reward with tensor-safe operations"""
+        # Convert SINR values to tensor first
+        sinr_tensor = torch.tensor([ue.sinr for ue in self.ues], dtype=torch.float32)
+        
+        throughput = torch.sum(torch.log2(1 + 10**(sinr_tensor/10)))
         loads = torch.tensor([bs.load for bs in self.base_stations])
-        jain = (loads.sum() ** 2) / (self.num_bs * (loads ** 2).sum() + 1e-6)  # Avoid div by zero
+        
+        jain = (loads.sum()**2) / (self.num_bs * (loads**2).sum() + 1e-6)
         overload_penalty = torch.sum(torch.relu(loads - 1.0))
+        
         return throughput + 2.0 * jain - 0.5 * overload_penalty
 
     def step(self, actions: Dict[str, int]):
