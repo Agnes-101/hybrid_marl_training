@@ -52,23 +52,24 @@ class DEOptimization:
             if visualize_callback and iteration % 5 == 0:
                 visualize_callback()
 
-        # return {
-        #     "solution": self.best_solution,
-        #     "metrics": env.evaluate_detailed_solution(self.best_solution),
-        #     "agents": {"positions": self.positions, "fitness": self.fitness}
-        # }
         return {
             "solution": self.best_solution,
             "metrics": env.evaluate_detailed_solution(self.best_solution),
-            "agents": [  # Populate metaheuristic_agents for visualization
-                {
-                    "position": [env.base_stations[bs_id].position[0], 
-                                env.base_stations[bs_id].position[1]],
-                    "fitness": fitness
-                }
-                for bs_id, fitness in zip(self.best_solution, self.fitness_history)
-            ]
+            "agents": {"positions": self.positions, "fitness": self.fitness}
         }
+        
+        # return {
+        #     "solution": self.best_solution,
+        #     "metrics": env.evaluate_detailed_solution(self.best_solution),
+        #     "agents": [  # Populate metaheuristic_agents for visualization
+        #         {
+        #             "position": [env.base_stations[bs_id].position[0], 
+        #                         env.base_stations[bs_id].position[1]],
+        #             "fitness": fitness
+        #         }
+        #         for bs_id, fitness in zip(self.best_solution, self.fitness_history)
+        #     ]
+        # }
 
     def _initialize_population(self, env: NetworkEnvironment):
         """Generate random UE-BS associations"""
