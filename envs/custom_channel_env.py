@@ -28,6 +28,7 @@ class BaseStation:
         self.bandwidth = bandwidth  # MHz
         self.allocated_resources = {}  # {ue_id: allocated_bandwidth}
         self.load = 0.0
+        self.capacity = bandwidth // 200  # 200 Mbps/UE
 
     def calculate_load(self):
         self.load = sum(self.allocated_resources.values()) / self.bandwidth

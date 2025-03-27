@@ -81,24 +81,21 @@ class DEOptimization:
         
         return trial
 
+    
     def _repair_solution(self, trial: np.ndarray, env: NetworkEnvironment) -> np.ndarray:
         """Ensure solutions respect BS capacity constraints"""
         bs_counts = np.bincount(trial, minlength=env.num_bs)
         
-        # Get list of all BS capacities
-        capacities = np.array([bs.capacity for bs in env.base_stations])
-        
-        # Identify overloaded BS indices
-        overloaded_bs_ids = np.where(bs_counts > capacities)[0]
-        
-        for bs_id in overloaded_bs_ids:
-            excess = bs_counts[bs_id] - capacities[bs_id]
+        for bs_id in np.where(bs_counts > env.base_stations[bs_id].capacity)[0]:
+            excess = bs_counts[bs_id] - env.base_stations[bs_id].capacity
             ue_indices = np.where(trial == bs_id)[0]
             np.random.shuffle(ue_indices)
             
             for idx in ue_indices[:excess]:
-                available_bs = [b.id for b in env.base_stations 
-                            if bs_counts[b.id] < b.capacity]
+                available_bs = [
+                    b.id for b in env.base_stations 
+                    if bs_counts[b.id] < b.capacity
+                ]
                 if available_bs:
                     trial[idx] = np.random.choice(available_bs)
                     bs_counts[bs_id] -= 1
