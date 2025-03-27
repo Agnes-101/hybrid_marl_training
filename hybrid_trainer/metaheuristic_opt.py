@@ -55,7 +55,13 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str) -> dict:
         raise ValueError(f"Invalid metaheuristic algorithm '{algorithm}'. Choose from: {list(algorithms.keys())}")
 
     print(f"Running {algorithm.upper()} for initial optimization...")
-    solution = algorithms[algorithm].run(num_bs=num_bs, num_ue=num_ue)
+    # Modified line: pass the environment to the run method
+    solution_result = algo_instance.run(env)
+    
+    # Extract solution from the result
+    solution = solution_result["solution"]
+    # solution = algorithms[algorithm].run(num_bs=num_bs, num_ue=num_ue).run(env)
+    
     algo_instance = algorithms[algorithm]
     # Evaluate using environment's built-in method
     metrics = env.evaluate_detailed_solution(solution)
