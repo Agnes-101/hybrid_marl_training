@@ -67,7 +67,11 @@ class KPITracker:
             'fairness': 'mean',
             'load_variance': 'min'
         }).to_dict()
-
+        
+    def generate_final_reports(self):
+        """Save logs and plots (minimal example)"""
+        import pandas as pd
+        pd.DataFrame(self.logs).to_csv("results/final_report.csv")
 
 
 # import sys
