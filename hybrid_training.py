@@ -68,7 +68,7 @@ class HybridTraining:
         marl_config = (PPOConfig()
             .environment(NetworkEnvironment, env_config=self.config["env_config"])
             .training(model={"custom_model": initial_policy} if initial_policy else {})
-            .resources(num_gpus=self.config["ray_resources"]["marl_gpus"]))
+            .resources(num_gpus=config["marl_training"]["num_gpus"],num_cpus=2))
         
         analysis = tune.run(
             "PPO",
@@ -199,9 +199,10 @@ if __name__ == "__main__":
         "ray_resources": {
             "num_cpus": 8,
             "num_gpus": 1,
-            "marl_gpus": 0.5
+            },
+        "marl_training": {
+        "num_gpus": 0.5  #  GPUs allocated to MARL
         },
-        
         # Visualization parameters
         "visualization": {
             # "update_interval_ms": 500,
