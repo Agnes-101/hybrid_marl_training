@@ -56,13 +56,15 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str) -> dict:
 
     print(f"Running {algorithm.upper()} for initial optimization...")
     # Modified line: pass the environment to the run method
-    solution_result = algo_instance.run(env)
-    
-    # Extract solution from the result
-    solution = solution_result["solution"]
-    # solution = algorithms[algorithm].run(num_bs=num_bs, num_ue=num_ue).run(env)
     
     algo_instance = algorithms[algorithm]
+    solution = algo_instance.run(env)
+    
+    # Extract solution from the result
+    # solution = solution_result["solution"]
+    # solution = algorithms[algorithm].run(num_bs=num_bs, num_ue=num_ue).run(env)
+    
+    
     # Evaluate using environment's built-in method
     metrics = env.evaluate_detailed_solution(solution)
     

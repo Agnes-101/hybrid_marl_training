@@ -10,12 +10,13 @@ import pandas as pd
 import numpy as np
 
 class KPITracker:
-    def __init__(self, enabled=True):
+    def __init__(self, enabled=True):        
         self.enabled = enabled
         self.history = pd.DataFrame(columns=[
             'timestamp', 'phase', 'algorithm',
             'reward', 'sinr', 'fairness', 'load_variance'
         ])
+        self.logs = []  # Initialize logs storage
         
     def log_metrics(self, timestamp: float, phase: str, 
                 algorithm: str, metrics: dict):
@@ -68,9 +69,16 @@ class KPITracker:
             'load_variance': 'min'
         }).to_dict()
         
+    def log_kpis(self, episode, **metrics):
+        if self.enabled:
+            self.logs.append({
+                "episode": episode,
+                **metrics
+            })
+            
     def generate_final_reports(self):
         """Save logs and plots (minimal example)"""
-        import pandas as pd
+      
         pd.DataFrame(self.logs).to_csv("results/final_report.csv")
 
 
