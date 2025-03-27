@@ -35,20 +35,20 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str) -> dict:
     :return: Dict containing 'solution', 'SINR', 'fairness', 'load_balance', and 'handover_rate'.
     """
     algorithms = {
-        "aco": aco(num_ants=50, max_iter=100, decay=0.1, alpha=1.0, beta=2.0),
-        "bat": bat(population_size=50, num_iterations=100, frequency_range=(0, 1), loudness_decay=0.95),
-        "cs": cs(colony_size=30, iterations=50, pa=0.25),
+        # "aco": aco(num_ants=50, max_iter=100, decay=0.1, alpha=1.0, beta=2.0),
+        # "bat": bat(population_size=50, num_iterations=100, frequency_range=(0, 1), loudness_decay=0.95),
+        # "cs": cs(colony_size=30, iterations=50, pa=0.25),
         "de": DEOptimization(),
-        "fa": fa(population_size=30, iterations=50, beta0=1, gamma=1),
-        "ga": ga(population_size=30, generations=50, mutation_rate=0.1),
-        "gwo": gwo(swarm_size=30, iterations=50, a_initial=2.0, a_decay=0.04),
-        "hs": hs(memory_size=30, iterations=50, HMCR=0.9, PAR=0.3),
-        "ica": ica(population_size=30, imperialist_count=5, iterations=50),
-        "pfo": pfo(population_size=40, iterations=100, mutation_factor=0.2, jump_rate=0.2, follow_rate=0.3),
-        "pso": pso(swarm_size=30, iterations=50, c1=1, c2=1, w=0.5),
-        "sa": sa(iterations=100, initial_temp=100, cooling_rate=0.95),
-        "tabu": tabu(iterations=50, tabu_size=10),
-        "woa": woa(swarm_size=30, iterations=50),
+        # "fa": fa(population_size=30, iterations=50, beta0=1, gamma=1),
+        # "ga": ga(population_size=30, generations=50, mutation_rate=0.1),
+        # "gwo": gwo(swarm_size=30, iterations=50, a_initial=2.0, a_decay=0.04),
+        # "hs": hs(memory_size=30, iterations=50, HMCR=0.9, PAR=0.3),
+        # "ica": ica(population_size=30, imperialist_count=5, iterations=50),
+        # "pfo": pfo(population_size=40, iterations=100, mutation_factor=0.2, jump_rate=0.2, follow_rate=0.3),
+        # "pso": pso(swarm_size=30, iterations=50, c1=1, c2=1, w=0.5),
+        # "sa": sa(iterations=100, initial_temp=100, cooling_rate=0.95),
+        # "tabu": tabu(iterations=50, tabu_size=10),
+        # "woa": woa(swarm_size=30, iterations=50),
     }
 
     if algorithm not in algorithms:

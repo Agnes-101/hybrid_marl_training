@@ -157,7 +157,7 @@ class HybridTraining:
                     )
 
         finally:
-            self.dashboard.finalize_visualizations()
+           # self.dashboard.finalize_visualizations()
             self.kpi_logger.generate_final_reports()
             ray.shutdown()
 

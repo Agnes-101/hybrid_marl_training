@@ -208,3 +208,8 @@ class LiveDashboard:
     def save(self, filename="dashboard.html"):
         """Save as standalone HTML file"""
         self.fig.write_html(filename)
+        
+    def finalize_visualizations(self):
+        """Save final plots and clean up resources"""
+        self.fig.write_html("results/final_dashboard.html")
+        # plt.close('all')  # Close matplotlib figures if used
