@@ -9,7 +9,7 @@ class LiveDashboard:
             rows=2, cols=2,
             specs=[
                 [{"type": "scatter3d", "rowspan": 2}, {"type": "xy"}],
-                [None, {"type": "xy"}]
+                [None, {"type": "heatmap"}]
             ],
             column_widths=[0.6, 0.4],
             vertical_spacing=0.05,
@@ -17,7 +17,7 @@ class LiveDashboard:
         )
         
         self.algorithm_colors = algorithm_colors or {
-            "pfo": "#FF6B6B",
+            "de": "#FF6B6B",
             "aco": "#4ECDC4",
             "pso": "#45B7D1",
             "marl": "#9B59B6"
@@ -29,6 +29,7 @@ class LiveDashboard:
 
     def _initialize_traces(self):
         """Create all visualization traces (initially hidden)"""
+        
         # 3D Network Traces
         self.fig.add_trace(go.Scatter3d(
             x=[], y=[], z=[],
@@ -64,26 +65,26 @@ class LiveDashboard:
             self.algorithm_traces[algo] = trace
 
         # 2D KPI Traces
-        self.fig.add_trace(go.Scatter(
+        self.fig.add_trace(go.Scatter(  # Global Reward
             x=[], y=[],
             name='Global Reward',
             line=dict(color=self.algorithm_colors["marl"]),
             visible=False
         ), row=1, col=2)
         
-        self.fig.add_trace(go.Scatter(
-            x=[], y=[],
+        self.fig.add_trace(go.Scatter(   # Fairness Index
+            x=[], y=[],  
             name='Fairness Index',
             line=dict(color='#2ECC71'),
             visible=False
-        ), row=2, col=2)
+        ), row=1, col=2)
         
         self.fig.add_trace(go.Heatmap(
             x=[], y=[], z=[],
             colorscale='Viridis',
             name='Load Distribution',
             visible=False
-        ), row=1, col=1)
+        ), row=2, col=2)
 
     def _add_controls(self):
         """Add dropdown menus and buttons"""
