@@ -56,10 +56,20 @@ class HybridTraining:
         """Execute MARL training phase"""
         print(f"\n Starting {self.config['marl_algorithm'].upper()} training...")
         
+        # marl_config = (PPOConfig()
+        #     .environment(NetworkEnvironment, env_config=self.config["env_config"])
+        #     .training(model={"custom_model": initial_policy} if initial_policy else {})
+        #     .resources(num_gpus=config["marl_training"]["num_gpus"],num_cpus=2))
         marl_config = (PPOConfig()
             .environment(NetworkEnvironment, env_config=self.config["env_config"])
-            .training(model={"custom_model": initial_policy} if initial_policy else {})
-            .resources(num_gpus=config["marl_training"]["num_gpus"],num_cpus=2))
+            .training(
+                model={"custom_model": initial_policy} if initial_policy else {},
+                num_cpus_per_worker=2  # ✅ Correct parameter location
+            )
+            .resources(
+                num_gpus=self.config["marl_training"]["num_gpus"],
+                num_learner_workers=1  # Optional but recommended
+            ))
         
         analysis = tune.run(
             "PPO",
