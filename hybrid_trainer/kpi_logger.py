@@ -8,6 +8,7 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 # hybrid_trainer/kpi_logger.py
 import pandas as pd
 import numpy as np
+import time
 
 class KPITracker:
     def __init__(self, enabled=True):        
