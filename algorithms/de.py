@@ -86,8 +86,15 @@ class DEOptimization:
         """Ensure solutions respect BS capacity constraints"""
         bs_counts = np.bincount(trial, minlength=env.num_bs)
         
-        for bs_id in np.where(bs_counts > env.base_stations[bs_id].capacity)[0]:
-            excess = bs_counts[bs_id] - env.base_stations[bs_id].capacity
+        # 1. Get capacities for ALL base stations first
+        capacities = np.array([bs.capacity for bs in env.base_stations])
+        
+        # 2. Find overloaded BS indices using vectorized comparison
+        overloaded_bs_ids = np.where(bs_counts > capacities)[0]
+        
+        # 3. Process overloaded BSs
+        for bs_id in overloaded_bs_ids:
+            excess = bs_counts[bs_id] - capacities[bs_id]
             ue_indices = np.where(trial == bs_id)[0]
             np.random.shuffle(ue_indices)
             
@@ -97,9 +104,11 @@ class DEOptimization:
                     if bs_counts[b.id] < b.capacity
                 ]
                 if available_bs:
-                    trial[idx] = np.random.choice(available_bs)
+                    new_bs = np.random.choice(available_bs)
+                    trial[idx] = new_bs
                     bs_counts[bs_id] -= 1
-                    bs_counts[trial[idx]] += 1
+                    bs_counts[new_bs] += 1
+                    
         return trial
 
     def _adapt_parameters(self, iteration: int):
