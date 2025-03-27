@@ -70,6 +70,15 @@ class NetworkEnvironment:
         sinr_linear = 10 ** ((tx_power - path_loss - noise_floor) / 10)
         return 10 * torch.log10(sinr_linear + 1e-10)
 
+    # Add these to your NetworkEnvironment class
+    def calculate_jains_fairness(self):
+        throughputs = [ue.throughput for ue in self.ues]
+        return (sum(throughputs) ** 2) / (len(throughputs) * sum(t**2 for t in throughputs))
+
+    @property
+    def throughput(self):
+        return torch.log2(1 + 10**(self.sinr/10)).item()
+        
     def calculate_reward(self):
         throughput = sum(torch.log2(1 + 10**(ue.sinr/10)) for ue in self.ues)
         loads = torch.tensor([bs.load for bs in self.base_stations])
@@ -78,6 +87,8 @@ class NetworkEnvironment:
         return throughput + 2.0 * jain - 0.5 * overload_penalty
 
     def step(self, actions: Dict[str, int]):
+        for ue in self.ues:
+            ue.update_position()  # Actually move UEs each step
         for bs_id, ue_ids in actions.items():
             bs = next(bs for bs in self.base_stations if bs.id == int(bs_id.split("_")[1]))
             for ue_id in ue_ids:
@@ -103,7 +114,34 @@ class NetworkEnvironment:
     
     def _get_obs(self):
         return {f"BS_{bs.id}": {"load": bs.load} for bs in self.base_stations}
+    
+    def get_current_state(self):
+        """Returns observation space for visualization"""
+        return {
+            "base_stations": [
+                {"id": bs.id, "position": bs.position.numpy(), "load": bs.load}
+                for bs in self.base_stations
+            ],
+            "users": [
+                {"id": ue.id, 
+                "position": ue.position.numpy(),
+                "associated_bs": ue.associated_bs}
+                for ue in self.ues
+            ],
+            "metaheuristic_agents": []  # Placeholder for PFO/PSO agents
+        }
 
+    def apply_solution(self, solution):
+        """Apply metaheuristic solution to the environment"""
+        # Example: Apply user-BS associations
+        for bs_id, ue_ids in solution["associations"].items():
+            self.base_stations[bs_id].allocated_resources = {}
+            for ue_id in ue_ids:
+                self.ues[ue_id].associated_bs = bs_id
+                # Update other parameters as needed
+        
+        self._update_system_metrics()  # Recalculate SINR, loads, etc.
+    
 # Added evaluate_detailed_solution function
 def evaluate_detailed_solution(env, solution, alpha=0.1, beta=0.1):
     rewards = [env.calculate_reward() for _ in range(10)]  # Simulate over 10 steps

@@ -6,10 +6,12 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 import numpy as np
+from typing import Dict, Any
+from envs.custom_channel_env import NetworkEnvironment
 from hybrid_trainer.kpi_logger import KPITracker
 from algorithms import aco, bat, cs, de, fa, ga, gwo, hs, ica, pfo, pso, sa, tabu, woa
 
-def run_metaheuristic(algorithm, num_bs, num_ue):
+def run_metaheuristic(env: NetworkEnvironment, algorithm: str) -> dict:
     """
     Runs the selected metaheuristic algorithm and returns the optimized solution along with KPIs.
     
@@ -39,23 +41,79 @@ def run_metaheuristic(algorithm, num_bs, num_ue):
         raise ValueError(f"Invalid metaheuristic algorithm '{algorithm}'. Choose from: {list(algorithms.keys())}")
 
     print(f"Running {algorithm.upper()} for initial optimization...")
-    optimized_solution = algorithms[algorithm].run(num_bs=num_bs, num_ue=num_ue)
-
-    # Compute KPIs based on the optimized solution
-    sinr = np.random.uniform(10, 40)  # Placeholder SINR computation
-    fairness = np.random.uniform(0.5, 1)  # Placeholder Fairness Index
-    load_balance = np.random.uniform(0.2, 1)  # Placeholder Load Balancing Score
-    handover_rate = np.random.uniform(0, 0.2)  # Placeholder Handover Rate
-
-    # Log KPIs for tracking
-    logger = KPITracker(enable_tracking=True)
-    logger.log_kpis(episode=0, sinr=sinr, fairness=fairness, load_balance=load_balance, handover_rate=handover_rate)
-
+    solution = algorithms[algorithm].run(num_bs=num_bs, num_ue=num_ue)
+    algo_instance = algorithms[algorithm]
+    # Evaluate using environment's built-in method
+    metrics = env.evaluate_detailed_solution(solution)
+    
+    # Log metrics using KPI tracker
+    KPITracker().log_kpis(
+        episode=0,
+        reward=metrics["fitness"],
+        sinr=metrics["average_sinr"],
+        fairness=metrics["fairness"],
+        load_variance=metrics["load_variance"]
+    )
+    
     return {
-        "solution": optimized_solution,
-        "SINR": sinr,
-        "fairness": fairness,
-        "load_balance": load_balance,
-        "handover_rate": handover_rate
+        "solution": solution,
+        "metrics": metrics,
+        "agents": get_agent_states(algo_instance)  # For visualization
+        # "agents": get_agent_states(algorithm)  # For visualization
     }
 
+
+def get_agent_states(algorithm_instance: Any) -> Dict:
+    """Universal agent state extractor for all algorithms"""
+    # Try common attribute patterns
+    positions = _get_possible_attribute(
+        algorithm_instance, 
+        ["positions", "population", "swarm", "spatial_positions"]
+    )
+    
+    fitness = _get_possible_attribute(
+        algorithm_instance,
+        ["fitness", "fitness_history", "best_fitnesses"]
+    )
+    
+    # Special cases (e.g., ACO pheromones)
+    trails = getattr(algorithm_instance, "pheromone_trails", None)
+    
+    return {
+        "positions": _normalize_positions(positions),
+        "fitness": _normalize_fitness(fitness),
+        "trails": trails
+    }
+
+def _get_possible_attribute(obj, attr_names):
+    """Safely get first matching attribute"""
+    for name in attr_names:
+        if hasattr(obj, name):
+            return getattr(obj, name)
+    return None  # Or default array
+
+def _normalize_positions(positions):
+    """Convert any position format to (x, y, fitness)"""
+    if positions is None:
+        return np.empty((0, 3))
+    
+    # Handle different formats
+    if isinstance(positions, list):  # Common in population-based algorithms
+        return np.array([[p[0], p[1], f] for p, f in zip(positions, fitness)])
+    
+    return positions  # Assume already formatted
+
+def _normalize_fitness(fitness):
+    """Ensure fitness is a numpy array"""
+    return np.array(fitness) if fitness is not None else np.array([])
+
+# def get_agent_states(algorithm_instance: Any) -> Dict:
+#     """Universal agent state extractor based on algorithm properties"""
+#     return {
+#         "positions": getattr(algorithm_instance, 'positions', np.empty((0, 2))),
+#         "fitness": getattr(algorithm_instance, 'fitness', np.array([])),
+#         "velocity": getattr(algorithm_instance, 'velocity', None),  # Optional
+#         "trails": getattr(algorithm_instance, 'pheromone_trails', None)  # For ACO
+#     }  
+
+    

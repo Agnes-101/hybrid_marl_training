@@ -9,3 +9,4 @@ gymnasium  # Replaces gym if using newer RLlib versions
 torch>=1.10
 tensorboard
 seaborn  # (Optional) for better visualization
+pandas>=1.5.0 
