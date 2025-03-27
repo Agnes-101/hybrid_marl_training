@@ -28,6 +28,7 @@ class LiveDashboard:
         self._setup_layout(network_bounds)
         self.algorithm_metrics = {}  # Track metrics per algorithm
         self.fitness_traces = {}  # For fitness progression plots
+        self.sinr_heatmap_trace = None  # Initialize heatmap trace reference
 
     def _initialize_traces(self):
         """Create all visualization traces (initially hidden)"""
@@ -222,7 +223,9 @@ class LiveDashboard:
         # Example: Update SINR heatmap
         if "average_sinr" in metrics:
             self._update_sinr_heatmap(algorithm, metrics["average_sinr"])
-
+        else:
+            print(f"Warning: No SINR data for {algorithm}")
+            
     def _update_fitness_plot(self, algorithm: str, fitness: float):
         """Example: Append fitness to a line chart"""
         if algorithm not in self.fitness_traces:
@@ -234,6 +237,23 @@ class LiveDashboard:
         trace = self.fitness_traces[algorithm]
         trace.x = list(trace.x) + [len(trace.x)]
         trace.y = list(trace.y) + [fitness]
+    
+    def _update_sinr_heatmap(self, algorithm: str, sinr_value: float):
+        """Update SINR heatmap visualization (simplified example)"""
+        if self.sinr_heatmap_trace is None:
+            # Initialize heatmap trace on first call
+            self.sinr_heatmap_trace = go.Heatmap(
+                z=[[sinr_value]],  # Start with initial value
+                colorscale='Viridis',
+                name=f'{algorithm.upper()} SINR'
+            )
+            self.fig.add_trace(self.sinr_heatmap_trace, row=1, col=2)
+        else:
+            # Update existing trace (append new value)
+            self.sinr_heatmap_trace.z = np.vstack([
+                self.sinr_heatmap_trace.z,
+                [sinr_value]
+            ])
     
     def finalize_visualizations(self):
         """Save final plots and clean up resources"""
