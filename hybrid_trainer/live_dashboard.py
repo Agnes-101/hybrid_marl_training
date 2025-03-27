@@ -26,6 +26,8 @@ class LiveDashboard:
         self._initialize_traces()
         self._add_controls()
         self._setup_layout(network_bounds)
+        self.fig.update_layout(title="6G Network Optimization")
+        self.fig.show(renderer="colab")  # Force Colab rendering
         self.algorithm_metrics = {}  # Track metrics per algorithm
         self.fitness_traces = {}  # For fitness progression plots
         self.sinr_heatmap_trace = None  # Initialize heatmap trace reference
@@ -160,6 +162,33 @@ class LiveDashboard:
         self.fig.update_xaxes(title_text="Iteration", row=2, col=2)
         self.fig.update_yaxes(title_text="Fairness", row=2, col=2)
 
+    def update(self, env_state: dict, metrics: dict, phase: str = "metaheuristic"):
+        """Universal update method for all visualization components"""
+        # Update network view (BS and UE positions)
+        self.update_network_state(
+            env_state["base_stations"],
+            env_state["users"]
+        )
+        
+        if phase == "metaheuristic":
+            # Update algorithm agents and metrics
+            self.update_metaheuristic(
+                algorithm=metrics.get("algorithm", "de"),
+                positions=metrics.get("positions", []),
+                fitness=metrics.get("fitness", [])
+            )
+        elif phase == "marl":
+            # Update MARL-specific visualizations
+            self.update_marl(
+                associations=env_state["users"],
+                rewards=metrics.get("rewards", []),
+                fairness=metrics.get("fairness", 0.0)
+            )
+        
+        # Optional: Force refresh in Colab
+        self.fig.show(renderer="colab")
+
+    
     def update_network_state(self, base_stations, users):
         """Update 3D network visualization"""
         with self.fig.batch_update():
@@ -167,12 +196,14 @@ class LiveDashboard:
             self.fig.data[0].x = [bs['position'][0] for bs in base_stations]
             self.fig.data[0].y = [bs['position'][1] for bs in base_stations]
             self.fig.data[0].z = [bs['load'] for bs in base_stations]
-            
+            self.fig.data[0].marker.size = [bs["load"]*5 for bs in base_stations]  # Scale for visibility
             # Users
             self.fig.data[1].x = [u['position'][0] for u in users]
             self.fig.data[1].y = [u['position'][1] for u in users]
             self.fig.data[1].z = [u.get('sinr', 0) for u in users]
-
+            
+        self.fig.show(renderer="colab")  # Refresh display
+        
     def update_metaheuristic(self, algorithm, positions, fitness):
         """Update metaheuristic agents visualization"""
         trace = self.algorithm_traces[algorithm]

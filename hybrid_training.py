@@ -45,7 +45,15 @@ class HybridTraining:
         
         # Run optimization with visualization callback
        
-        solution = run_metaheuristic(self.env, algorithm)
+        # solution = run_metaheuristic(self.env, algorithm)
+        solution = run_metaheuristic(
+                self.env,
+                algorithm,
+                visualize_callback=lambda: self.dashboard.update(
+                    agents=self._get_current_agents(),
+                    metrics=self.kpi_logger.get_recent_metrics()
+                )
+            )
         # Log and visualize results
         self.kpi_logger.log_algorithm_performance(algorithm=algorithm,metrics=solution["metrics"])
         self.dashboard.update_algorithm_metrics(algorithm=algorithm,metrics=solution["metrics"] )
@@ -226,8 +234,8 @@ if __name__ == "__main__":
         }
     }
 
-    trainer = HybridTraining(config)
-    trainer.run()
+    orchestrator = HybridTraining(config)
+    orchestrator.run()
 # def hybrid_training(config):
 #     """
 #     Runs hybrid training: 

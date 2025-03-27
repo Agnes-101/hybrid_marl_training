@@ -123,21 +123,43 @@ class NetworkEnvironment:
     def _get_obs(self):
         return {f"BS_{bs.id}": {"load": bs.load} for bs in self.base_stations}
     
+    # In NetworkEnvironment.get_current_state()
     def get_current_state(self):
-        """Returns observation space for visualization"""
         return {
             "base_stations": [
-                {"id": bs.id, "position": bs.position.numpy(), "load": bs.load}
-                for bs in self.base_stations
+                {
+                    "id": bs.id,
+                    "position": bs.position.numpy(),
+                    "load": bs.load,
+                    "capacity": bs.capacity
+                } for bs in self.base_stations
             ],
             "users": [
-                {"id": ue.id, 
-                "position": ue.position.numpy(),
-                "associated_bs": ue.associated_bs}
-                for ue in self.ues
+                {
+                    "id": ue.id,
+                    "position": ue.position.numpy(),
+                    "associated_bs": ue.associated_bs,
+                    "sinr": ue.sinr.item()  # Convert tensor to float
+                } for ue in self.ues
             ],
-            "metaheuristic_agents": []  # Placeholder for PFO/PSO agents
+            "metaheuristic_agents": self.current_metaheuristic_agents  # Set by optimizer
         }
+    
+    # def get_current_state(self):
+    #     """Returns observation space for visualization"""
+    #     return {
+    #         "base_stations": [
+    #             {"id": bs.id, "position": bs.position.numpy(), "load": bs.load}
+    #             for bs in self.base_stations
+    #         ],
+    #         "users": [
+    #             {"id": ue.id, 
+    #             "position": ue.position.numpy(),
+    #             "associated_bs": ue.associated_bs}
+    #             for ue in self.ues
+    #         ],
+    #         "metaheuristic_agents": []  # Placeholder for PFO/PSO agents
+    #     }
 
     def apply_solution(self, solution):
         """Apply metaheuristic solution to the environment"""
