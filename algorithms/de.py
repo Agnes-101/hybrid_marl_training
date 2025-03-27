@@ -58,15 +58,15 @@ class DEOptimization:
         #     "agents": {"positions": self.positions, "fitness": self.fitness}
         # }
         return {
-            "solution": best_solution,
-            "metrics": env.evaluate_detailed_solution(best_solution),
+            "solution": self.best_solution,
+            "metrics": env.evaluate_detailed_solution(self.best_solution),
             "agents": [  # Populate metaheuristic_agents for visualization
                 {
                     "position": [env.base_stations[bs_id].position[0], 
                                 env.base_stations[bs_id].position[1]],
                     "fitness": fitness
                 }
-                for bs_id, fitness in zip(best_solution, self.fitness_history)
+                for bs_id, fitness in zip(self.best_solution, self.fitness_history)
             ]
         }
 
