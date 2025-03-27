@@ -123,16 +123,18 @@ class DEOptimization:
         bs_positions = {bs.id: bs.position.numpy() for bs in env.base_stations}
         current_fitness = env.evaluate_detailed_solution(self.best_solution)["fitness"]
         
+        # Update positions (BS x, BS y, current fitness)
         self.positions = np.array([
             [bs_positions[bs_id][0], bs_positions[bs_id][1], current_fitness]
             for bs_id in self.best_solution
         ])
         
-        # Maintain fitness history (truncate/pad to match population size)
-        self.fitness = np.concatenate((
+        # Maintain rolling fitness history (fixed-size array)
+        num_to_add = max(0, self.population_size - len(self.fitness))
+        self.fitness = np.concatenate([
             self.fitness,
-            np.full(self.population_size - len(self.fitness), current_fitness)
-        ))[:self.population_size]
+            np.full(num_to_add, current_fitness)  # No negative values
+        ])[-self.population_size:]  # Keep LAST N entries (most recent)
 
 
 
