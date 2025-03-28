@@ -80,7 +80,8 @@ class KPITracker:
             'load_variance': 'min'
         }).to_dict()
         
-    def log_kpis(self, episode, **metrics):
+    def log_kpis(self, episode: int, reward: float, sinr: float, 
+                fairness: float, load_variance: float):
         if self.enabled:
             # Ensure fairness is scalar
             if isinstance(fairness, (list, np.ndarray)):

@@ -55,7 +55,7 @@ class LiveDashboard:
             mode='markers',
             marker=dict(size=3, color='blue', opacity=0.5),
             name='Users',
-            visible=True
+            visible=False
         ), row=1, col=1)
 
         # Metaheuristic Algorithm Traces
@@ -70,7 +70,7 @@ class LiveDashboard:
                     opacity=0.7
                 ),
                 name=f'{algo.upper()} Agents',
-                visible=True
+                visible=False
             )
             self.fig.add_trace(trace, row=1, col=1)
             self.algorithm_traces[algo] = trace
@@ -80,14 +80,14 @@ class LiveDashboard:
             x=[], y=[],
             name='Global Reward',
             line=dict(color=self.algorithm_colors["marl"]),
-            visible=True
+            visible=False
         ), row=1, col=2)
         
         self.fig.add_trace(go.Scatter(   # Fairness Index
             x=[], y=[],  
             name='Fairness Index',
             line=dict(color='#2ECC71'),
-            visible=True
+            visible=False
         ), row=1, col=2)
         
         self.fig.add_trace(go.Heatmap(
@@ -129,7 +129,7 @@ class LiveDashboard:
                 dict(
                     buttons=list([
                         dict(label="All", method="restyle", args=["visible", [True]*3]),
-                        dict(label="PFO Only", method="restyle", args=["visible", [True, False, False]]),
+                        dict(label="DE Only", method="restyle", args=["visible", [True, False, False]]),
                         dict(label="ACO Only", method="restyle", args=["visible", [False, True, False]]),
                         dict(label="PSO Only", method="restyle", args=["visible", [False, False, True]])
                     ]),
