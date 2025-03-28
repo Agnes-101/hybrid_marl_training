@@ -1,7 +1,10 @@
 # hybrid_trainer/live_dashboard.py
 import plotly.graph_objects as go
+import plotly.io as pio
 from plotly.subplots import make_subplots
+from IPython import display  # Import inside method for Colab compatibility
 import numpy as np
+import time
 
 class LiveDashboard:
     def __init__(self, network_bounds=(0, 100), algorithm_colors=None):
@@ -27,11 +30,14 @@ class LiveDashboard:
         self._add_controls()
         self._setup_layout(network_bounds)
         self.fig.update_layout(title="6G Network Optimization")
-        self.fig.show(renderer="colab")  # Force Colab rendering
+        # self.fig.show(renderer="colab")  # Force Colab rendering
+        self.figure_handle = display.display(self.fig, display_id='live-dashboard')
         self.algorithm_metrics = {}  # Track metrics per algorithm
         self.fitness_traces = {}  # For fitness progression plots
         self.sinr_heatmap_trace = None  # Initialize heatmap trace reference
-
+        
+    pio.renderers.default = "colab"
+    
     def _initialize_traces(self):
         """Create all visualization traces (initially hidden)"""
         
@@ -164,11 +170,11 @@ class LiveDashboard:
 
     def update(self, env_state: dict, metrics: dict, phase: str = "metaheuristic"):
         """Universal update method for all visualization components"""
+        # Add debug prints in LiveDashboard.update()
+        print("Updating dashboard with:", len(env_state["metaheuristic_agents"]), "agents")
+        print("Current metrics keys:", metrics.keys())
         # Update network view (BS and UE positions)
-        self.update_network_state(
-            env_state["base_stations"],
-            env_state["users"]
-        )
+        self.update_network_state(env_state["base_stations"],env_state["users"])
         
         if phase == "metaheuristic":
             # Update algorithm agents and metrics
@@ -181,12 +187,18 @@ class LiveDashboard:
             # Update MARL-specific visualizations
             self.update_marl(
                 associations=env_state["users"],
-                rewards=metrics.get("rewards", []),
-                fairness=metrics.get("fairness", 0.0)
-            )
+                rewards=np.array(metrics.get("rewards", [])).astype(np.float32),
+                fairness=float(metrics.get("fairness", 0.0))
+                )
         
         # Optional: Force refresh in Colab
-        self.fig.show(renderer="colab")
+        # self.fig.show(renderer="colab")
+        # Colab-optimized rendering
+        display.clear_output(wait=True)
+        display.display(self.fig)
+        
+        # Add small delay to prevent DOM overflow        
+        time.sleep(0.3)  # 300ms interval between updates
 
     
     def update_network_state(self, base_stations, users):

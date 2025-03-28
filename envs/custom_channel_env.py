@@ -122,7 +122,10 @@ class NetworkEnvironment:
         return self._get_obs(), reward, done, {}
     
     def _get_obs(self):
-        return {f"BS_{bs.id}": {"load": bs.load} for bs in self.base_stations}
+        #return {f"BS_{bs.id}": {"load": bs.load} for bs in self.base_stations}
+        return {  # Explicitly cast to float32
+            f"BS_{bs.id}": {"load": np.float32(bs.load)} for bs in self.base_stations
+            }
     
     # In NetworkEnvironment.get_current_state()
     def get_current_state(self):

@@ -12,8 +12,10 @@ class DEOptimization:
         self.CR = 0.9  # Crossover rate
         
         # State tracking (standardized attributes)
-        self.positions = np.empty((0, 3))  # [x, y, fitness]
-        self.fitness = np.array([])
+        self.fitness = np.full(100, -np.inf, dtype=np.float32)  # Fixed-size buffer
+        self.position_history = deque(maxlen=50)  # Track movement patterns
+        # self.positions = np.empty((0, 3))  # [x, y, fitness]
+        # self.fitness = np.array([])
         self.velocity = None  # For compatibility with PSO-based visualizations
         
         # Internal state
@@ -59,11 +61,15 @@ class DEOptimization:
             ]
 
         return {
-            "solution": self.best_solution,
-            "metrics": env.evaluate_detailed_solution(self.best_solution),
-            "agents": {"positions": self.positions, "fitness": self.fitness}
-        }
-        
+                "solution": self.best_solution,
+                "metrics": env.evaluate_detailed_solution(self.best_solution),
+                "agents": {
+                    "positions": self.positions.tolist(),  # Convert numpy array to list
+                    "fitness": self.fitness.tolist(),      # Convert numpy array to list
+                    "algorithm": "de"                      # Identify algorithm for color mapping
+                }
+            }
+                    
         # return {
         #     "solution": self.best_solution,
         #     "metrics": env.evaluate_detailed_solution(self.best_solution),
@@ -135,25 +141,74 @@ class DEOptimization:
         progress = iteration / self.iterations
         self.F = 0.8 - 0.3 * progress  # Linear decay
         self.CR = 0.9 - 0.2 * (1 - progress)  # Curved adaptation
+        
+    def _calculate_visual_positions(self, env: NetworkEnvironment):
+        """Convert population to 2D visualization coordinates"""
+        visual_positions = []
+        for solution in self.population:
+            # Feature 1: Load balance (std of UE counts per BS)
+            counts = np.bincount(solution, minlength=env.num_bs)
+            x = np.std(counts)
+            
+            # Feature 2: Average SINR
+            env.apply_solution(self._vector_to_solution(solution, env))
+            y = np.mean([ue.sinr.item() for ue in env.users])
+            
+            visual_positions.append([x, y])
+        
+        return np.array(visual_positions)
 
+    # def _update_visual_state(self, env: NetworkEnvironment):
+    #     """Prepare universal visualization state"""
+    #     # Convert best solution to spatial coordinates
+    #     bs_positions = {bs.id: bs.position.numpy() for bs in env.base_stations}
+    #     current_fitness = env.evaluate_detailed_solution(self.best_solution)["fitness"]
+        
+    #     # Update positions (BS x, BS y, current fitness)
+    #     self.positions = np.array([
+    #         [bs_positions[bs_id][0], bs_positions[bs_id][1], current_fitness]
+    #         for bs_id in self.best_solution
+    #     ])
+        
+    #     # Maintain rolling fitness history (fixed-size array)
+    #     num_to_add = max(0, self.population_size - len(self.fitness))
+    #     self.fitness = np.concatenate([
+    #         self.fitness,
+    #         np.full(num_to_add, current_fitness)  # No negative values
+    #     ])[-self.population_size:]  # Keep LAST N entries (most recent)
+    
     def _update_visual_state(self, env: NetworkEnvironment):
-        """Prepare universal visualization state"""
-        # Convert best solution to spatial coordinates
-        bs_positions = {bs.id: bs.position.numpy() for bs in env.base_stations}
-        current_fitness = env.evaluate_detailed_solution(self.best_solution)["fitness"]
-        
-        # Update positions (BS x, BS y, current fitness)
-        self.positions = np.array([
-            [bs_positions[bs_id][0], bs_positions[bs_id][1], current_fitness]
-            for bs_id in self.best_solution
-        ])
-        
-        # Maintain rolling fitness history (fixed-size array)
-        num_to_add = max(0, self.population_size - len(self.fitness))
-        self.fitness = np.concatenate([
-            self.fitness,
-            np.full(num_to_add, current_fitness)  # No negative values
-        ])[-self.population_size:]  # Keep LAST N entries (most recent)
+        """Enhanced visualization state preparation with Colab compatibility"""
+        # Convert solution to spatial coordinates with error handling
+        try:
+            bs_positions = {bs.id: bs.position.numpy() for bs in env.base_stations}
+            solution_metrics = env.evaluate_detailed_solution(self.best_solution)
+            current_fitness = solution_metrics["fitness"]
+            
+            # Create position array with proper dtype for Plotly
+            self.positions = np.array([
+                [
+                    bs_positions[bs_id][0].item(),  # X: BS position
+                    bs_positions[bs_id][1].item(),  # Y: BS position
+                    np.float32(current_fitness)      # Z: Fitness value
+                ]
+                for bs_id in self.best_solution
+            ], dtype=np.float32)
+            
+            # Update environment's visualization agents
+            env.current_metaheuristic_agents = [
+                {"position": pos[:2].tolist(), "fitness": pos[2].item()}
+                for pos in self.positions
+            ]
+            
+            # Maintain fitness history with fixed-size buffer
+            self.fitness = np.roll(self.fitness, -1)
+            self.fitness[-1] = current_fitness
+
+        except KeyError as e:
+            print(f"Visualization error - missing BS position: {e}")
+        except AttributeError as e:
+            print(f"Visualization state error: {e}")
 
 
 
