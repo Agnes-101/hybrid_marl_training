@@ -1,11 +1,13 @@
 # algorithms/de.py
 import numpy as np
+from collections import deque
 from envs.custom_channel_env import NetworkEnvironment
 
 class DEOptimization:
     def __init__(self):
         """Differential Evolution for 6G UE-BS Association"""
         # Optimization parameters
+        
         self.population_size = 30
         self.iterations = 50
         self.F = 0.8  # Mutation factor

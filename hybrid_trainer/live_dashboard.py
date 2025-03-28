@@ -47,7 +47,7 @@ class LiveDashboard:
             mode='markers',
             marker=dict(size=6, color='red'),
             name='Base Stations',
-            visible=False
+            visible=True
         ), row=1, col=1)
         
         self.fig.add_trace(go.Scatter3d(
@@ -55,12 +55,12 @@ class LiveDashboard:
             mode='markers',
             marker=dict(size=3, color='blue', opacity=0.5),
             name='Users',
-            visible=False
+            visible=True
         ), row=1, col=1)
 
         # Metaheuristic Algorithm Traces
         self.algorithm_traces = {}
-        for algo in ["pfo", "aco", "pso"]:
+        for algo in ["de", "aco", "pso"]:
             trace = go.Scatter3d(
                 x=[], y=[], z=[],
                 mode='markers',
@@ -70,7 +70,7 @@ class LiveDashboard:
                     opacity=0.7
                 ),
                 name=f'{algo.upper()} Agents',
-                visible=False
+                visible=True
             )
             self.fig.add_trace(trace, row=1, col=1)
             self.algorithm_traces[algo] = trace
@@ -80,14 +80,14 @@ class LiveDashboard:
             x=[], y=[],
             name='Global Reward',
             line=dict(color=self.algorithm_colors["marl"]),
-            visible=False
+            visible=True
         ), row=1, col=2)
         
         self.fig.add_trace(go.Scatter(   # Fairness Index
             x=[], y=[],  
             name='Fairness Index',
             line=dict(color='#2ECC71'),
-            visible=False
+            visible=True
         ), row=1, col=2)
         
         self.fig.add_trace(go.Heatmap(
@@ -147,11 +147,12 @@ class LiveDashboard:
     def _setup_layout(self, bounds):
         """Configure layout dimensions and labels"""
         self.fig.update_layout(
+            width=1200,  # Add explicit width
             height=900,
             scene=dict(
                 xaxis=dict(title='X (m)', range=bounds),
                 yaxis=dict(title='Y (m)', range=bounds),
-                zaxis=dict(title='Fitness'),
+                zaxis=dict(title='Fitness', range=[0, 100]),
                 aspectmode='cube'
             ),
             scene2=dict(
@@ -203,6 +204,7 @@ class LiveDashboard:
     
     def update_network_state(self, base_stations, users):
         """Update 3D network visualization"""
+        
         with self.fig.batch_update():
             # Base stations (load as z-axis)
             self.fig.data[0].x = [bs['position'][0] for bs in base_stations]
@@ -214,6 +216,9 @@ class LiveDashboard:
             self.fig.data[1].y = [u['position'][1] for u in users]
             self.fig.data[1].z = [u.get('sinr', 0) for u in users]
             
+        print(f"Updating network with {len(base_stations)} BS, {len(users)} UEs")
+        print("Example BS data:", base_stations[0])
+        print("Example UE data:", users[0])    
         self.fig.show(renderer="colab")  # Refresh display
         
     def update_metaheuristic(self, algorithm, positions, fitness):
