@@ -68,7 +68,7 @@ class HybridTraining:
         marl_config = (PPOConfig()
             .environment(NetworkEnvironment, env_config=self.config["env_config"])
             .training(model={"custom_model": initial_policy} if initial_policy else {})
-            .resources(num_gpus=config["marl_training"]["num_gpus"]))
+            .resources(num_gpus=self.config["marl_training"]["num_gpus"]))
         
         # marl_config = (PPOConfig()
         #     .environment(NetworkEnvironment, env_config=self.config["env_config"])
