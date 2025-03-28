@@ -35,7 +35,8 @@ class HybridTraining:
         return {
             "pfo": "#FF6B6B",  # Coral
             "aco": "#4ECDC4",   # Teal
-            "pso": "#45B7D1",   # Sky Blue
+            "pso": "#45B7D1", # Sky Blue
+            "de": "#FFA500",    # Orange 
             "marl": "#9B59B6"    # Purple
         }
 

@@ -105,17 +105,17 @@ class LiveDashboard:
                 dict(
                     buttons=list([
                         dict(
-                            label="🌐 Network View",
+                            label=" Network View",
                             method="update",
                             args=[{"visible": [True, True] + [False]*5}]
                         ),
                         dict(
-                            label="🦊 Metaheuristic View",
+                            label=" Metaheuristic View",
                             method="update",
                             args=[{"visible": [False, False] + [True]*3 + [False]*2}]
                         ),
                         dict(
-                            label="🤖 MARL View",
+                            label=" MARL View",
                             method="update",
                             args=[{"visible": [False]*5 + [True, True, True]}]
                         )
