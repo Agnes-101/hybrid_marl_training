@@ -18,6 +18,7 @@ class KPITracker:
             'reward', 'sinr', 'fairness', 'load_variance'
         ])
         self.logs = []  # Initialize logs storage
+        self.data = []  # Initialize data storage
         self.algorithm_logs = []  # New: Store algorithm performance data
         
     def log_metrics(self, timestamp: float, phase: str, 

@@ -60,7 +60,7 @@ class LiveDashboard:
 
         # Metaheuristic Algorithm Traces
         self.algorithm_traces = {}
-        for algo in ["de", "aco", "pso"]:
+        for algo in ["pfo", "aco", "pso", "de"]:
             trace = go.Scatter3d(
                 x=[], y=[], z=[],
                 mode='markers',
@@ -170,6 +170,12 @@ class LiveDashboard:
         self.fig.update_yaxes(title_text="Fairness", row=2, col=2)
 
     def update(self, env_state: dict, metrics: dict, phase: str = "metaheuristic"):
+        from IPython import display
+        import time
+        
+        # Clear previous output
+        display.clear_output(wait=True)
+    
         """Universal update method for all visualization components"""
         # Add debug prints in LiveDashboard.update()
         print("Updating dashboard with:", len(env_state["metaheuristic_agents"]), "agents")
@@ -195,7 +201,8 @@ class LiveDashboard:
         # Optional: Force refresh in Colab
         # self.fig.show(renderer="colab")
         # Colab-optimized rendering
-        display.clear_output(wait=True)
+        # Clear previous output
+        # display.clear_output(wait=True)
         display.display(self.fig)
         
         # Add small delay to prevent DOM overflow        

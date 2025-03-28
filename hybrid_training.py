@@ -29,7 +29,11 @@ class HybridTraining:
         )
         
         ray.init(**config["ray_resources"])
-
+        # Create log directory if needed
+        if config["logging"]["enabled"]:
+            os.makedirs(config["logging"]["log_dir"], exist_ok=True)
+            
+            
     def _init_algorithm_colors(self) -> Dict:
         """Map algorithms to visualization colors"""
         return {
@@ -43,10 +47,29 @@ class HybridTraining:
     def _execute_metaheuristic_phase(self, algorithm: str) -> Dict:
         """Run a single metaheuristic optimization"""
         print(f"\n Initializing {algorithm.upper()} optimization...")
-        
+        from IPython import display
         # Run optimization with visualization callback
-       
-        solution = run_metaheuristic(self.env, algorithm)
+       # Create a closure to capture DE state
+        def de_visualize_callback(de_data: Dict):
+            self.dashboard.update(
+                env_state=self.env.get_current_state(),
+                metrics={
+                    "algorithm": algorithm,
+                    "positions": de_data["positions"],
+                    "fitness": de_data["fitness"]
+                },
+                phase="metaheuristic"
+            )            
+            # Force Colab DOM update
+            display.display(self.dashboard.fig)
+            time.sleep(0.5)
+        # solution = run_metaheuristic(self.env, algorithm)
+        # Pass the visualization hook to the metaheuristic
+        solution = run_metaheuristic(
+            self.env,
+            algorithm,
+            visualize_callback= de_visualize_callback  # Proper data flow
+        )
         # solution = run_metaheuristic(
         #         self.env,
         #         algorithm,
