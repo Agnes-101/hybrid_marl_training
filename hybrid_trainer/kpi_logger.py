@@ -82,6 +82,18 @@ class KPITracker:
         
     def log_kpis(self, episode, **metrics):
         if self.enabled:
+            # Ensure fairness is scalar
+            if isinstance(fairness, (list, np.ndarray)):
+                fairness = np.mean(fairness)
+            
+            self.data.append({
+                "episode": episode,
+                "reward": float(reward),
+                "sinr": float(np.mean(sinr)),
+                "fairness": float(fairness),
+                "load_variance": float(load_variance)
+            })
+            
             self.logs.append({
                 "episode": episode,
                 **metrics
