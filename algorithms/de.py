@@ -64,6 +64,14 @@ class DEOptimization:
                     "algorithm": "de"
                 })
                 print(f"DE VISUAL UPDATE @ Iter {iteration}", flush=True)  # Force output
+                # Get metrics from the current best solution
+                current_metrics = env.evaluate_detailed_solution(self.best_solution)
+                self.kpi_logger.log_kpis(
+                    episode=iteration,
+                    reward=current_metrics.get("fitness", 0),  # Or whichever key represents reward
+                    sinr=current_metrics.get("average_sinr", 0),
+                    fairness=current_metrics.get("fairness", 0),
+                    load_variance=current_metrics.get("load_variance", 0))
                 
             # Environment agent tracking
             env.current_metaheuristic_agents = [{
@@ -83,66 +91,7 @@ class DEOptimization:
                 "fitness": self.fitness.tolist(),
                 "algorithm": "de"
             }
-        }
-    # def run(self, env: NetworkEnvironment, visualize_callback: callable = None) -> dict:
-    #     """Execute DE optimization with universal state tracking"""
-    #     self._initialize_population(env)
-    #     self.best_solution = self.population[0]
-    #     self.fitness = np.zeros(self.iterations)
-        
-    #     for iteration in range(self.iterations):
-    #         self._adapt_parameters(iteration)
-    #         new_population = []
-            
-    #         for i in range(self.population_size):
-    #             trial = self._create_trial_vector(i, env)
-    #             trial = self._repair_solution(trial, env)
-                
-    #             current_fit = env.evaluate_detailed_solution(self.population[i])["fitness"]
-    #             trial_fit = env.evaluate_detailed_solution(trial)["fitness"]
-                
-    #             if trial_fit > current_fit:
-    #                 new_population.append(trial)
-    #                 if trial_fit > self.fitness[iteration]:
-    #                     self.best_solution = trial.copy()
-    #                     self.fitness[iteration] = trial_fit
-    #             else:
-    #                 new_population.append(self.population[i])
-    #             # Visualization update every 2 iterations
-    #         if iteration % 2 == 0:
-    #             self._update_visual_state(env)
-    #             if visualize_callback:
-    #                 visualize_callback({
-    #                     "positions": self.positions.tolist(),
-    #                     "fitness": self.fitness[:iteration+1].tolist(),
-    #                     "algorithm": "de"
-    #                 })
-    #         self.population = new_population
-    #         self._update_visual_state(env)
-            
-    #         if visualize_callback and iteration % 5 == 0:
-    #             visualize_callback()
-            
-    #         print(f"Visualization callback triggered at iteration {iteration}")  # Should appear every 5 steps
-                
-    #         # Update environment with agent positions
-    #         env.current_metaheuristic_agents = [
-    #             {"position": pos.tolist(), "fitness": fit} 
-    #             for pos, fit in zip(self.positions, self.fitness)
-    #         ]
-    #     # Add debug prints in DE's run method
-    #     print(f"DE Positions Sample: {self.positions[:2]}")  # Should show [[x1,y1,z1], [x2,y2,z2]]
-    #     print(f"Fitness Values: {self.fitness[:5]}")  # Should show float values
-    #     return {
-    #             "solution": self.best_solution,
-    #             "metrics": env.evaluate_detailed_solution(self.best_solution),
-    #             "agents": {
-    #                 "positions": self.positions.tolist(),  # Convert numpy array to list
-    #                 "fitness": self.fitness.tolist(),      # Convert numpy array to list
-    #                 "algorithm": "de"                      # Identify algorithm for color mapping
-    #             }
-    #         }
-                    
+        }    
       
 
     def _initialize_population(self, env: NetworkEnvironment):
