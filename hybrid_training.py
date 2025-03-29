@@ -52,6 +52,7 @@ class HybridTraining:
         # Run optimization with visualization callback
        # Create a closure to capture DE state
         def de_visualize_callback(de_data: Dict):
+            print("DE visualize callback data:", de_data)
             self.dashboard.update(
                 env_state=self.env.get_current_state(),
                 metrics={
@@ -81,6 +82,8 @@ class HybridTraining:
         #             metrics=self.kpi_logger.get_recent_metrics()
         #         )
         #     )
+        print("Final KPI History after metaheuristic phase:")
+        print(self.kpi_logger.history)
         # Log and visualize results
         self.kpi_logger.log_algorithm_performance(algorithm=algorithm,metrics=solution["metrics"])
         self.dashboard.update_algorithm_metrics(algorithm=algorithm,metrics=solution["metrics"] )
@@ -89,7 +92,9 @@ class HybridTraining:
 
     def _execute_marl_phase(self, initial_policy: Dict = None):
         """Execute MARL training phase"""
-        print(f"\n Starting {self.config['marl_algorithm'].upper()} training...")
+        # print(f"\n Starting {self.config['marl_algorithm'].upper()} training...")
+        print(f"\n Starting {self.config.get('marl_algorithm', 'PPO').upper()} training...")
+
         
         marl_config = (PPOConfig()
             .environment(NetworkEnvironment, env_config=self.config["env_config"])
