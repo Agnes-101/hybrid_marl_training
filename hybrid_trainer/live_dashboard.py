@@ -110,17 +110,17 @@ class LiveDashboard:
                         dict(
                             label=" Network View",
                             method="update",
-                            args=[{"visible": [True, True] + [False]*5}]
+                            args=[{"visible": [True, True] + [False]*7}]
                         ),
                         dict(
                             label=" Metaheuristic View",
                             method="update",
-                            args=[{"visible": [False, False] + [True]*3 + [False]*2}]
+                            args=[{"visible": [False, False] + [True]*4 + [False]*3}]
                         ),
                         dict(
                             label=" MARL View",
                             method="update",
-                            args=[{"visible": [False]*5 + [True, True, True]}]
+                            args=[{"visible": [False]*6 + [True, True, True]}]
                         )
                     ]),
                     direction="down",
