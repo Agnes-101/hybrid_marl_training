@@ -27,7 +27,8 @@ class LiveDashboard:
             "marl": "#9B59B6"
             
         }
-        
+        print("Algorithm Colors:", self.algorithm_colors)
+
         self._initialize_traces()
         self._add_controls()
         self._setup_layout(network_bounds)
