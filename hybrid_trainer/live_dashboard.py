@@ -20,11 +20,12 @@ class LiveDashboard:
         )
         
         self.algorithm_colors = algorithm_colors or {
+            "pfo": "#A020F0",
             "de": "#FF6B6B",
             "aco": "#4ECDC4",
             "pso": "#45B7D1",
-            "marl": "#9B59B6",
-            "pfo": "#A020F0"
+            "marl": "#9B59B6"
+            
         }
         
         self._initialize_traces()
