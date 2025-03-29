@@ -127,7 +127,7 @@ class NetworkEnvironment:
             f"BS_{bs.id}": {"load": np.float32(bs.load)} for bs in self.base_stations
             }
     
-    # In NetworkEnvironment.get_current_state()
+    # In NetworkEnvironment.get_current_state() for visualization
     def get_current_state(self):
         return {
             "base_stations": [
@@ -148,7 +148,52 @@ class NetworkEnvironment:
             ],
             "metaheuristic_agents": self.current_metaheuristic_agents  # Set by optimizer
         }
-    
+        
+    def get_state_snapshot(self) -> dict:
+        """Full state snapshot for rollback support"""
+        return {
+            # UE state (preserve tensors)
+            "users": [{
+                "id": ue.id,
+                "position": ue.position.clone(),
+                "velocity": ue.velocity.clone(),
+                "demand": ue.demand,
+                "associated_bs": ue.associated_bs,
+                "sinr": ue.sinr.clone()
+            } for ue in self.ues],
+            
+            # BS state (preserve allocations)
+            "base_stations": [{
+                "id": bs.id,
+                "allocated_resources": bs.allocated_resources.copy(),
+                "load": bs.load,
+                "capacity": bs.capacity
+            } for bs in self.base_stations],
+            
+            # Episode tracking
+            "current_step": self.current_step
+        }
+
+    def set_state_snapshot(self, state: dict):
+        """Restore environment from snapshot"""
+        # Restore UEs
+        for ue_state in state["users"]:
+            ue = next(u for u in self.ues if u.id == ue_state["id"])
+            ue.position = ue_state["position"].clone()
+            ue.velocity = ue_state["velocity"].clone()
+            ue.demand = ue_state["demand"]
+            ue.associated_bs = ue_state["associated_bs"]
+            ue.sinr = ue_state["sinr"].clone()
+        
+        # Restore Base Stations
+        for bs_state in state["base_stations"]:
+            bs = next(b for b in self.base_stations if b.id == bs_state["id"])
+            bs.allocated_resources = bs_state["allocated_resources"].copy()
+            bs.load = bs_state["load"]
+            bs.capacity = bs_state["capacity"]
+        
+        # Restore episode progress
+        self.current_step = state["current_step"]
     # def get_current_state(self):
     #     """Returns observation space for visualization"""
     #     return {
