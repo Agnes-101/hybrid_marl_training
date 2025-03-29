@@ -169,7 +169,7 @@ class DEOptimization:
     def _calculate_visual_positions(self, env: NetworkEnvironment):
         """Project population to 2D feature space"""
         visual_positions = []
-        original_state = env.get_state()  # Backup environment state
+        original_state = env.get_state_snapshot()  # Backup environment state
         
         try:
             # Get BS positions upfront
@@ -186,15 +186,12 @@ class DEOptimization:
                     for bs_id in range(env.num_bs)
                 })
                 y = np.mean([ue.sinr.item() for ue in env.ues])
-                
-                # Get BS positions from precomputed dict
-                positions = [bs_positions[bs_id] for bs_id in solution]
+                                
                 fitness = env.evaluate_detailed_solution(solution)["fitness"]
                 
-                visual_positions.append(np.hstack([
-                    np.mean(positions, axis=0),  # x,y centroid
-                    fitness
-                ]))
+                # Use x (load balance) and y (SINR) as coordinates
+                visual_positions.append([x, y, fitness])  # [x, y, fitness]
+                
         finally:
             env.set_state_snapshot(original_state)  # Restore environment
         

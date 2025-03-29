@@ -211,15 +211,20 @@ class NetworkEnvironment:
     #     }
 
     def apply_solution(self, solution):
-        """Apply metaheuristic solution to the environment"""
-        # Example: Apply user-BS associations
-        for bs_id, ue_ids in solution["associations"].items():
-            self.base_stations[bs_id].allocated_resources = {}
+        """Apply metaheuristic solution with validation"""
+        # Validate BS IDs exist
+        valid_bs_ids = {bs.id for bs in self.base_stations}
+        for bs_id in solution.keys():
+            if bs_id not in valid_bs_ids:
+                raise ValueError(f"Invalid BS ID {bs_id} in solution")
+        
+        # Apply associations
+        for bs_id, ue_ids in solution.items():
+            bs = next(bs for bs in self.base_stations if bs.id == bs_id)
+            bs.allocated_resources = {}
             for ue_id in ue_ids:
                 self.ues[ue_id].associated_bs = bs_id
-                # Update other parameters as needed
-        
-        self._update_system_metrics()  # Recalculate SINR, loads, etc.
+        self._update_system_metrics()
     
     # Added evaluate_detailed_solution function
     def evaluate_detailed_solution(env, solution, alpha=0.1, beta=0.1):
