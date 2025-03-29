@@ -20,11 +20,11 @@ class LiveDashboard:
         )
         
         self.algorithm_colors = algorithm_colors or {
-            # "pfo": "#A020F0",
+            "pfo": "#A020F0",
             "de": "#FF6B6B",
-            # "aco": "#4ECDC4",
-            # "pso": "#45B7D1",
-            # "marl": "#9B59B6"
+            "aco": "#4ECDC4",
+            "pso": "#45B7D1",
+            "marl": "#9B59B6"
             
         }
         print("Algorithm Colors:", self.algorithm_colors)
@@ -63,7 +63,7 @@ class LiveDashboard:
 
         # Metaheuristic Algorithm Traces
         self.algorithm_traces = {}
-        for algo in [ "de"]: # "pfo", "aco", "pso",
+        for algo in ["pfo", "aco", "pso", "de"]:
             trace = go.Scatter3d(
                 x=[], y=[], z=[],
                 mode='markers',
