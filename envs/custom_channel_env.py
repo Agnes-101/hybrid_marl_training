@@ -40,8 +40,7 @@ class NetworkEnvironment:
         self.num_ue = num_ue
         self.episode_length = episode_length
         self.current_step = 0
-        self.log_kpis = log_kpis
-        self.associations = {bs.id: [] for bs in self.base_stations}
+        self.log_kpis = log_kpis        
         self.metaheuristic_agents = []  # Initialize empty list
         
         # Initialize KPI logger if logging is enabled
@@ -58,7 +57,8 @@ class NetworkEnvironment:
                demand=np.random.randint(50, 200))
             for i in range(num_ue)
         ]
-
+        self.associations = {bs.id: [] for bs in self.base_stations}
+        
     def reset(self):
         self.current_step = 0
         for ue in self.ues:
