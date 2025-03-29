@@ -170,7 +170,7 @@ class DEOptimization:
         """Convert population to 2D visualization coordinates"""
         visual_positions = []
         # Preserve original environment state to avoid side effects
-        original_state = env.get_state()
+        original_state = env.get_state_snapshot()
         
         for solution in self.population:
             # Feature 1: Load balance (std of UE counts per BS)
@@ -187,9 +187,9 @@ class DEOptimization:
                 })
                 y = np.mean([ue.sinr.item() for ue in env.users])
                 # Restore original state
-                env.set_state(original_state)
+                env.set_state_snapshot(original_state)
             finally:
-                env.set_state(original_state)  # Safety net to restore state
+                env.set_state_snapshot(original_state)  # Safety net to restore state
             
             # Get current fitness for coloring
             fitness = env.evaluate_detailed_solution(solution)["fitness"]
