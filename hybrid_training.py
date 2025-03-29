@@ -22,6 +22,7 @@ class HybridTraining:
         self.config = config
         self.env = NetworkEnvironment(**config["env_config"])
         self.kpi_logger = KPITracker(enabled=config["logging"]["enabled"])
+        self.current_epoch = 0  # Track hybrid training epochs
         self.dashboard = LiveDashboard(
             network_bounds=(0, 100),
             algorithm_colors=self._init_algorithm_colors(),
@@ -68,6 +69,8 @@ class HybridTraining:
         solution = run_metaheuristic(
             self.env,
             algorithm,
+            self.current_epoch,
+            kpi_logger=self.kpi_logger,
             visualize_callback= de_visualize_callback  # Proper data flow
         )
         # solution = run_metaheuristic(
@@ -169,6 +172,7 @@ class HybridTraining:
             # Hybrid training loop
             current_phase = "marl"
             for epoch in range(1, self.config["max_epochs"] + 1):
+                self.current_epoch = epoch
                 if current_phase == "metaheuristic":
                     initial_solution = self._execute_metaheuristic_phase(
                         self.config["metaheuristic"]

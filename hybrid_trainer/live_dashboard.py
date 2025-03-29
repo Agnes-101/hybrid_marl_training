@@ -43,7 +43,7 @@ class LiveDashboard:
         
         # 3D Network Traces
         self.fig.add_trace(go.Scatter3d(
-            x=[], y=[], z=[],
+            x=[], y=[] , z=[],
             mode='markers',
             marker=dict(size=6, color='red'),
             name='Base Stations',
