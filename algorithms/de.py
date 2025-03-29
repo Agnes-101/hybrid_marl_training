@@ -170,7 +170,7 @@ class DEOptimization:
         """Convert population to 2D visualization coordinates"""
         visual_positions = []
         # Preserve original environment state to avoid side effects
-        original_state = env.get_state()
+        original_state = env.get_current_state()
         
         for solution in self.population:
             # Feature 1: Load balance (std of UE counts per BS)
