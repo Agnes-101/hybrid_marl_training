@@ -26,7 +26,7 @@ class BaseStation:
         self.id = id
         self.position = torch.tensor(position, dtype=torch.float32)
         self.frequency = torch.tensor(frequency, dtype=torch.float32)
-        self.bandwidth = bandwidth  # MHz
+        self.bandwidth = torch.tensor(bandwidth , dtype=torch.float32) # MHz
         self.allocated_resources = {}  # {ue_id: allocated_bandwidth}
         self.load = 0.0
         self.capacity = bandwidth // 200  # 200 Mbps/UE
@@ -48,7 +48,7 @@ class NetworkEnvironment:
 
         self.base_stations = [
             BaseStation(id=i, position=[np.random.uniform(0, 100), np.random.uniform(0, 100)],
-                        frequency=100.0, bandwidth=1000)
+                        frequency=100.0, bandwidth=1000.0)
             for i in range(num_bs)
         ]
         self.ues = [
