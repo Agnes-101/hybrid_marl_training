@@ -23,7 +23,8 @@ class LiveDashboard:
             "de": "#FF6B6B",
             "aco": "#4ECDC4",
             "pso": "#45B7D1",
-            "marl": "#9B59B6"
+            "marl": "#9B59B6",
+            "pfo": "#808080"
         }
         
         self._initialize_traces()
@@ -54,7 +55,7 @@ class LiveDashboard:
             x=[], y=[], z=[],
             mode='markers',
             marker=dict(size=3, color='blue', opacity=0.5),
-            name='Users',
+            name='True',
             visible=False
         ), row=1, col=1)
 
