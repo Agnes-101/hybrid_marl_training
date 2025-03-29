@@ -58,7 +58,9 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     # Modified line: pass the environment to the run method
     
     algo_instance = algorithms[algorithm]
+    print(f"\n Algorithm Instance, {algo_instance}")
     solution = algo_instance.run(env)
+    print(f"\n Algorithm Solution, {solution}")
     
     # Extract solution from the result
     # solution = solution_result["solution"]
@@ -67,6 +69,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     
     # Evaluate using environment's built-in method
     metrics = env.evaluate_detailed_solution(solution)
+    print(f"\n Metrics, {metrics}")
     
     # Log metrics using KPI tracker
     kpi_logger.log_kpis(
