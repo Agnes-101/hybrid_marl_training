@@ -110,8 +110,8 @@ class DEOptimization:
     def _initialize_population(self, env: NetworkEnvironment):
         """Generate random UE-BS associations"""
         self.population = [
-            self._rng.randint(0, env.num_bs, env.num_ue)
-            for _ in range(self.population_size)
+            self._rng.randint(0, int(env.num_bs), int(env.num_ue))
+            for _ in range(int(self.population_size))
         ]
 
     def _create_trial_vector(self, target_idx: int, env: NetworkEnvironment) -> np.ndarray:
@@ -121,7 +121,7 @@ class DEOptimization:
         
         mutant = np.clip(
             self.population[a] + self.F * (self.population[b] - self.population[c]),
-            0, env.num_bs - 1
+            0, int(env.num_bs) - 1
         ).astype(int)
         
         trial = self.population[target_idx].copy()
@@ -136,14 +136,14 @@ class DEOptimization:
         bs_counts = np.bincount(trial, minlength=env.num_bs)
         
         # 1. Get capacities for ALL base stations first
-        capacities = np.array([bs.capacity for bs in env.base_stations])
+        capacities = np.array([int(bs.capacity) for bs in env.base_stations])  # Force to int
         
         # 2. Find overloaded BS indices using vectorized comparison
         overloaded_bs_ids = np.where(bs_counts > capacities)[0]
         
         # 3. Process overloaded BSs
         for bs_id in overloaded_bs_ids:
-            excess = bs_counts[bs_id] - capacities[bs_id]
+            excess = int(bs_counts[bs_id] - capacities[bs_id])
             ue_indices = np.where(trial == bs_id)[0]
             np.random.shuffle(ue_indices)
             
