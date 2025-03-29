@@ -13,12 +13,14 @@ class DEOptimization:
         self.F = 0.8  # Mutation factor
         self.CR = 0.9  # Crossover rate
         
-        # State tracking (standardized attributes)
-        self.fitness = np.full(100, -np.inf, dtype=np.float32)  # Fixed-size buffer
-        self.position_history = deque(maxlen=50)  # Track movement patterns
-        # self.positions = np.empty((0, 3))  # [x, y, fitness]
-        # self.fitness = np.array([])
-        self.velocity = None  # For compatibility with PSO-based visualizations
+        # State tracking
+        self.positions = np.empty((0, 3))  # Proper initialization
+        self.best_fitness_history = []  # Track best fitness per iteration
+        self.position_history = deque(maxlen=50)
+        self.velocity = None  # For compatibility
+        # self.fitness = np.full(100, -np.inf, dtype=np.float32)  # Fixed-size buffer
+        # self.position_history = deque(maxlen=50)  # Track movement patterns
+        # self.velocity = None  # For compatibility with PSO-based visualizations
         
         # Internal state
         self.population = None
@@ -29,11 +31,13 @@ class DEOptimization:
         """Optimized DE execution with reliable visualization"""
         self._initialize_population(env)
         self.best_solution = self.population[0]
-        self.fitness = np.zeros(self.iterations, dtype=np.float32)
+        self.best_fitness_history = []
+        # self.fitness = np.zeros(self.iterations, dtype=np.float32)
         
         for iteration in range(self.iterations):
             self._adapt_parameters(iteration)
             new_population = []
+            best_iter_fitness = -np.inf
             
             # Main DE loop
             for i in range(self.population_size):
@@ -43,24 +47,33 @@ class DEOptimization:
                 current_fit = env.evaluate_detailed_solution(self.population[i])["fitness"]
                 trial_fit = env.evaluate_detailed_solution(trial)["fitness"]
                 
+                # if trial_fit > current_fit:
+                #     new_population.append(trial)
+                #     if trial_fit > self.fitness[iteration]:
+                #         self.best_solution = trial.copy()
+                #         self.fitness[iteration] = trial_fit
+                # else:
+                #     new_population.append(self.population[i])
                 if trial_fit > current_fit:
                     new_population.append(trial)
-                    if trial_fit > self.fitness[iteration]:
+                    if trial_fit > best_iter_fitness:
+                        best_iter_fitness = trial_fit
                         self.best_solution = trial.copy()
-                        self.fitness[iteration] = trial_fit
                 else:
                     new_population.append(self.population[i])
+                    if current_fit > best_iter_fitness:
+                        best_iter_fitness = current_fit
             
             self.population = new_population
+            self.best_fitness_history.append(best_iter_fitness)
+            self._update_visual_state(env)  # Update positions based on population
             
-            # Visualization handling
-            self._update_visual_state(env)  # Single state update
-            
+                        
             # Unified visualization trigger every 5 iterations
             if iteration % 5 == 0 and visualize_callback:
                 visualize_callback({
                     "positions": self.positions.tolist(),
-                    "fitness": self.fitness[:iteration+1].tolist(),
+                    "fitness": self.best_fitness_history,# self.fitness[:iteration+1].tolist(),
                     "algorithm": "de"
                 })
                 print(f"DE VISUAL UPDATE @ Iter {iteration}", flush=True)  # Force output
@@ -165,9 +178,11 @@ class DEOptimization:
             env.apply_solution(self._vector_to_solution(solution, env))
             y = np.mean([ue.sinr.item() for ue in env.users])
             
+            # Get current fitness for coloring
+            fitness = env.evaluate_detailed_solution(solution)["fitness"]
             visual_positions.append([x, y])
         
-        return np.array(visual_positions)
+        return np.array(visual_positions, dtype=np.float32)
 
     # def _update_visual_state(self, env: NetworkEnvironment):
     #     """Prepare universal visualization state"""
@@ -197,15 +212,16 @@ class DEOptimization:
             current_fitness = solution_metrics["fitness"]
             
             # Create position array with proper dtype for Plotly
-            self.positions = np.array([
-                [
-                    float(bs_positions[bs_id][0].item()),  # X: BS position
-                    float(bs_positions[bs_id][1].item()),  # Y: BS position
-                    np.float32(current_fitness)      # Z: Fitness value
-                ]
-                for bs_id in self.best_solution
-            ], dtype=np.float32)
+            # self.positions = np.array([
+            #     [
+            #         float(bs_positions[bs_id][0].item()),  # X: BS position
+            #         float(bs_positions[bs_id][1].item()),  # Y: BS position
+            #         np.float32(current_fitness)      # Z: Fitness value
+            #     ]
+            #     for bs_id in self.best_solution
+            # ], dtype=np.float32)
             
+            self.positions = self._calculate_visual_positions(env)
             # Update environment's visualization agents
             env.current_metaheuristic_agents = [
                 {"position": pos[:2].tolist(), "fitness": pos[2].item()}
