@@ -98,7 +98,10 @@ class KPITracker:
             
             self.logs.append({
                 "episode": episode,
-                **metrics
+                "reward": reward,
+                "sinr": sinr,
+                "fairness": fairness,
+                "load_variance": load_variance
             })
             
     def generate_final_reports(self):
