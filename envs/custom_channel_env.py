@@ -41,7 +41,8 @@ class NetworkEnvironment:
         self.episode_length = episode_length
         self.current_step = 0
         self.log_kpis = log_kpis
-        self.current_metaheuristic_agents = []  # Initialize empty list
+        self.associations = {bs.id: [] for bs in self.base_stations}
+        self.metaheuristic_agents = []  # Initialize empty list
         
         # Initialize KPI logger if logging is enabled
         self.kpi_logger = KPITracker() if log_kpis else None
@@ -146,6 +147,7 @@ class NetworkEnvironment:
                     "sinr": ue.sinr.item()  # Convert tensor to float
                 } for ue in self.ues
             ],
+            "associations": self.associations.copy(),
             "metaheuristic_agents": self.current_metaheuristic_agents  # Set by optimizer
         }
         
@@ -194,36 +196,43 @@ class NetworkEnvironment:
         
         # Restore episode progress
         self.current_step = state["current_step"]
-    # def get_current_state(self):
-    #     """Returns observation space for visualization"""
-    #     return {
-    #         "base_stations": [
-    #             {"id": bs.id, "position": bs.position.numpy(), "load": bs.load}
-    #             for bs in self.base_stations
-    #         ],
-    #         "users": [
-    #             {"id": ue.id, 
-    #             "position": ue.position.numpy(),
-    #             "associated_bs": ue.associated_bs}
-    #             for ue in self.ues
-    #         ],
-    #         "metaheuristic_agents": []  # Placeholder for PFO/PSO agents
-    #     }
-
+    
+    def _update_system_metrics(self):
+        """Update all system metrics after applying a new solution"""
+        # Update SINR for all users
+        for ue in self.ues:
+            if ue.associated_bs is not None:
+                bs = next(bs for bs in self.base_stations if bs.id == ue.associated_bs)
+                ue.sinr = self.calculate_sinr(ue, bs)
+        
+        # Update load for all base stations
+        for bs in self.base_stations:
+            bs.calculate_load()
+            
     def apply_solution(self, solution):
         """Apply metaheuristic solution with validation"""
+        # Clear existing associations
+        for bs in self.base_stations:
+            bs.allocated_resources = {}
+            self.associations[bs.id] = []
         # Validate BS IDs exist
         valid_bs_ids = {bs.id for bs in self.base_stations}
         for bs_id in solution.keys():
             if bs_id not in valid_bs_ids:
                 raise ValueError(f"Invalid BS ID {bs_id} in solution")
         
-        # Apply associations
+        # # Apply associations
+        # for bs_id, ue_ids in solution.items():
+        #     bs = next(bs for bs in self.base_stations if bs.id == bs_id)
+        #     bs.allocated_resources = {}
+        #     for ue_id in ue_ids:
+        #         self.ues[ue_id].associated_bs = bs_id
+        # Apply new associations
         for bs_id, ue_ids in solution.items():
             bs = next(bs for bs in self.base_stations if bs.id == bs_id)
-            bs.allocated_resources = {}
             for ue_id in ue_ids:
                 self.ues[ue_id].associated_bs = bs_id
+                bs.allocated_resources[ue_id] = self.ues[ue_id].demand
         self._update_system_metrics()
     
     # Added evaluate_detailed_solution function
