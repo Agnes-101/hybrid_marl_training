@@ -167,33 +167,36 @@ class DEOptimization:
         self.CR = 0.9 - 0.2 * (1 - progress)  # Curved adaptation
         
     def _calculate_visual_positions(self, env: NetworkEnvironment):
-        """Convert population to 2D visualization coordinates"""
+        """Project population to 2D feature space"""
         visual_positions = []
-        # Preserve original environment state to avoid side effects
-        original_state = env.get_state_snapshot()
+        original_state = env.get_state()  # Backup environment state
         
-        for solution in self.population:
-            # Feature 1: Load balance (std of UE counts per BS)
-            counts = np.bincount(solution, minlength=env.num_bs)
-            x = np.std(counts)
+        try:
+            # Get BS positions upfront
+            bs_positions = {bs.id: bs.position.numpy() for bs in env.base_stations}
             
-            # Feature 2: Average SINR
-            # env.apply_solution(self._vector_to_solution(solution, env))            
-            try:
-                # Apply solution using dictionary comprehension
+            for solution in self.population:
+                # Feature 1: Load balance (std of UE counts per BS)
+                counts = np.bincount(solution, minlength=env.num_bs)
+                x = np.std(counts)
+                
+                # Feature 2: Average SINR (temporary state)
                 env.apply_solution({
                     bs_id: np.where(solution == bs_id)[0].tolist() 
                     for bs_id in range(env.num_bs)
                 })
-                y = np.mean([ue.sinr.item() for ue in env.users])
-                # Restore original state
-                env.set_state_snapshot(original_state)
-            finally:
-                env.set_state_snapshot(original_state)  # Safety net to restore state
-            
-            # Get current fitness for coloring
-            fitness = env.evaluate_detailed_solution(solution)["fitness"]
-            visual_positions.append([x, y, fitness])
+                y = np.mean([ue.sinr.item() for ue in env.ues])
+                
+                # Get BS positions from precomputed dict
+                positions = [bs_positions[bs_id] for bs_id in solution]
+                fitness = env.evaluate_detailed_solution(solution)["fitness"]
+                
+                visual_positions.append(np.hstack([
+                    np.mean(positions, axis=0),  # x,y centroid
+                    fitness
+                ]))
+        finally:
+            env.set_state_snapshot(original_state)  # Restore environment
         
         return np.array(visual_positions, dtype=np.float32)
 
