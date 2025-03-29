@@ -32,7 +32,7 @@ class DEOptimization:
         self._initialize_population(env)
         self.best_solution = self.population[0]
         self.best_fitness_history = []
-        # self.fitness = np.zeros(self.iterations, dtype=np.float32)
+        self.fitness = np.zeros(self.iterations, dtype=np.float32)
         
         for iteration in range(self.iterations):
             self._adapt_parameters(iteration)
@@ -169,18 +169,30 @@ class DEOptimization:
     def _calculate_visual_positions(self, env: NetworkEnvironment):
         """Convert population to 2D visualization coordinates"""
         visual_positions = []
+        # Preserve original environment state to avoid side effects
+        original_state = env.get_state()
+        
         for solution in self.population:
             # Feature 1: Load balance (std of UE counts per BS)
             counts = np.bincount(solution, minlength=env.num_bs)
             x = np.std(counts)
             
             # Feature 2: Average SINR
-            env.apply_solution(self._vector_to_solution(solution, env))
-            y = np.mean([ue.sinr.item() for ue in env.users])
+            # env.apply_solution(self._vector_to_solution(solution, env))            
+            try:
+                # Apply solution using dictionary comprehension
+                env.apply_solution({
+                    bs_id: np.where(solution == bs_id)[0].tolist() 
+                    for bs_id in range(env.num_bs)
+                })
+                y = np.mean([ue.sinr.item() for ue in env.users])
+                
+            finally:
+                env.set_state(original_state)  # Always restore state
             
             # Get current fitness for coloring
             fitness = env.evaluate_detailed_solution(solution)["fitness"]
-            visual_positions.append([x, y])
+            visual_positions.append([x, y, fitness])
         
         return np.array(visual_positions, dtype=np.float32)
 
