@@ -27,7 +27,7 @@ class LiveDashboard:
             "marl": "#9B59B6"
             
         }
-        print("Algorithm Colors:", self.algorithm_colors)
+        # print("Algorithm Colors:", self.algorithm_colors)
 
         self._initialize_traces()
         self._add_controls()
@@ -82,7 +82,7 @@ class LiveDashboard:
         self.fig.add_trace(go.Scatter(  # Global Reward
             x=[], y=[],
             name='Global Reward',
-            line=dict(color=self.algorithm_colors["marl"]),
+            line=dict(color="#9B59B6") #,self.algorithm_colors["marl"]
             visible=False
         ), row=1, col=2)
         
