@@ -71,7 +71,7 @@ class HybridTraining:
             algorithm,
             self.current_epoch,
             kpi_logger=self.kpi_logger,
-            # visualize_callback= de_visualize_callback  # Proper data flow
+            visualize_callback= de_visualize_callback  # Proper data flow
         )
         # solution = run_metaheuristic(
         #         self.env,

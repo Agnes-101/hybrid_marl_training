@@ -25,7 +25,7 @@ from algorithms.de import DEOptimization
 # from algorithms.tabu import TABU
 # from algorithms.woa import WOA
 
-def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_logger: KPITracker) -> dict:
+def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_logger: KPITracker,visualize_callback=None) -> dict:
     """
     Runs the selected metaheuristic algorithm and returns the optimized solution along with KPIs.
     
@@ -69,7 +69,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     metrics = env.evaluate_detailed_solution(solution)
     
     # Log metrics using KPI tracker
-    KPITracker().log_kpis(
+    kpi_logger.log_kpis(
         episode=epoch,
         reward=metrics["fitness"],
         sinr=metrics["average_sinr"],
