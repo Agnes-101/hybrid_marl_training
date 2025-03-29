@@ -24,7 +24,7 @@ class LiveDashboard:
             "aco": "#4ECDC4",
             "pso": "#45B7D1",
             "marl": "#9B59B6",
-            "pfo": "#808080"
+            "pfo": "#A020F0"
         }
         
         self._initialize_traces()
