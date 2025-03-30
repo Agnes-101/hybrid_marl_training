@@ -94,6 +94,7 @@ class DEOptimization:
                     "fitness": self.fitness.tolist,
                     "algorithm": "de"
                 })
+                
                 print(f"DE Visual Update @ Iter {iteration}")
             
             # Environment agent tracking

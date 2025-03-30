@@ -52,14 +52,15 @@ class HybridTraining:
         # Run optimization with visualization callback
        # Create a closure to capture DE state
         def de_visualize_callback(de_data: Dict):
-            print("DE visualize callback data:", de_data)
-            self.kpi_logger.log(
-                    episode=self.current_epoch,
-                    reward=de_data["metrics"]["fitness"],
-                    sinr=de_data["metrics"]["average_sinr"],
-                    fairness=de_data["metrics"]["fairness"],
-                    load_variance=de_data["metrics"]["load_variance"]
-                )
+            # print("DE visualize callback data:", de_data)
+            # self.kpi_logger.log(
+            #         episode=self.current_epoch,
+            #         reward=de_data["metrics"]["fitness"],
+            #         sinr=de_data["metrics"]["average_sinr"],
+            #         fairness=de_data["metrics"]["fairness"],
+            #         load_variance=de_data["metrics"]["load_variance"]
+            #     )
+            print 
             self.dashboard.update(
                 env_state=self.env.get_current_state(),
                 metrics={
