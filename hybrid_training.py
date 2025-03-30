@@ -53,6 +53,13 @@ class HybridTraining:
        # Create a closure to capture DE state
         def de_visualize_callback(de_data: Dict):
             print("DE visualize callback data:", de_data)
+            self.kpi_logger.log(
+                    episode=self.current_epoch,
+                    reward=de_data["metrics"]["fitness"],
+                    sinr=de_data["metrics"]["average_sinr"],
+                    fairness=de_data["metrics"]["fairness"],
+                    load_variance=de_data["metrics"]["load_variance"]
+                )
             self.dashboard.update(
                 env_state=self.env.get_current_state(),
                 metrics={
@@ -129,14 +136,55 @@ class HybridTraining:
                 self.orchestrator = orchestrator
                 
             def on_step_end(self, iteration, trials, **kwargs):
-                metrics = self.orchestrator.kpi_logger.get_recent_metrics()
-                self.orchestrator.dashboard.update(
-                    env_state=self.orchestrator.env.get_current_state(),
-                    metrics=metrics,
-                    phase="marl"
+                # ✅ Unified logging for MARL metrics
+                metrics = {
+                    "fitness": trials[0].last_result["episode_reward_mean"],
+                    "average_sinr": trials[0].last_result["custom_metrics"]["sinr_mean"],
+                    "fairness": trials[0].last_result["custom_metrics"]["fairness"],
+                    "load_variance": trials[0].last_result["custom_metrics"]["load_variance"]
+                }
+                
+                self.orchestrator.kpi_logger.log_metrics(
+                    episode=iteration,
+                    phase="marl",
+                    algorithm= "PPO",
+                    metrics=metrics
                 )
                 
+                # ✅ Pull data from consolidated history
+                recent_metrics = self.orchestrator.kpi_logger.get_recent_metrics()
+                self.orchestrator.dashboard.update(
+                    env_state=self.orchestrator.env.get_current_state(),
+                    metrics=recent_metrics,
+                    phase="marl"
+                )
+                    
         return MarlVisualizationCallback(self)
+    
+    # def _create_marl_callback(self):
+    #     """Generate callback for real-time MARL visualization"""
+    #     class MarlVisualizationCallback(tune.Callback):
+    #         def __init__(self, orchestrator):
+    #             self.orchestrator = orchestrator
+                
+    #         def on_step_end(self, iteration, trials, **kwargs):
+    #             # ✅ Log MARL metrics to KPI tracker
+    #             self.orchestrator.kpi_logger.log_kpis(
+    #                 episode=iteration,
+    #                 reward=trials[0].last_result["episode_reward_mean"],
+    #                 average_sinr=trials[0].last_result["custom_metrics"]["sinr_mean"],
+    #                 fairness=trials[0].last_result["custom_metrics"]["fairness"],
+    #                 load_variance=trials[0].last_result["custom_metrics"]["load_variance"]
+    #             )
+    #             metrics = self.orchestrator.kpi_logger.get_recent_metrics()
+    #             self.orchestrator.dashboard.update(
+    #                 env_state=self.orchestrator.env.get_current_state(),
+    #                 metrics=metrics,
+    #                 phase="marl"
+    #             )
+                
+                
+    #     return MarlVisualizationCallback(self)
 
     def _adaptive_retuning_required(self) -> bool:
         """Check if metaheuristic retuning is needed"""

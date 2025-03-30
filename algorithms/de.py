@@ -63,7 +63,14 @@ class DEOptimization:
                     new_population.append(self.population[i])
                     if current_fit > best_iter_fitness:
                         best_iter_fitness = current_fit
-            
+            # Log metrics after each iteration
+            self.kpi_logger.log_kpis(
+                episode=iteration,
+                reward=current_fit,  # From env.evaluate_detailed_solution()
+                average_sinr= metrics["average_sinr"],
+                fairness= metrics["fairness"],
+                load_variance= metrics["load_variance"]
+            )
             self.population = new_population
             self.best_fitness_history.append(best_iter_fitness)
             self._update_visual_state(env)  # Update positions based on population
@@ -82,7 +89,7 @@ class DEOptimization:
                 self.kpi_logger.log_kpis(
                     episode=iteration,
                     reward=current_metrics.get("fitness", 0),  # Or whichever key represents reward
-                    sinr=current_metrics.get("average_sinr", 0),
+                    average_sinr=current_metrics.get("average_sinr", 0),
                     fairness=current_metrics.get("fairness", 0),
                     load_variance=current_metrics.get("load_variance", 0))
                 

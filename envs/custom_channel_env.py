@@ -237,6 +237,10 @@ class NetworkEnvironment:
     
     # Added evaluate_detailed_solution function
     def evaluate_detailed_solution(env, solution, alpha=0.1, beta=0.1):
+        original_state = self.get_state_snapshot()
+        self.apply_solution(solution)  # Ensure state is updated
+        self.set_state_snapshot(original_state)
+        
         rewards = [env.calculate_reward() for _ in range(10)]  # Simulate over 10 steps
         sinr_list = [ue.sinr for ue in env.ues]
         throughput_list = [torch.log2(1 + 10**(ue.sinr/10)).item() for ue in env.ues]
@@ -256,3 +260,4 @@ class NetworkEnvironment:
             "load_variance": load_variance,
             "bs_loads": bs_loads
         }
+    

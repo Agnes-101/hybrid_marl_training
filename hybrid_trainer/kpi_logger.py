@@ -15,32 +15,51 @@ class KPITracker:
         self.enabled = enabled
         self.history = pd.DataFrame(columns=[
             'timestamp', 'phase', 'algorithm',
-            'reward', 'sinr', 'fairness', 'load_variance'
+            'reward', 'average_sinr', 'fairness', 'load_variance'
         ])
         self.logs = []  # Initialize logs storage
         self.data = []  # Initialize data storage
         self.algorithm_logs = []  # New: Store algorithm performance data
         
-    def log_metrics(self, timestamp: float, phase: str, 
-                algorithm: str, metrics: dict):
-        """Log metrics for a single timestep"""
+    def log_metrics(self, episode: int, phase: str, algorithm: str, metrics: dict):
+        """Unified logging method"""
         if not self.enabled:
             return
             
-        new_row = {
-            'timestamp': timestamp,
-            'phase': phase,
-            'algorithm': algorithm,
-            'reward': metrics.get('reward', 0),
-            'sinr': metrics.get('sinr', 0),
-            'fairness': metrics.get('fairness', 0),
-            'load_variance': metrics.get('load_variance', 0)
-        }
-        
         self.history = pd.concat([
             self.history,
-            pd.DataFrame([new_row])
+            pd.DataFrame([{
+                'timestamp': time.time(),
+                'episode': episode,
+                'phase': phase,
+                'algorithm': algorithm,
+                'reward': metrics.get('fitness', 0),
+                'average_sinr': metrics.get('average_sinr', 0),
+                'fairness': metrics.get('fairness', 0),
+                'load_variance': metrics.get('load_variance', 0)
+            }])
         ], ignore_index=True)
+    
+    # def log_metrics(self, timestamp: float, phase: str, 
+    #             algorithm: str, metrics: dict):
+    #     """Log metrics for a single timestep"""
+    #     if not self.enabled:
+    #         return
+            
+    #     new_row = {
+    #         'timestamp': timestamp,
+    #         'phase': phase,
+    #         'algorithm': algorithm,
+    #         'reward': metrics.get('reward', 0),
+    #         'average_sinr': metrics.get('average_sinr', 0),
+    #         'fairness': metrics.get('fairness', 0),
+    #         'load_variance': metrics.get('load_variance', 0)
+    #     }
+        
+    #     self.history = pd.concat([
+    #         self.history,
+    #         pd.DataFrame([new_row])
+    #     ], ignore_index=True)
 
     def log_algorithm_performance(self, algorithm: str, metrics: dict):
         """Log metaheuristic algorithm performance metrics"""
