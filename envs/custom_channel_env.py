@@ -208,32 +208,60 @@ class NetworkEnvironment:
         # Update load for all base stations
         for bs in self.base_stations:
             bs.calculate_load()
-            
+    
     def apply_solution(self, solution):
-        """Apply metaheuristic solution with validation"""
+        """Apply a solution (either numpy array or dict) to the environment"""
+        # Convert numpy array to dict format if necessary
+        if isinstance(solution, np.ndarray):
+            # Format: {bs_id: [ue_indices]}
+            solution_dict = {}
+            for ue_idx, bs_id in enumerate(solution):
+                if bs_id not in solution_dict:
+                    solution_dict[bs_id] = []
+                solution_dict[bs_id].append(ue_idx)
+            solution = solution_dict
+
+        # Validate BS IDs exist
+        valid_bs_ids = {bs.id for bs in self.base_stations}
+        for bs_id in solution.keys():
+            if bs_id not in valid_bs_ids:
+                raise ValueError(f"Invalid BS ID {bs_id} in solution")
+
         # Clear existing associations
         for bs in self.base_stations:
             bs.allocated_resources = {}
             self.associations[bs.id] = []
-        # # Validate BS IDs exist
-        # valid_bs_ids = {bs.id for bs in self.base_stations}
-        # for bs_id in solution.keys():
-        #     if bs_id not in valid_bs_ids:
-        #         raise ValueError(f"Invalid BS ID {bs_id} in solution")
-        
-        # # Apply associations
-        # for bs_id, ue_ids in solution.items():
-        #     bs = next(bs for bs in self.base_stations if bs.id == bs_id)
-        #     bs.allocated_resources = {}
-        #     for ue_id in ue_ids:
-        #         self.ues[ue_id].associated_bs = bs_id
+
         # Apply new associations
         for bs_id, ue_ids in solution.items():
             bs = next(bs for bs in self.base_stations if bs.id == bs_id)
             for ue_id in ue_ids:
                 self.ues[ue_id].associated_bs = bs_id
                 bs.allocated_resources[ue_id] = self.ues[ue_id].demand
+
         self._update_system_metrics()
+            
+    # def apply_solution(self, solution):
+    #     """Apply metaheuristic solution with validation"""
+    #     # Clear existing associations
+    #     for bs in self.base_stations:
+    #         bs.allocated_resources = {}
+    #         self.associations[bs.id] = []
+       
+        
+    #     # # Apply associations
+    #     # for bs_id, ue_ids in solution.items():
+    #     #     bs = next(bs for bs in self.base_stations if bs.id == bs_id)
+    #     #     bs.allocated_resources = {}
+    #     #     for ue_id in ue_ids:
+    #     #         self.ues[ue_id].associated_bs = bs_id
+    #     # Apply new associations
+    #     for bs_id, ue_ids in solution.items():
+    #         bs = next(bs for bs in self.base_stations if bs.id == bs_id)
+    #         for ue_id in ue_ids:
+    #             self.ues[ue_id].associated_bs = bs_id
+    #             bs.allocated_resources[ue_id] = self.ues[ue_id].demand
+    #     self._update_system_metrics()
     
     # Added evaluate_detailed_solution function
     def evaluate_detailed_solution(self, solution, alpha=0.1, beta=0.1):

@@ -26,82 +26,68 @@ class DEOptimization:
         self.population = None
         self.best_solution = None
         self._rng = np.random.RandomState()
-        
+    
     def run(self, env: NetworkEnvironment, visualize_callback: callable = None) -> dict:
-        """Optimized DE execution with reliable visualization"""
+        """Optimized DE execution with unified logging"""
         self._initialize_population(env)
         self.best_solution = self.population[0]
         self.best_fitness_history = []
-        self.fitness = np.zeros(self.iterations, dtype=np.float32)
         
         for iteration in range(self.iterations):
             self._adapt_parameters(iteration)
             new_population = []
             best_iter_fitness = -np.inf
+            best_iter_metrics = {}  # Track metrics for logging
             
             # Main DE loop
             for i in range(self.population_size):
                 trial = self._create_trial_vector(i, env)
                 trial = self._repair_solution(trial, env)
                 
-                current_fit = env.evaluate_detailed_solution(self.population[i])["fitness"]
-                trial_fit = env.evaluate_detailed_solution(trial)["fitness"]
+                current_metrics = env.evaluate_detailed_solution(self.population[i])
+                trial_metrics = env.evaluate_detailed_solution(trial)
                 
-                # if trial_fit > current_fit:
-                #     new_population.append(trial)
-                #     if trial_fit > self.fitness[iteration]:
-                #         self.best_solution = trial.copy()
-                #         self.fitness[iteration] = trial_fit
-                # else:
-                #     new_population.append(self.population[i])
+                current_fit = current_metrics["fitness"]
+                trial_fit = trial_metrics["fitness"]
+                
                 if trial_fit > current_fit:
                     new_population.append(trial)
                     if trial_fit > best_iter_fitness:
                         best_iter_fitness = trial_fit
                         self.best_solution = trial.copy()
+                        best_iter_metrics = trial_metrics  # Track best metrics
                 else:
                     new_population.append(self.population[i])
                     if current_fit > best_iter_fitness:
                         best_iter_fitness = current_fit
-            # Log metrics after each iteration
-            self.kpi_logger.log_kpis(
+                        best_iter_metrics = current_metrics  # Track best metrics
+            
+            # ✅ Unified logging (once per iteration)
+            self.kpi_logger.log_metrics(
                 episode=iteration,
-                reward=current_fit,  # From env.evaluate_detailed_solution()
-                average_sinr= metrics["average_sinr"],
-                fairness= metrics["fairness"],
-                load_variance= metrics["load_variance"]
+                phase="metaheuristic",
+                algorithm="de",
+                metrics=best_iter_metrics
             )
+            
             self.population = new_population
             self.best_fitness_history.append(best_iter_fitness)
-            self._update_visual_state(env)  # Update positions based on population
+            self._update_visual_state(env)
             
-                        
-            # Unified visualization trigger every 5 iterations
+            # Visualization handling (no duplicate logging)
             if iteration % 5 == 0 and visualize_callback:
                 visualize_callback({
                     "positions": self.positions.tolist(),
-                    "fitness": self.best_fitness_history,# self.fitness[:iteration+1].tolist(),
+                    "fitness": self.best_fitness_history,
                     "algorithm": "de"
                 })
-                print(f"DE VISUAL UPDATE @ Iter {iteration}", flush=True)  # Force output
-                # Get metrics from the current best solution
-                current_metrics = env.evaluate_detailed_solution(self.best_solution)
-                self.kpi_logger.log_kpis(
-                    episode=iteration,
-                    reward=current_metrics.get("fitness", 0),  # Or whichever key represents reward
-                    average_sinr=current_metrics.get("average_sinr", 0),
-                    fairness=current_metrics.get("fairness", 0),
-                    load_variance=current_metrics.get("load_variance", 0))
-                
+                print(f"DE Visual Update @ Iter {iteration}")
+            
             # Environment agent tracking
             env.current_metaheuristic_agents = [{
-                "position": pos.tolist()[:2],  # Only x,y for 2D projection
+                "position": pos.tolist()[:2],
                 "fitness": float(fit)
             } for pos, fit in zip(self.positions, self.fitness)]
-        
-        # Final debug output
-        print("\nDE FINAL POSITIONS:", self.positions[:2].tolist())
-        print("DE TOP FITNESS:", self.fitness[:5].tolist())
         
         return {
             "solution": self.best_solution,
@@ -111,7 +97,93 @@ class DEOptimization:
                 "fitness": self.fitness.tolist(),
                 "algorithm": "de"
             }
-        }    
+        }
+        
+    # def run(self, env: NetworkEnvironment, visualize_callback: callable = None) -> dict:
+    #     """Optimized DE execution with reliable visualization"""
+    #     self._initialize_population(env)
+    #     self.best_solution = self.population[0]
+    #     self.best_fitness_history = []
+    #     self.fitness = np.zeros(self.iterations, dtype=np.float32)
+        
+    #     for iteration in range(self.iterations):
+    #         self._adapt_parameters(iteration)
+    #         new_population = []
+    #         best_iter_fitness = -np.inf
+            
+    #         # Main DE loop
+    #         for i in range(self.population_size):
+    #             trial = self._create_trial_vector(i, env)
+    #             trial = self._repair_solution(trial, env)
+                
+    #             current_fit = env.evaluate_detailed_solution(self.population[i])["fitness"]
+    #             trial_fit = env.evaluate_detailed_solution(trial)["fitness"]
+                
+    #             # if trial_fit > current_fit:
+    #             #     new_population.append(trial)
+    #             #     if trial_fit > self.fitness[iteration]:
+    #             #         self.best_solution = trial.copy()
+    #             #         self.fitness[iteration] = trial_fit
+    #             # else:
+    #             #     new_population.append(self.population[i])
+    #             if trial_fit > current_fit:
+    #                 new_population.append(trial)
+    #                 if trial_fit > best_iter_fitness:
+    #                     best_iter_fitness = trial_fit
+    #                     self.best_solution = trial.copy()
+    #             else:
+    #                 new_population.append(self.population[i])
+    #                 if current_fit > best_iter_fitness:
+    #                     best_iter_fitness = current_fit
+    #         # Log metrics after each iteration
+    #         self.kpi_logger.log_kpis(
+    #             episode=iteration,
+    #             reward=current_fit,  # From env.evaluate_detailed_solution()
+    #             average_sinr= metrics["average_sinr"],
+    #             fairness= metrics["fairness"],
+    #             load_variance= metrics["load_variance"]
+    #         )
+    #         self.population = new_population
+    #         self.best_fitness_history.append(best_iter_fitness)
+    #         self._update_visual_state(env)  # Update positions based on population
+            
+                        
+    #         # Unified visualization trigger every 5 iterations
+    #         if iteration % 5 == 0 and visualize_callback:
+    #             visualize_callback({
+    #                 "positions": self.positions.tolist(),
+    #                 "fitness": self.best_fitness_history,# self.fitness[:iteration+1].tolist(),
+    #                 "algorithm": "de"
+    #             })
+    #             print(f"DE VISUAL UPDATE @ Iter {iteration}", flush=True)  # Force output
+    #             # Get metrics from the current best solution
+    #             current_metrics = env.evaluate_detailed_solution(self.best_solution)
+    #             self.kpi_logger.log_kpis(
+    #                 episode=iteration,
+    #                 reward=current_metrics.get("fitness", 0),  # Or whichever key represents reward
+    #                 average_sinr=current_metrics.get("average_sinr", 0),
+    #                 fairness=current_metrics.get("fairness", 0),
+    #                 load_variance=current_metrics.get("load_variance", 0))
+                
+    #         # Environment agent tracking
+    #         env.current_metaheuristic_agents = [{
+    #             "position": pos.tolist()[:2],  # Only x,y for 2D projection
+    #             "fitness": float(fit)
+    #         } for pos, fit in zip(self.positions, self.fitness)]
+        
+    #     # Final debug output
+    #     print("\nDE FINAL POSITIONS:", self.positions[:2].tolist())
+    #     print("DE TOP FITNESS:", self.fitness[:5].tolist())
+        
+    #     return {
+    #         "solution": self.best_solution,
+    #         "metrics": env.evaluate_detailed_solution(self.best_solution),
+    #         "agents": {
+    #             "positions": self.positions.tolist(),
+    #             "fitness": self.fitness.tolist(),
+    #             "algorithm": "de"
+    #         }
+    #     }    
       
 
     def _initialize_population(self, env: NetworkEnvironment):
