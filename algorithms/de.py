@@ -71,8 +71,8 @@ class DEOptimization:
                 )
             
             self.population = new_population
-            # self.fitness.append(best_iter_fitness)  # Append best fitness of the iteration
-            self.fitness[iteration] = best_iter_fitness  # Store fitness directly in the array
+            self.fitness.append(best_iter_fitness)  # Append best fitness of the iteration
+            # self.fitness[iteration] = best_iter_fitness  # Store fitness directly in the array
 
             self.best_fitness_history.append(best_iter_fitness)
             self._update_visual_state(env)
