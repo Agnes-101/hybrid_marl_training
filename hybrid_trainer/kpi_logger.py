@@ -42,13 +42,13 @@ class KPITracker:
             }])
         ], ignore_index=True)
         
-        self.logs.append({
-                "episode": episode,
-                "reward": reward,
-                "sinr": sinr,
-                "fairness": fairness,
-                "load_variance": load_variance
-            })
+        # self.logs.append({
+        #         "episode": episode,
+        #         "reward": reward,
+        #         "sinr": sinr,
+        #         "fairness": fairness,
+        #         "load_variance": load_variance
+        #     })
     
     # def log_metrics(self, timestamp: float, phase: str, 
     #             algorithm: str, metrics: dict):
