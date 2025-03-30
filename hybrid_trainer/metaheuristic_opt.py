@@ -59,9 +59,15 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     # Instantiate with required parameters
     algo_class = algorithms[algorithm]
     algo_instance = algo_class(kpi_logger=kpi_logger)  # ✅ Pass logger
-    # algo_instance = algorithms[algorithm]
+
     print(f"\n Algorithm Instance, {algo_instance}")
-    solution = algo_instance.run(env)
+    # solution = algo_instance.run(env)
+    # Pass BOTH logger and callback to Algorithm's run()
+    solution = algo_instance.run(
+        env=env,
+        visualize_callback=visualize_callback,  # Critical
+        kpi_logger=kpi_logger
+    )
     print(f"\n Algorithm Solution, {solution}")
     
     # Extract solution from the result
