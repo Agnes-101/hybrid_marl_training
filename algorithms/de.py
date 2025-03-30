@@ -70,16 +70,19 @@ class DEOptimization:
                     algorithm="de",
                     metrics=best_iter_metrics
                 )
+                print("Recent KPI Logs:", kpi_logger.recent_logs())
             
             self.population = new_population
             # self.fitness.append(best_iter_fitness)  # Append best fitness of the iteration
             self.fitness[iteration] = best_iter_fitness  # Store fitness directly in the array
-
+            # ✅ Print live updates
+            print(f"Iteration {iteration}: Best Fitness = {best_iter_fitness}")
             self.best_fitness_history.append(best_iter_fitness)
             self._update_visual_state(env)
             
             # Visualization handling (no duplicate logging)
             if iteration % 5 == 0 and visualize_callback:
+                print(" Logged Metrics:", kpi_logger.recent_logs()) 
                 visualize_callback({
                     "positions": self.positions.tolist(),
                     "fitness": self.fitness.tolist,

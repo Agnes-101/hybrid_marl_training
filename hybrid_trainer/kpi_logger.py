@@ -39,6 +39,14 @@ class KPITracker:
                 'load_variance': metrics.get('load_variance', 0)
             }])
         ], ignore_index=True)
+        
+        self.logs.append({
+                "episode": episode,
+                "reward": reward,
+                "sinr": sinr,
+                "fairness": fairness,
+                "load_variance": load_variance
+            })
     
     # def log_metrics(self, timestamp: float, phase: str, 
     #             algorithm: str, metrics: dict):
@@ -60,7 +68,11 @@ class KPITracker:
     #         self.history,
     #         pd.DataFrame([new_row])
     #     ], ignore_index=True)
-
+    
+    def recent_logs(self, n=5):
+        """Retrieve the last n log entries for debugging."""
+        return self.logs[-n:]
+    
     def log_algorithm_performance(self, algorithm: str, metrics: dict):
         """Log metaheuristic algorithm performance metrics"""
         if self.enabled:
