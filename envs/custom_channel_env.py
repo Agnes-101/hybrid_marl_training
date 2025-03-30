@@ -236,7 +236,7 @@ class NetworkEnvironment:
         self._update_system_metrics()
     
     # Added evaluate_detailed_solution function
-    def evaluate_detailed_solution(env, solution, alpha=0.1, beta=0.1):
+    def evaluate_detailed_solution(self, env, solution, alpha=0.1, beta=0.1):
         original_state = self.get_state_snapshot()
         self.apply_solution(solution)  # Ensure state is updated
         self.set_state_snapshot(original_state)
