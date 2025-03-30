@@ -16,14 +16,10 @@ class DEOptimization:
         # State tracking
         self.positions = np.empty((0, 3))  # Proper initialization
         self.fitness = []  # Track fitness per candidate solution
-        # self.fitness = np.array([], dtype=np.float32)  # Initialize empty numpy array
         self.best_fitness_history = []  # Track best fitness per iteration
         self.position_history = deque(maxlen=50)
         self.velocity = None  # For compatibility
-        # self.fitness = np.full(100, -np.inf, dtype=np.float32)  # Fixed-size buffer
-        # self.position_history = deque(maxlen=50)  # Track movement patterns
-        # self.velocity = None  # For compatibility with PSO-based visualizations
-        
+                
         # Internal state
         self.population = None
         self.best_solution = None
@@ -38,6 +34,7 @@ class DEOptimization:
         for iteration in range(self.iterations):
             self._adapt_parameters(iteration)
             new_population = []
+            current_fitness = []  # Track fitness of current population
             best_iter_fitness = -np.inf
             best_iter_metrics = {}  # Track metrics for logging
             
@@ -74,7 +71,9 @@ class DEOptimization:
                 )
             
             self.population = new_population
-            self.fitness.append(best_iter_fitness)  # Append best fitness of the iteration
+            # self.fitness.append(best_iter_fitness)  # Append best fitness of the iteration
+            self.fitness[iteration] = best_iter_fitness  # Store fitness directly in the array
+
             self.best_fitness_history.append(best_iter_fitness)
             self._update_visual_state(env)
             
