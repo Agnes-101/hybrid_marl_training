@@ -56,8 +56,10 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
 
     print(f"Running {algorithm.upper()} for initial optimization...")
     # Modified line: pass the environment to the run method
-    
-    algo_instance = algorithms[algorithm]
+    # Instantiate with required parameters
+    algo_class = algorithms[algorithm]
+    algo_instance = algo_class(kpi_logger=kpi_logger)  # ✅ Pass logger
+    # algo_instance = algorithms[algorithm]
     print(f"\n Algorithm Instance, {algo_instance}")
     solution = algo_instance.run(env)
     print(f"\n Algorithm Solution, {solution}")
