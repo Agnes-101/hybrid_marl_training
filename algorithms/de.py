@@ -16,6 +16,7 @@ class DEOptimization:
         # State tracking
         self.positions = np.empty((0, 3))  # Proper initialization
         self.fitness = []  # Track fitness per candidate solution
+        # self.fitness = np.array([], dtype=np.float32)  # Initialize empty numpy array
         self.best_fitness_history = []  # Track best fitness per iteration
         self.position_history = deque(maxlen=50)
         self.velocity = None  # For compatibility
