@@ -239,18 +239,20 @@ class NetworkEnvironment:
     def evaluate_detailed_solution(self, solution, alpha=0.1, beta=0.1):
         original_state = self.get_state_snapshot()
         self.apply_solution(solution)  # Ensure state is updated
-        self.set_state_snapshot(original_state)
-        
-        rewards = [env.calculate_reward() for _ in range(10)]  # Simulate over 10 steps
-        sinr_list = [ue.sinr for ue in env.ues]
-        throughput_list = [torch.log2(1 + 10**(ue.sinr/10)).item() for ue in env.ues]
-        bs_loads = [bs.load for bs in env.base_stations]
+                
+        rewards = [self.calculate_reward() for _ in range(10)]  # Simulate over 10 steps
+        sinr_list = [ue.sinr for ue in self.ues]
+        throughput_list = [torch.log2(1 + 10**(ue.sinr/10)).item() for ue in self.ues]
+        bs_loads = [bs.load for bs in self.base_stations]
         
         fitness_value = np.sum(rewards)
         average_sinr = np.mean(sinr_list)
         average_throughput = np.mean(throughput_list)
         fairness = (np.sum(throughput_list) ** 2) / (len(throughput_list) * np.sum(np.square(throughput_list)) + 1e-6)
         load_variance = np.var(bs_loads)
+        
+        # Restore original state AFTER calculations
+        self.set_state_snapshot(original_state)
         
         return {
             "fitness": fitness_value,
