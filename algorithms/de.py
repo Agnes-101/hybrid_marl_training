@@ -15,7 +15,8 @@ class DEOptimization:
         
         # State tracking
         self.positions = np.empty((0, 3))  # Proper initialization
-        self.fitness = []  # Track fitness per candidate solution
+        # self.fitness = []  # Track fitness per candidate solution
+        self.fitness = np.full(self.iterations, np.nan)  # Pre-allocate with NaNs
         self.best_fitness_history = []  # Track best fitness per iteration
         self.position_history = deque(maxlen=50)
         self.velocity = None  # For compatibility
@@ -71,8 +72,8 @@ class DEOptimization:
                 )
             
             self.population = new_population
-            self.fitness.append(best_iter_fitness)  # Append best fitness of the iteration
-            # self.fitness[iteration] = best_iter_fitness  # Store fitness directly in the array
+            # self.fitness.append(best_iter_fitness)  # Append best fitness of the iteration
+            self.fitness[iteration] = best_iter_fitness  # Store fitness directly in the array
 
             self.best_fitness_history.append(best_iter_fitness)
             self._update_visual_state(env)
@@ -81,7 +82,7 @@ class DEOptimization:
             if iteration % 5 == 0 and visualize_callback:
                 visualize_callback({
                     "positions": self.positions.tolist(),
-                    "fitness": self.best_fitness_history,
+                    "fitness": self.fitness.tolist,
                     "algorithm": "de"
                 })
                 print(f"DE Visual Update @ Iter {iteration}")
