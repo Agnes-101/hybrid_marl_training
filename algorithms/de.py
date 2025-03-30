@@ -28,6 +28,10 @@ class DEOptimization:
     
     def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
         """Optimized DE execution with unified logging"""
+        if kpi_logger is None:
+            kpi_logger = self.kpi_logger
+        print("Using KPI logger:", kpi_logger, flush=True)
+            
         self._initialize_population(env)
         self.best_solution = self.population[0]
         # self.best_fitness_history = []
@@ -64,7 +68,7 @@ class DEOptimization:
             
             # ✅ Unified logging (once per iteration)
             if kpi_logger:
-                kpi_logger = self.kpi_logger
+                
                 self.kpi_logger.log_metrics(
                     episode=iteration,
                     phase="metaheuristic",

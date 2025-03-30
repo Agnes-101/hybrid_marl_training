@@ -25,7 +25,9 @@ class KPITracker:
         """Unified logging method"""
         if not self.enabled:
             return
-            
+        
+        print(f"Logging metrics at episode {episode}: {metrics}", flush=True)
+        
         self.history = pd.concat([
             self.history,
             pd.DataFrame([{
