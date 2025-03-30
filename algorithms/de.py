@@ -15,6 +15,7 @@ class DEOptimization:
         
         # State tracking
         self.positions = np.empty((0, 3))  # Proper initialization
+        self.fitness = []  # Track fitness per candidate solution
         self.best_fitness_history = []  # Track best fitness per iteration
         self.position_history = deque(maxlen=50)
         self.velocity = None  # For compatibility
@@ -31,7 +32,7 @@ class DEOptimization:
         """Optimized DE execution with unified logging"""
         self._initialize_population(env)
         self.best_solution = self.population[0]
-        self.best_fitness_history = []
+        # self.best_fitness_history = []
         
         for iteration in range(self.iterations):
             self._adapt_parameters(iteration)
@@ -72,6 +73,7 @@ class DEOptimization:
                 )
             
             self.population = new_population
+            self.fitness.append(best_iter_fitness)  # Append best fitness of the iteration
             self.best_fitness_history.append(best_iter_fitness)
             self._update_visual_state(env)
             
