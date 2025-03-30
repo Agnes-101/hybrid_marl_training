@@ -64,11 +64,12 @@ class DEOptimization:
             
             # ✅ Unified logging (once per iteration)
             if kpi_logger:
+                kpi_logger = self.kpi_logger
                 self.kpi_logger.log_metrics(
                     episode=iteration,
                     phase="metaheuristic",
                     algorithm="de",
-                    metrics=best_iter_metrics
+                    metrics=best_iter_metrics 
                 )
                 print("Recent KPI Logs:", kpi_logger.recent_logs())
             
