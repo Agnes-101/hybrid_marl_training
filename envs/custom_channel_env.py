@@ -215,11 +215,11 @@ class NetworkEnvironment:
         for bs in self.base_stations:
             bs.allocated_resources = {}
             self.associations[bs.id] = []
-        # Validate BS IDs exist
-        valid_bs_ids = {bs.id for bs in self.base_stations}
-        for bs_id in solution.keys():
-            if bs_id not in valid_bs_ids:
-                raise ValueError(f"Invalid BS ID {bs_id} in solution")
+        # # Validate BS IDs exist
+        # valid_bs_ids = {bs.id for bs in self.base_stations}
+        # for bs_id in solution.keys():
+        #     if bs_id not in valid_bs_ids:
+        #         raise ValueError(f"Invalid BS ID {bs_id} in solution")
         
         # # Apply associations
         # for bs_id, ue_ids in solution.items():
