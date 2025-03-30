@@ -27,7 +27,7 @@ class DEOptimization:
         self.best_solution = None
         self._rng = np.random.RandomState()
     
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None) -> dict:
+    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
         """Optimized DE execution with unified logging"""
         self._initialize_population(env)
         self.best_solution = self.population[0]
@@ -63,12 +63,13 @@ class DEOptimization:
                         best_iter_metrics = current_metrics  # Track best metrics
             
             # ✅ Unified logging (once per iteration)
-            self.kpi_logger.log_metrics(
-                episode=iteration,
-                phase="metaheuristic",
-                algorithm="de",
-                metrics=best_iter_metrics
-            )
+            if kpi_logger:
+                self.kpi_logger.log_metrics(
+                    episode=iteration,
+                    phase="metaheuristic",
+                    algorithm="de",
+                    metrics=best_iter_metrics
+                )
             
             self.population = new_population
             self.best_fitness_history.append(best_iter_fitness)
