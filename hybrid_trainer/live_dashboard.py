@@ -37,36 +37,36 @@ class LiveDashboard:
         # Network
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='markers', name='Base Stations',
-            marker=dict(symbol='square', size=10, color='grey'),
+            marker=dict(symbol='square', size=10, color='grey')),
             row=1, col=1
-        ))
+        )
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='markers', name='Users',
-            marker=dict(size=6, color='blue', opacity=0.4),
+            marker=dict(size=6, color='blue', opacity=0.4)),
             row=1, col=1
-        ))
+        )
         
         # Metaheuristic
         for algo in ["de", "pso", "aco"]:
             self.fig.add_trace(go.Scattergl(
                 x=[], y=[], visible=False, name=f'{algo.upper()} Agents',
-                marker=dict(size=8), row=1, col=1
-            ))
+                marker=dict(size=8)), row=1, col=1
+            )
         
         # MARL
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='lines', visible=False,
-            line=dict(width=1), name='Associations', row=1, col=1
-        ))
+            line=dict(width=1), name='Associations'), row=1, col=1
+        )
 
         # Network KPIs (Column 2)
         self.fig.add_trace(go.Indicator(
             mode="number+delta", title="Connected Users",
-            number=dict(font=dict(size=20)), row=1, col=2))
+            number=dict(font=dict(size=20))), row=1, col=2)
         
         self.fig.add_trace(go.Indicator(
             mode="gauge", title="Avg SINR",
-            gauge=dict(axis=dict(range=[0, 30])), row=2, col=2))
+            gauge=dict(axis=dict(range=[0, 30]))), row=2, col=2)
         
         self.fig.add_trace(go.Bar(
             x=[], y=[], name='BS Load'), row=3, col=2)
