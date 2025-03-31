@@ -91,8 +91,9 @@ class DEOptimization:
                 print(" Logged Metrics:", kpi_logger.recent_logs()) 
                 visualize_callback({
                     "positions": self.positions.tolist(),
-                    "fitness": self.fitness.tolist,
-                    "algorithm": "de"
+                    "fitness": self.fitness.tolist(),
+                    "algorithm": "de",
+                    "env_state": env.get_current_state()
                 })
                 
                 print(f"DE Visual Update @ Iter {iteration}")
@@ -100,7 +101,8 @@ class DEOptimization:
             # Environment agent tracking
             env.current_metaheuristic_agents = [{
                 "position": pos.tolist()[:2],
-                "fitness": float(fit)
+                "fitness": float(fit),
+                "algorithm": "de"
             } for pos, fit in zip(self.positions, self.fitness)]
         
         return {
