@@ -24,8 +24,8 @@ class HybridTraining:
         self.kpi_logger = KPITracker(enabled=config["logging"]["enabled"])
         self.current_epoch = 0  # Track hybrid training epochs
         self.dashboard = LiveDashboard(
-            network_bounds=(0, 100),
-            algorithm_colors=self._init_algorithm_colors(),
+            network_bounds=(0, 100)
+            # algorithm_colors=self._init_algorithm_colors(),
             # update_interval=config["visualization"]["update_interval_ms"]
         )
         

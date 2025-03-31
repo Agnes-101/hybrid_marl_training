@@ -5,8 +5,16 @@ import numpy as np
 from IPython import display
 
 class LiveDashboard:
-    def __init__(self, network_bounds=(0, 100)):
+    def __init__(self, network_bounds=(0, 100), algorithm_colors=None):
         # Initialize figure with subplot grid
+    
+        self.algorithm_colors = algorithm_colors or {
+            "pfo": "#A020F0",
+            "de": "#FF6B6B",
+            "aco": "#4ECDC4",
+            "pso": "#45B7D1",
+            "marl": "#9B59B6"
+        }
         self.fig = sp.make_subplots(
             rows=4, cols=2,
             specs=[
@@ -235,7 +243,11 @@ class LiveDashboard:
         
         # Show new view
         self.current_view = new_view
-
+        
+    def save(self, filename="results/final_dashboard.html"):
+        """Save dashboard to HTML file"""
+        self.fig.write_html(filename)
+        print(f"Dashboard saved to {filename}")
 # # hybrid_trainer/live_dashboard.py
 # import plotly.graph_objects as go
 # import plotly.io as pio
