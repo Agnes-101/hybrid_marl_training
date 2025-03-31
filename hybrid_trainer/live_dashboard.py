@@ -245,21 +245,21 @@ class LiveDashboard:
         positions = np.array(positions)  # Convert list to array
         fitness = np.array(fitness)
     
-        # trace = self.algorithm_traces[algorithm]
-        # with self.fig.batch_update():
-        #     trace.x = positions[:, 0]
-        #     trace.y = positions[:, 1]
-        #     trace.z = fitness
-        #     trace.marker.color = fitness
-        #     trace.marker.colorscale = 'Viridis'
+        trace = self.algorithm_traces[algorithm]
+        with self.fig.batch_update():
+            trace.x = positions[:, 0]
+            trace.y = positions[:, 1]
+            trace.z = fitness
+            trace.marker.color = fitness
+            trace.marker.colorscale = 'Blues' # 'Viridis'
             
-        # Only update changed properties
-        self.fig.restyle({
-            "x": [positions[:, 0]],
-            "y": [positions[:, 1]],
-            "z": [fitness],
-            "marker.color": [fitness]
-        }, traces=[self.algorithm_traces[algorithm].index])
+        # # Only update changed properties
+        # self.fig.restyle({
+        #     "x": [positions[:, 0]],
+        #     "y": [positions[:, 1]],
+        #     "z": [fitness],
+        #     "marker.color": [fitness]
+        # }, traces=[self.algorithm_traces[algorithm].index])
 
     def update_marl(self, associations, rewards, fairness):
         """Update MARL-related visualizations"""
