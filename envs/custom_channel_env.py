@@ -39,6 +39,7 @@ class NetworkEnvironment:
         self.num_bs = num_bs
         self.num_ue = num_ue
         self.episode_length = episode_length
+        self.version = 0  # Internal state version
         self.current_step = 0
         self.log_kpis = log_kpis        
         self.metaheuristic_agents = []  # Initialize empty list
@@ -61,6 +62,7 @@ class NetworkEnvironment:
         
     def reset(self):
         self.current_step = 0
+        self.version += 1  # Increment on state change
         for ue in self.ues:
             ue.position = torch.tensor([np.random.uniform(0, 100), np.random.uniform(0, 100)])
             ue.associated_bs = None
@@ -97,6 +99,7 @@ class NetworkEnvironment:
         return throughput + 2.0 * jain - 0.5 * overload_penalty
 
     def step(self, actions: Dict[str, int]):
+        self.version += 1  # Increment on state change
         for ue in self.ues:
             ue.update_position()  # Actually move UEs each step
         for bs_id, ue_ids in actions.items():
@@ -148,6 +151,7 @@ class NetworkEnvironment:
                 } for ue in self.ues
             ],
             "associations": self.associations.copy(),
+            "version": self.version,
             "metaheuristic_agents": self.current_metaheuristic_agents  # Set by optimizer
         }
         

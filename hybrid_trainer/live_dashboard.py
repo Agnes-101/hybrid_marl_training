@@ -30,8 +30,10 @@ class LiveDashboard:
         # print("Algorithm Colors:", self.algorithm_colors)
 
         self._initialize_traces()
+        self.env_version = -1  # Initialize to -1 (no state yet)
         self._add_controls()
         self._setup_layout(network_bounds)
+        self.env_version = 0  # Track state changes
         self.fig.update_layout(title="6G Network Optimization")
         # self.fig.show(renderer="colab")  # Force Colab rendering
         self.figure_handle = display.display(self.fig, display_id='live-dashboard')
@@ -176,6 +178,13 @@ class LiveDashboard:
         from IPython import display
         import time
         
+        # Check version before updating
+        if env_state["version"] > self.env_version:
+            self._update_network_state(env_state)
+            self.env_version = env_state["version"]  # Update to latest
+            
+        print(f"Dashboard version: {self.env_version}, Env version: {env_state['version']}")
+        
         # Clear previous output
         display.clear_output(wait=True)
     
@@ -227,19 +236,30 @@ class LiveDashboard:
             self.fig.data[1].z = [u.get('sinr', 0) for u in users]
             
         print(f"Updating network with {len(base_stations)} BS, {len(users)} UEs")
-        print("Example BS data:", base_stations[0])
-        print("Example UE data:", users[0])    
+        # print("Example BS data:", base_stations[0])
+        # print("Example UE data:", users[0])    
         self.fig.show(renderer="colab")  # Refresh display
         
     def update_metaheuristic(self, algorithm, positions, fitness):
         """Update metaheuristic agents visualization"""
-        trace = self.algorithm_traces[algorithm]
-        with self.fig.batch_update():
-            trace.x = positions[:, 0]
-            trace.y = positions[:, 1]
-            trace.z = fitness
-            trace.marker.color = fitness
-            trace.marker.colorscale = 'Viridis'
+        positions = np.array(positions)  # Convert list to array
+        fitness = np.array(fitness)
+    
+        # trace = self.algorithm_traces[algorithm]
+        # with self.fig.batch_update():
+        #     trace.x = positions[:, 0]
+        #     trace.y = positions[:, 1]
+        #     trace.z = fitness
+        #     trace.marker.color = fitness
+        #     trace.marker.colorscale = 'Viridis'
+            
+        # Only update changed properties
+        self.fig.restyle({
+            "x": [positions[:, 0]],
+            "y": [positions[:, 1]],
+            "z": [fitness],
+            "marker.color": [fitness]
+        }, traces=[self.algorithm_traces[algorithm].index])
 
     def update_marl(self, associations, rewards, fairness):
         """Update MARL-related visualizations"""
@@ -298,6 +318,10 @@ class LiveDashboard:
     
     def _update_sinr_heatmap(self, algorithm: str, sinr_value: float):
         """Update SINR heatmap visualization (simplified example)"""
+        """Update SINR heatmap with validation"""
+        if np.isnan(sinr_value):
+            sinr_value = 0  # Or other default
+            
         if self.sinr_heatmap_trace is None:
             # Initialize heatmap trace on first call
             self.sinr_heatmap_trace = go.Heatmap(
@@ -308,10 +332,8 @@ class LiveDashboard:
             self.fig.add_trace(self.sinr_heatmap_trace, row=1, col=2)
         else:
             # Update existing trace (append new value)
-            self.sinr_heatmap_trace.z = np.vstack([
-                self.sinr_heatmap_trace.z,
-                [sinr_value]
-            ])
+            new_z = np.vstack([self.sinr_heatmap_trace.z, [sinr_value]])
+            self.sinr_heatmap_trace.z = new_z[-20:]  # Keep last 20 values
     
     def finalize_visualizations(self):
         """Save final plots and clean up resources"""
