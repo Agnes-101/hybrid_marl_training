@@ -22,7 +22,8 @@ class LiveDashboard:
                 [{"type": "scattergl", "rowspan": 3}, {"type": "indicator"}],
                 [None, {"type": "indicator"}],
                 [None, {"type": "bar"}],
-                [{"type": "heatmap"}, {"type": "scatter"}]
+                [{"type": "heatmap"}, {"type": "scatter"}],
+                [None, None] 
             ],
             column_widths=[0.7, 0.3],
             vertical_spacing= 0.1 #0.05
