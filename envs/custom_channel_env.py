@@ -138,7 +138,7 @@ class NetworkEnvironment:
                 {
                     "id": bs.id,
                     "position": bs.position.tolist(),  # bs.position.numpy(),
-                    "load": bs.load,
+                    "load": bs.load.item(),
                     "capacity": bs.capacity
                 } for bs in self.base_stations
             ],
