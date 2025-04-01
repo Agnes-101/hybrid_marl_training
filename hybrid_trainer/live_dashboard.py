@@ -92,7 +92,7 @@ class LiveDashboard:
         # Trace 7: SINR Heatmap
         self.fig.add_trace(go.Heatmap(
             x=[], y=[], name= 'SINR Heatmap', colorscale='Viridis', showscale=False,
-            name='SINR Heatmap', visible=False), row=4, col=1)
+            visible=False), row=4, col=1)
         # Trace 8: Fitness
         self.fig.add_trace(go.Scatter(
             x=[], y=[], name='Fitness', visible=False), row=4, col=2)
