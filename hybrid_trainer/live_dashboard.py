@@ -195,8 +195,8 @@ class LiveDashboard:
         # self.fig.data[0].marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
         
         bs_trace = self.fig.data[0]
-        bs_trace.x = [bs["x"] for bs in env_state["base_stations"]]
-        bs_trace.y = [bs["y"] for bs in env_state["base_stations"]]
+        bs_trace.x = [bs["position"][0] for bs in env_state["base_stations"]]
+        bs_trace.y = [bs["position"][1] for bs in env_state["base_stations"]]
         bs_trace.marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
 
         
