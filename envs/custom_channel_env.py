@@ -120,8 +120,8 @@ class NetworkEnvironment:
         self.current_step += 1
         done = self.current_step >= self.episode_length
         
-        if self.log_kpis:
-            self.kpi_logger.log(self.current_step, self.ues, self.base_stations)
+        # if self.log_kpis:
+        #     self.kpi_logger.log(self.current_step, self.ues, self.base_stations)
         
         return self._get_obs(), reward, done, {}
     
