@@ -137,15 +137,15 @@ class NetworkEnvironment:
             "base_stations": [
                 {
                     "id": bs.id,
-                    "position": bs.position.numpy(),
-                    "load": bs.load,
+                    "position": bs.position.tolist(),  # bs.position.numpy(),
+                    "load": bs.load.item(),
                     "capacity": bs.capacity
                 } for bs in self.base_stations
             ],
             "users": [
                 {
                     "id": ue.id,
-                    "position": ue.position.numpy(),
+                    "position": ue.position.tolist(),  # ue.position.numpy(),
                     "associated_bs": ue.associated_bs,
                     "sinr": ue.sinr.item()  # Convert tensor to float
                 } for ue in self.ues
