@@ -137,7 +137,7 @@ class DEOptimization:
         #     for _ in range(int(self.population_size))
         # ]
         x_min, y_min = 0, 0
-        x_max, y_max = env.width, env.height
+        x_max, y_max = 100, 100 # env.width, env.height
         self.positions = np.random.uniform([x_min, y_min], [x_max, y_max], (self.population_size, 2))
 
     def _create_trial_vector(self, target_idx: int, env: NetworkEnvironment) -> np.ndarray:
