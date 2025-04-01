@@ -39,7 +39,8 @@ class LiveDashboard:
         
         # Display initial figure
         self.figure_widget = go.FigureWidget(self.fig)
-        display.display(self.figure_widget)
+        # display.display(self.figure_widget)
+        display(self.figure_widget)
         
         # State tracking
         self.current_view = "network"
@@ -154,6 +155,10 @@ class LiveDashboard:
         raise ValueError(f"Trace '{name}' not found")
     
     def update(self, phase: str, data: dict): 
+        # Save current UI state
+        prev_view = self.current_view
+        prev_overlays = self.overlays.copy()
+        
         """Main update entry point"""
         with self.fig.batch_update():
             # Update main view
@@ -175,7 +180,10 @@ class LiveDashboard:
             # Update persistent KPIs
             # self._update_network_kpis(env_state)
             self._update_phase_kpis(phase, metrics)
-
+        # Restore UI state
+        self._apply_view(prev_view)
+        self._apply_overlays(prev_overlays)
+        
     def _update_network(self, env_state):
         # """Update base stations and users"""
         # # Base Stations
