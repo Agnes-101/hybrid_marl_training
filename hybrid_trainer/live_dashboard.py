@@ -44,7 +44,7 @@ class LiveDashboard:
         
         # State tracking
         self.current_view = "network"
-        self.overlays = {"sinr": False, "associations": False}
+        self.overlays = {"overlay": False, "associations": False}
 
     def _init_traces(self, bounds):
         """Initialize all visualization traces"""
@@ -53,7 +53,7 @@ class LiveDashboard:
         # Trace 0: Base Stations
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='markers', name='Base Stations',
-            marker=dict(symbol='square', size=10, color='grey')),
+            marker=dict(symbol='square', size=15, color='grey')),
             row=1, col=1
         )
         
@@ -125,23 +125,23 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Network", method="update",
-                            args=[{"visible": [True, True]+[False]*7},
+                            args=[{"visible": [True, True]+[False]*4+[True]*6},
                                 {"title": "Network View"}]),
                         dict(label="Metaheuristic", method="update",
                             args=[{"visible": [False]*2+[True]*3+[False]*2},
                                 {"title": "Metaheuristic View"}]),
                         dict(label="MARL", method="update",
-                             args=[{"visible": [False]*5+[True]+[False]},
-                                  {"title": "MARL View"}])
+                            args=[{"visible": [False]*5+[True]+[False]},
+                                {"title": "MARL View"}])
                     ],
                     direction="down", x=0.05, y=1.05, xanchor="left", yanchor="bottom" 
                 ),
                 dict(
                     buttons=[
-                        dict(label="SINR Overlay", method="restyle",
-                             args=[{"visible": [True]*8 + [True, False]}]),
+                        dict(label="Overlay", method="restyle",
+                            args=[{"visible": [True]*8 + [True, True]}]),
                         dict(label="Associations", method="restyle",
-                             args=[{"visible": [True]*8 + [False, True]}])
+                            args=[{"visible": [True]*8 + [True, True]}])
                     ],
                     x=0.35, y=1.05, xanchor="left", yanchor="bottom"
                 )
@@ -178,8 +178,10 @@ class LiveDashboard:
                 self._update_marl(env_state)
             
             # Update persistent KPIs
-            # self._update_network_kpis(env_state)
             self._update_phase_kpis(phase, metrics)
+            # Update current state tracking
+            self.current_view = phase
+            
         # Restore UI state
         self._apply_view(prev_view)
         self._apply_overlays(prev_overlays)
@@ -187,10 +189,14 @@ class LiveDashboard:
     def _update_network(self, env_state):
         # """Update base stations and users"""
         # # Base Stations
-        self.fig.data[0].x = [bs["position"][0] for bs in env_state["base_stations"]]
-        self.fig.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
-        # self.fig.data[0].marker.size = [bs["load"] * 10 for bs in env_state["base_stations"]]
-        self.fig.data[0].marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
+        # self.fig.data[0].x = [bs["position"][0] for bs in env_state["base_stations"]]
+        # self.fig.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
+        # self.fig.data[0].marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
+        
+        bs_trace = self.fig.data[0]
+        bs_trace.x = [bs["x"] for bs in env_state["base_stations"]]
+        bs_trace.y = [bs["y"] for bs in env_state["base_stations"]]
+        bs_trace.marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
 
         
         # Users
@@ -271,23 +277,28 @@ class LiveDashboard:
         sinr_heatmap.z = grid_sinr    # SINR values across grid
         sinr_heatmap.visible = True
         
-        # # Update SINR Heatmap
-        # sinr_heatmap.x = [ue["position"][0] for ue in env_state["users"]]
-        # sinr_heatmap.y = [ue["position"][1] for ue in env_state["users"]]
-        # sinr_heatmap.z = [ue["sinr"] for ue in env_state["users"]]
-       
-        # sinr_heatmap.visible = True  # Ensure visibility
+    def _apply_view(self, view_name: str):
+        """Restore the specified view configuration"""
+        trace_visibility = {
+            "network": ["Base Stations", "Users"],
+            "metaheuristic": ["DE Agents", "PSO Agents", "ACO Agents"],
+            "marl": ["Associations"]
+        }
         
-        # # SINR Heatmap (Row 4, Col 1)
-        # x = [ue["position"][0] for ue in env_state["users"]]
-        # y = [ue["position"][1] for ue in env_state["users"]]
-        # z = [ue["sinr"] for ue in env_state["users"]]
+        # Set visibility for all traces
+        for trace in self.fig.data:
+            trace.visible = trace.name in trace_visibility.get(view_name, [])
+            
+    def _apply_overlays(self, overlays: dict):
+        """Restore overlay states"""
+        # SINR Heatmap
+        sinr_trace = next(t for t in self.fig.data if t.name == "SINR Heatmap")
+        sinr_trace.visible = overlays["sinr"]
         
-        # # Update heatmap trace (assuming index 9)
-        # self.fig.data[9].x = x
-        # self.fig.data[9].y = y
-        # self.fig.data[9].z = z
-        # self.fig.data[9].visible = True  # Ensure visibility
+        # Associations
+        assoc_trace = next(t for t in self.fig.data if t.name == "Associations")
+        assoc_trace.visible = overlays["associations"]
+
 
     # def _update_phase_kpis(self, phase, metrics):
     #     """Update phase-specific KPIs"""
@@ -331,6 +342,7 @@ class LiveDashboard:
         self.figure_widget.data[10].x = list(range(len(rewards)))
         self.figure_widget.data[10].y = rewards
         self.figure_widget.data[10].visible = True
+        
     def calculate_grid_sinr(self, env_state):
         """Estimate SINR across the grid"""
         grid_sinr = np.zeros_like(self.xx)
