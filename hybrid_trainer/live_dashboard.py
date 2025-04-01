@@ -45,50 +45,58 @@ class LiveDashboard:
         """Initialize all visualization traces"""
         # Main View (Column 1)
         # Network
+        # Trace 0: Base Stations
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='markers', name='Base Stations',
             marker=dict(symbol='square', size=10, color='grey')),
             row=1, col=1
         )
+        
+        # Trace 1: Users
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='markers', name='Users',
             marker=dict(size=6, color='blue', opacity=0.4)),
             row=1, col=1
         )
         
-        # Metaheuristic
+        # Trace 2: Metaheuristic
         for algo in ["de", "pso", "aco"]:
             self.fig.add_trace(go.Scattergl(
                 x=[], y=[], mode='markers', visible=False, name=f'{algo.upper()} Agents',
                 marker=dict(size=8)), row=1, col=1
             )
         
-        # MARL
+        # Trace 3: MARL
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='lines', visible=False,
             line=dict(width=1), name='Associations'), row=1, col=1
         )
 
         # Network KPIs (Column 2)
+        # Trace 4: Connected Users
         self.fig.add_trace(go.Indicator(
-            mode="number+delta", title="Connected Users",
-            number=dict(font=dict(size=20))), row=1, col=2)
+            mode="number+delta", name= 'Connected Users', title="Connected Users",
+            number=dict(font=dict(size=40))), row=1, col=2)
         
+        # Trace 5 : Average SINR
         self.fig.add_trace(go.Indicator(
-            mode="gauge", title="Avg SINR",
+            mode="gauge", name='Average SINR', title="Avg SINR",
             gauge=dict(axis=dict(range=[0, 30], tickfont_size=10),  # Smaller ticks
         bar_thickness=0.3)), row=2, col=2)
         
+        # Trace 6: BS load Bar
         self.fig.add_trace(go.Bar(
             x=[], y=[], name='BS Load'), row=3, col=2)
 
         # Phase KPIs (Row 4)
+        # Trace 7: SINR Heatmap
         self.fig.add_trace(go.Heatmap(
-            x=[], y=[], colorscale='Viridis', showscale=False,
+            x=[], y=[], name= 'SINR Heatmap', colorscale='Viridis', showscale=False,
             name='SINR Heatmap', visible=False), row=4, col=1)
-        
+        # Trace 8: Fitness
         self.fig.add_trace(go.Scatter(
             x=[], y=[], name='Fitness', visible=False), row=4, col=2)
+        # Trace 9: Reward
         self.fig.add_trace(go.Scatter(
             x=[], y=[], name='Reward', visible=False), row=4, col=2)
         
@@ -101,7 +109,7 @@ class LiveDashboard:
         self.fig.update_yaxes(title_text="Load (%)", row=3, col=2)
         
         
-    # ... repeat for other subplots
+    
     def _add_controls(self):
         """Add interactive controls"""
         self.fig.update_layout(
@@ -134,7 +142,13 @@ class LiveDashboard:
                 )
             ]
         )
-
+    def _get_trace_by_name(self, name: str):
+        """Get trace by name (safer than indices)"""
+        for trace in self.fig.data:
+            if trace.name == name:
+                return trace
+        raise ValueError(f"Trace '{name}' not found")
+    
     def update(self, phase: str, data: dict): 
         """Main update entry point"""
         with self.fig.batch_update():
@@ -144,6 +158,8 @@ class LiveDashboard:
             metrics = data.get("metrics", {})
             
             self._update_network(env_state)
+            self._update_network_kpis(env_state)
+            
             if phase != self.current_view:
                 self._handle_view_change(phase)
             
@@ -153,7 +169,7 @@ class LiveDashboard:
                 self._update_marl(env_state)
             
             # Update persistent KPIs
-            self._update_network_kpis(env_state)
+            # self._update_network_kpis(env_state)
             self._update_phase_kpis(phase, metrics)
 
     def _update_network(self, env_state):
@@ -204,21 +220,44 @@ class LiveDashboard:
     #     self.fig.data[8].y = [bs['load'] for bs in metrics['base_stations']]
         
     def _update_network_kpis(self, env_state: dict):
-        """Update network KPIs using env_state"""
-        # Calculate connected users
-        connected_users = sum(1 for ue in env_state["users"] if ue["associated_bs"] is not None)
         
-        # Calculate average SINR
+        """Update network KPIs using env_state"""
+        # Get traces by name
+        connected_users_trace = self._get_trace_by_name('Connected Users')
+        avg_sinr_trace = self._get_trace_by_name('Avg SINR')
+        bs_load_trace = self._get_trace_by_name('BS Load')
+        sinr_heatmap = self._get_trace_by_name('SINR Heatmap')
+
+        # Calculate and update connected users
+        connected_users = sum(1 for ue in env_state["users"] if ue["associated_bs"] is not None)
+        connected_users_trace.value = connected_users
+
+        # Calculate and update average SINR
         sinr_values = [ue["sinr"] for ue in env_state["users"]]
         avg_sinr = np.mean(sinr_values) if sinr_values else 0
-        
-        # Update indicators
-        self.fig.data[6].value = connected_users  # Connected Users indicator
-        self.fig.data[7].value = avg_sinr        # Avg SINR gauge
-        
+        avg_sinr_trace.value = avg_sinr
+
         # Update BS Load bar chart
-        self.fig.data[8].x = [bs["id"] for bs in env_state["base_stations"]]
-        self.fig.data[8].y = [bs["load"] for bs in env_state["base_stations"]]
+        bs_load_trace.x = [bs["id"] for bs in env_state["base_stations"]]
+        bs_load_trace.y = [bs["load"] for bs in env_state["base_stations"]]
+
+        # Update SINR Heatmap
+        sinr_heatmap.x = [ue["position"][0] for ue in env_state["users"]]
+        sinr_heatmap.y = [ue["position"][1] for ue in env_state["users"]]
+        sinr_heatmap.z = [ue["sinr"] for ue in env_state["users"]]
+        sinr_heatmap.visible = True
+        sinr_heatmap.visible = True  # Ensure visibility
+        
+        # # SINR Heatmap (Row 4, Col 1)
+        # x = [ue["position"][0] for ue in env_state["users"]]
+        # y = [ue["position"][1] for ue in env_state["users"]]
+        # z = [ue["sinr"] for ue in env_state["users"]]
+        
+        # # Update heatmap trace (assuming index 9)
+        # self.fig.data[9].x = x
+        # self.fig.data[9].y = y
+        # self.fig.data[9].z = z
+        # self.fig.data[9].visible = True  # Ensure visibility
 
     # def _update_phase_kpis(self, phase, metrics):
     #     """Update phase-specific KPIs"""
@@ -242,7 +281,7 @@ class LiveDashboard:
         if phase == "metaheuristic":
             # Update and show metaheuristic KPIs
             self._update_fitness_plot(metrics)
-            self._update_diversity_heatmap(metrics)
+            # self._update_diversity_heatmap(metrics)
             
         elif phase == "marl":
             # Update and show MARL KPIs
