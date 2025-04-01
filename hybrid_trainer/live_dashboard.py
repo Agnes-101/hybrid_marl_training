@@ -53,7 +53,7 @@ class LiveDashboard:
         # Trace 0: Base Stations
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='markers', name='Base Stations',
-            marker=dict(symbol='square', size=15, color='grey')),
+            marker=dict(symbol='square', size=15, color='#4E4BC5')),
             row=1, col=1
         )
         
@@ -147,6 +147,7 @@ class LiveDashboard:
                 )
             ]
         )
+        
     def _get_trace_by_name(self, name: str):
         """Get trace by name (safer than indices)"""
         for trace in self.fig.data:
