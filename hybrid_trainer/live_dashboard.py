@@ -39,8 +39,8 @@ class LiveDashboard:
         
         # Display initial figure
         self.figure_widget = go.FigureWidget(self.fig)
-        # display.display(self.figure_widget)
-        display(self.figure_widget)
+        display.display(self.figure_widget)
+     
         
         # State tracking
         self.current_view = "network"
