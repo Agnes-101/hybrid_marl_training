@@ -147,7 +147,7 @@ class NetworkEnvironment:
                     "id": ue.id,
                     "position": ue.position.tolist(),  # ue.position.numpy(),
                     "associated_bs": ue.associated_bs,
-                    "sinr": ue.sinr.items()  # Convert tensor to float
+                    "sinr": ue.sinr.item()  # Convert tensor to float
                 } for ue in self.ues
             ],
             "associations": self.associations.copy(),
