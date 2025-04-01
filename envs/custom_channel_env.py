@@ -225,11 +225,11 @@ class NetworkEnvironment:
                 solution_dict[bs_id].append(ue_idx)
             solution = solution_dict
 
-        # Validate BS IDs exist
-        valid_bs_ids = {bs.id for bs in self.base_stations}
-        for bs_id in solution.keys():
-            if bs_id not in valid_bs_ids:
-                raise ValueError(f"Invalid BS ID {bs_id} in solution")
+        # # Validate BS IDs exist
+        # valid_bs_ids = {bs.id for bs in self.base_stations}
+        # for bs_id in solution.keys():
+        #     if bs_id not in valid_bs_ids:
+        #         raise ValueError(f"Invalid BS ID {bs_id} in solution")
 
         # Clear existing associations
         for bs in self.base_stations:

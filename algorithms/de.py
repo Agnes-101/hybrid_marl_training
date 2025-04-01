@@ -104,7 +104,17 @@ class DEOptimization:
                 "fitness": float(fit),
                 "algorithm": "de"
             } for pos, fit in zip(self.positions, self.fitness)]
-        
+            
+            env.apply_solution(self.best_solution)
+
+            # env.apply_solution({
+            #     bs_id: np.where(self.best_solution == bs_id)[0].tolist() 
+            #     for bs_id in range(env.num_bs)
+            #         })
+
+            # Critical: Update environment state
+            env.step()  # Processes agent positions into network state
+            
         return {
             "solution": self.best_solution,
             "metrics": env.evaluate_detailed_solution(self.best_solution),
@@ -115,92 +125,6 @@ class DEOptimization:
             }
         }
         
-    # def run(self, env: NetworkEnvironment, visualize_callback: callable = None) -> dict:
-    #     """Optimized DE execution with reliable visualization"""
-    #     self._initialize_population(env)
-    #     self.best_solution = self.population[0]
-    #     self.best_fitness_history = []
-    #     self.fitness = np.zeros(self.iterations, dtype=np.float32)
-        
-    #     for iteration in range(self.iterations):
-    #         self._adapt_parameters(iteration)
-    #         new_population = []
-    #         best_iter_fitness = -np.inf
-            
-    #         # Main DE loop
-    #         for i in range(self.population_size):
-    #             trial = self._create_trial_vector(i, env)
-    #             trial = self._repair_solution(trial, env)
-                
-    #             current_fit = env.evaluate_detailed_solution(self.population[i])["fitness"]
-    #             trial_fit = env.evaluate_detailed_solution(trial)["fitness"]
-                
-    #             # if trial_fit > current_fit:
-    #             #     new_population.append(trial)
-    #             #     if trial_fit > self.fitness[iteration]:
-    #             #         self.best_solution = trial.copy()
-    #             #         self.fitness[iteration] = trial_fit
-    #             # else:
-    #             #     new_population.append(self.population[i])
-    #             if trial_fit > current_fit:
-    #                 new_population.append(trial)
-    #                 if trial_fit > best_iter_fitness:
-    #                     best_iter_fitness = trial_fit
-    #                     self.best_solution = trial.copy()
-    #             else:
-    #                 new_population.append(self.population[i])
-    #                 if current_fit > best_iter_fitness:
-    #                     best_iter_fitness = current_fit
-    #         # Log metrics after each iteration
-    #         self.kpi_logger.log_kpis(
-    #             episode=iteration,
-    #             reward=current_fit,  # From env.evaluate_detailed_solution()
-    #             average_sinr= metrics["average_sinr"],
-    #             fairness= metrics["fairness"],
-    #             load_variance= metrics["load_variance"]
-    #         )
-    #         self.population = new_population
-    #         self.best_fitness_history.append(best_iter_fitness)
-    #         self._update_visual_state(env)  # Update positions based on population
-            
-                        
-    #         # Unified visualization trigger every 5 iterations
-    #         if iteration % 5 == 0 and visualize_callback:
-    #             visualize_callback({
-    #                 "positions": self.positions.tolist(),
-    #                 "fitness": self.best_fitness_history,# self.fitness[:iteration+1].tolist(),
-    #                 "algorithm": "de"
-    #             })
-    #             print(f"DE VISUAL UPDATE @ Iter {iteration}", flush=True)  # Force output
-    #             # Get metrics from the current best solution
-    #             current_metrics = env.evaluate_detailed_solution(self.best_solution)
-    #             self.kpi_logger.log_kpis(
-    #                 episode=iteration,
-    #                 reward=current_metrics.get("fitness", 0),  # Or whichever key represents reward
-    #                 average_sinr=current_metrics.get("average_sinr", 0),
-    #                 fairness=current_metrics.get("fairness", 0),
-    #                 load_variance=current_metrics.get("load_variance", 0))
-                
-    #         # Environment agent tracking
-    #         env.current_metaheuristic_agents = [{
-    #             "position": pos.tolist()[:2],  # Only x,y for 2D projection
-    #             "fitness": float(fit)
-    #         } for pos, fit in zip(self.positions, self.fitness)]
-        
-    #     # Final debug output
-    #     print("\nDE FINAL POSITIONS:", self.positions[:2].tolist())
-    #     print("DE TOP FITNESS:", self.fitness[:5].tolist())
-        
-    #     return {
-    #         "solution": self.best_solution,
-    #         "metrics": env.evaluate_detailed_solution(self.best_solution),
-    #         "agents": {
-    #             "positions": self.positions.tolist(),
-    #             "fitness": self.fitness.tolist(),
-    #             "algorithm": "de"
-    #         }
-    #     }    
-      
 
     def _initialize_population(self, env: NetworkEnvironment):
         """Generate random UE-BS associations"""
@@ -291,25 +215,6 @@ class DEOptimization:
             env.set_state_snapshot(original_state)  # Restore environment
         
         return np.array(visual_positions, dtype=np.float32)
-
-    # def _update_visual_state(self, env: NetworkEnvironment):
-    #     """Prepare universal visualization state"""
-    #     # Convert best solution to spatial coordinates
-    #     bs_positions = {bs.id: bs.position.numpy() for bs in env.base_stations}
-    #     current_fitness = env.evaluate_detailed_solution(self.best_solution)["fitness"]
-        
-    #     # Update positions (BS x, BS y, current fitness)
-    #     self.positions = np.array([
-    #         [bs_positions[bs_id][0], bs_positions[bs_id][1], current_fitness]
-    #         for bs_id in self.best_solution
-    #     ])
-        
-    #     # Maintain rolling fitness history (fixed-size array)
-    #     num_to_add = max(0, self.population_size - len(self.fitness))
-    #     self.fitness = np.concatenate([
-    #         self.fitness,
-    #         np.full(num_to_add, current_fitness)  # No negative values
-    #     ])[-self.population_size:]  # Keep LAST N entries (most recent)
     
     def _update_visual_state(self, env: NetworkEnvironment):
         """Enhanced visualization state preparation with Colab compatibility"""
