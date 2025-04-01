@@ -175,27 +175,16 @@ class LiveDashboard:
     def _update_network(self, env_state):
         # """Update base stations and users"""
         # # Base Stations
-        # self.fig.data[0].x = [bs["position"][0] for bs in env_state["base_stations"]]
-        # self.fig.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
-        # self.fig.data[0].marker.size = [bs["load"] * 10 for bs in env_state["base_stations"]]
-        
-        # # Users
-        # self.fig.data[1].x = [ue["position"][0] for ue in env_state["users"]]
-        # self.fig.data[1].y = [ue["position"][1] for ue in env_state["users"]]
-        # self.fig.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
-        
-        # Base stations
-        self.fig.data[0].x = [bs["position"][0].item() for bs in env_state["base_stations"]]  # Convert to float
-        self.fig.data[0].y = [bs["position"][1].item() for bs in env_state["base_stations"]]  # Convert to float
-        self.fig.data[0].marker.size = [bs["load"].item() * 10 for bs in env_state["base_stations"]]  # Use .item()
+        self.fig.data[0].x = [bs["position"][0] for bs in env_state["base_stations"]]
+        self.fig.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
+        self.fig.data[0].marker.size = [bs["load"] * 10 for bs in env_state["base_stations"]]
         
         # Users
-        self.fig.data[1].x = [ue["position"][0].item() for ue in env_state["users"]]  # Convert to float
-        self.fig.data[1].y = [ue["position"][1].item() for ue in env_state["users"]]  # Convert to float
-        self.fig.data[1].marker.color = [ue["sinr"].item() for ue in env_state["users"]]  # Use .item()
+        self.fig.data[1].x = [ue["position"][0] for ue in env_state["users"]]
+        self.fig.data[1].y = [ue["position"][1] for ue in env_state["users"]]
+        self.fig.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
+        
     
-    
-
     def _update_metaheuristic(self, metrics):
         """Update metaheuristic agents"""
         algo_idx = {"de": 2, "pso": 3, "aco": 4}[metrics['algorithm']]
