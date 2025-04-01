@@ -185,7 +185,7 @@ class LiveDashboard:
             
         # Restore UI state
         self._apply_view(prev_view)
-        self._apply_overlays(prev_overlays)
+        # self._apply_overlays(prev_overlays)
         
     def _update_network(self, env_state):
         # """Update base stations and users"""
