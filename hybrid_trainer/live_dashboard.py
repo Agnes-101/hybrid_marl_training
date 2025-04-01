@@ -89,7 +89,17 @@ class LiveDashboard:
             x=[], y=[], name='Fitness', visible=False), row=4, col=2)
         self.fig.add_trace(go.Scatter(
             x=[], y=[], name='Reward', visible=False), row=4, col=2)
-
+        
+        # After adding traces, update axes:
+        self.fig.update_xaxes(title_text="X Coordinate (meters)", row=1, col=1)
+        self.fig.update_yaxes(title_text="Y Coordinate (meters)", row=1, col=1) 
+        self.fig.update_xaxes(title_text="X Position (meters)", row=4, col=1)
+        self.fig.update_yaxes(title_text="Y Position (meters)", row=4, col=1)  
+        self.fig.update_xaxes(title_text="Base Station ID", row=3, col=2)
+        self.fig.update_yaxes(title_text="Load (%)", row=3, col=2)
+        
+        
+    # ... repeat for other subplots
     def _add_controls(self):
         """Add interactive controls"""
         self.fig.update_layout(
