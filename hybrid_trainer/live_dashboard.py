@@ -75,18 +75,18 @@ class LiveDashboard:
         # Network KPIs (Column 2)
         # Trace 4: Connected Users
         self.fig.add_trace(go.Indicator(
-            mode="number+delta", name= 'Connected Users', title="Connected Users",
+            mode="number+delta", name= 'Connected Users', visible=True,title="Connected Users",
             number=dict(font=dict(size=40))), row=1, col=2)
         
         # Trace 5 : Average SINR
         self.fig.add_trace(go.Indicator(
-            mode="gauge", name='Avg SINR', title="Avg SINR",
+            mode="gauge", name='Avg SINR', visible=True,title="Avg SINR",
             gauge=dict(axis=dict(range=[0, 30], tickfont_size=10),  # Smaller ticks
         bar_thickness=0.3)), row=2, col=2)
         
         # Trace 6: BS load Bar
         self.fig.add_trace(go.Bar(
-            x=[], y=[], name='BS Load'), row=3, col=2)
+            x=[], y=[], name='BS Load', visible=True), row=3, col=2)
 
         # Phase KPIs (Row 4)
         # Trace 7: SINR Heatmap
@@ -230,17 +230,22 @@ class LiveDashboard:
 
         # Calculate and update connected users
         connected_users = sum(1 for ue in env_state["users"] if ue["associated_bs"] is not None)
+        print(f"Connected Users: {connected_users}")  # Should be >0
+
         connected_users_trace.value = connected_users
 
         # Calculate and update average SINR
         sinr_values = [ue["sinr"] for ue in env_state["users"]]
         avg_sinr = np.mean(sinr_values) if sinr_values else 0
+        print(f"Avg SINR: {avg_sinr}")  # Should be a float
         avg_sinr_trace.value = avg_sinr
         avg_sinr_trace.visible=True
 
         # Update BS Load bar chart
         bs_load_trace.x = [bs["id"] for bs in env_state["base_stations"]]
         bs_load_trace.y = [bs["load"] for bs in env_state["base_stations"]]
+        bs_loads = [bs["load"] for bs in env_state["base_stations"]]
+        print(f"BS Loads: {bs_loads}")  # Should be a list of floats
         bs_load_trace.visible=True
         
         # Update SINR Heatmap
