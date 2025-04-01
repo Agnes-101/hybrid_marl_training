@@ -236,16 +236,18 @@ class LiveDashboard:
         sinr_values = [ue["sinr"] for ue in env_state["users"]]
         avg_sinr = np.mean(sinr_values) if sinr_values else 0
         avg_sinr_trace.value = avg_sinr
+        avg_sinr_trace.visible=True
 
         # Update BS Load bar chart
         bs_load_trace.x = [bs["id"] for bs in env_state["base_stations"]]
         bs_load_trace.y = [bs["load"] for bs in env_state["base_stations"]]
-
+        bs_load_trace.visible=True
+        
         # Update SINR Heatmap
         sinr_heatmap.x = [ue["position"][0] for ue in env_state["users"]]
         sinr_heatmap.y = [ue["position"][1] for ue in env_state["users"]]
         sinr_heatmap.z = [ue["sinr"] for ue in env_state["users"]]
-        sinr_heatmap.visible = True
+       
         sinr_heatmap.visible = True  # Ensure visibility
         
         # # SINR Heatmap (Row 4, Col 1)
