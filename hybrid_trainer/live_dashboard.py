@@ -177,12 +177,15 @@ class LiveDashboard:
         # # Base Stations
         self.fig.data[0].x = [bs["position"][0] for bs in env_state["base_stations"]]
         self.fig.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
-        self.fig.data[0].marker.size = [bs["load"] * 10 for bs in env_state["base_stations"]]
+        # self.fig.data[0].marker.size = [bs["load"] * 10 for bs in env_state["base_stations"]]
+        self.fig.data[0].marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
+
         
         # Users
         self.fig.data[1].x = [ue["position"][0] for ue in env_state["users"]]
         self.fig.data[1].y = [ue["position"][1] for ue in env_state["users"]]
-        self.fig.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
+        # self.fig.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
+        self.fig.data[1].marker.color = [float(ue["sinr"]) for ue in env_state["users"]]  # Force float
         
     
     def _update_metaheuristic(self, metrics):
