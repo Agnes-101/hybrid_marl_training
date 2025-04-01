@@ -111,9 +111,13 @@ class DEOptimization:
             #     bs_id: np.where(self.best_solution == bs_id)[0].tolist() 
             #     for bs_id in range(env.num_bs)
             #         })
-
+            # Convert best_solution (a numpy array) to the expected dict format:
+            actions = {
+                f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
+                for bs_id in range(env.num_bs)
+            }
             # Critical: Update environment state
-            env.step()  # Processes agent positions into network state
+            env.step(actions)  # Processes agent positions into network state
             
         return {
             "solution": self.best_solution,
