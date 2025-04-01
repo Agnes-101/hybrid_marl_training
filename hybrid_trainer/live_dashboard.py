@@ -109,7 +109,7 @@ class LiveDashboard:
                              args=[{"visible": [False]*5+[True]+[False]},
                                   {"title": "MARL View"}])
                     ],
-                    direction="down", x=0.05, y=1.05# 1.1
+                    direction="down", x=0.05, y=1.05, xanchor="left", yanchor="bottom" 
                 ),
                 dict(
                     buttons=[
@@ -118,65 +118,90 @@ class LiveDashboard:
                         dict(label="Associations", method="restyle",
                              args=[{"visible": [True]*8 + [False, True]}])
                     ],
-                    x=0.35, y=1.05 #1.1
+                    x=0.35, y=1.05, xanchor="left", yanchor="bottom"
                 )
             ]
         )
 
-    def update(self, phase: str, data: dict):
+    def update(self, phase: str, data: dict): 
         """Main update entry point"""
         with self.fig.batch_update():
             # Update main view
-            self._update_network(data)
+            # Extract env_state and metrics from data
+            env_state = data.get("env_state", {})
+            metrics = data.get("metrics", {})
+            
+            self._update_network(env_state)
             if phase != self.current_view:
                 self._handle_view_change(phase)
             
             if phase == "metaheuristic":
-                self._update_metaheuristic(data)
+                self._update_metaheuristic(metrics)
             elif phase == "marl":
-                self._update_marl(data)
+                self._update_marl(env_state)
             
             # Update persistent KPIs
-            self._update_network_kpis(data.get('network_metrics', {}))
-            self._update_phase_kpis(phase, data.get('phase_metrics', {}))
+            self._update_network_kpis(env_state)
+            self._update_phase_kpis(phase, metrics)
 
-    def _update_network(self, data):
+    def _update_network(self, env_state):
         """Update base stations and users"""
-        # Base stations
-        self.fig.data[0].x = [bs['x'] for bs in data['base_stations']]
-        self.fig.data[0].y = [bs['y'] for bs in data['base_stations']]
-        self.fig.data[0].marker.size = [bs['load']*10 for bs in data['base_stations']]
+        # Base Stations
+        self.fig.data[0].x = [bs["position"][0] for bs in env_state["base_stations"]]
+        self.fig.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
+        self.fig.data[0].marker.size = [bs["load"] * 10 for bs in env_state["base_stations"]]
         
         # Users
-        self.fig.data[1].x = [u['x'] for u in data['users']]
-        self.fig.data[1].y = [u['y'] for u in data['users']]
-        self.fig.data[1].marker.color = [u['sinr'] for u in data['users']]
+        self.fig.data[1].x = [ue["position"][0] for ue in env_state["users"]]
+        self.fig.data[1].y = [ue["position"][1] for ue in env_state["users"]]
+        self.fig.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
+    
+    
 
-    def _update_metaheuristic(self, data):
+    def _update_metaheuristic(self, metrics):
         """Update metaheuristic agents"""
-        algo_idx = {"de": 2, "pso": 3, "aco": 4}[data['algorithm']]
-        self.fig.data[algo_idx].x = data['positions'][:, 0]
-        self.fig.data[algo_idx].y = data['positions'][:, 1]
-        self.fig.data[algo_idx].marker.color = data['fitness']
+        algo_idx = {"de": 2, "pso": 3, "aco": 4}[metrics['algorithm']]
+        self.fig.data[algo_idx].x = metrics['positions'][:, 0]
+        self.fig.data[algo_idx].y = metrics['positions'][:, 1]
+        self.fig.data[algo_idx].marker.color = metrics['fitness']
         self.fig.data[algo_idx].marker.colorscale = 'Viridis'
 
-    def _update_marl(self, data):
+    def _update_marl(self, env_state):
         """Update MARL associations"""
         x, y = [], []
-        for ue, bs in data['associations'].items():
-            x.extend([ue['x'], bs['x'], None])
-            y.extend([ue['y'], bs['y'], None])
+        for ue, bs in env_state["associations"].items():
+            ue_pos = next(u["position"] for u in env_state["users"] if u["id"] == ue)
+            bs_pos = next(b["position"] for b in env_state["base_stations"] if b["id"] == bs)
+            x.extend([ue_pos[0], bs_pos[0], None])
+            y.extend([ue_pos[1], bs_pos[1], None])
         
         self.fig.data[5].x = x
         self.fig.data[5].y = y
-        self.fig.data[5].line.color = [ue['sinr'] for ue in data['users']]
+        self.fig.data[5].line.color = [ue["sinr"] for ue in env_state["users"]]
 
-    def _update_network_kpis(self, metrics):
-        """Update persistent network metrics"""
-        self.fig.data[6].value = metrics.get('connected_users', 0)
-        self.fig.data[7].value = metrics.get('avg_sinr', 0)
-        self.fig.data[8].x = [bs['id'] for bs in metrics['base_stations']]
-        self.fig.data[8].y = [bs['load'] for bs in metrics['base_stations']]
+    # def _update_network_kpis(self, metrics):
+    #     """Update persistent network metrics"""
+    #     self.fig.data[6].value = metrics.get('connected_users', 0)
+    #     self.fig.data[7].value = metrics.get('avg_sinr', 0)
+    #     self.fig.data[8].x = [bs['id'] for bs in metrics['base_stations']]
+    #     self.fig.data[8].y = [bs['load'] for bs in metrics['base_stations']]
+        
+    def _update_network_kpis(self, env_state: dict):
+        """Update network KPIs using env_state"""
+        # Calculate connected users
+        connected_users = sum(1 for ue in env_state["users"] if ue["associated_bs"] is not None)
+        
+        # Calculate average SINR
+        sinr_values = [ue["sinr"] for ue in env_state["users"]]
+        avg_sinr = np.mean(sinr_values) if sinr_values else 0
+        
+        # Update indicators
+        self.fig.data[6].value = connected_users  # Connected Users indicator
+        self.fig.data[7].value = avg_sinr        # Avg SINR gauge
+        
+        # Update BS Load bar chart
+        self.fig.data[8].x = [bs["id"] for bs in env_state["base_stations"]]
+        self.fig.data[8].y = [bs["load"] for bs in env_state["base_stations"]]
 
     # def _update_phase_kpis(self, phase, metrics):
     #     """Update phase-specific KPIs"""
@@ -191,7 +216,7 @@ class LiveDashboard:
     #         self.fig.data[10].x = list(range(len(metrics['reward'])))
     #         self.fig.data[10].y = metrics['reward']
             
-    def _update_phase_kpis(self, phase, metrics):
+    def _update_phase_kpis(self, phase:str, metrics):
         """Handle phase-specific KPI updates"""
         # Clear previous phase traces
         self.figure_widget.data[9].visible = False  # Fitness plot

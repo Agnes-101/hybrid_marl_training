@@ -52,24 +52,18 @@ class HybridTraining:
         # Run optimization with visualization callback
        # Create a closure to capture DE state
         def de_visualize_callback(de_data: Dict):
-            # print("DE visualize callback data:", de_data)
-            # self.kpi_logger.log(
-            #         episode=self.current_epoch,
-            #         reward=de_data["metrics"]["fitness"],
-            #         sinr=de_data["metrics"]["average_sinr"],
-            #         fairness=de_data["metrics"]["fairness"],
-            #         load_variance=de_data["metrics"]["load_variance"]
-            #     )
-            print 
+            
             self.dashboard.update(
-                # env_state=self.env.get_current_state(),
-                metrics={
-                    "algorithm": algorithm,
-                    "positions": de_data["positions"],
-                    "fitness": de_data["fitness"]
-                },
-                phase="metaheuristic"
-            )            
+                    phase="metaheuristic",
+                    data={
+                        "env_state": self.env.get_current_state(),  # Pass env_state here
+                        "metrics": {
+                            "algorithm": algorithm,
+                            "positions": de_data["positions"],
+                            "fitness": de_data["fitness"]
+                        }
+                    }
+                )           
             # Force Colab DOM update
             display.display(self.dashboard.fig)
             time.sleep(0.5)
@@ -152,13 +146,25 @@ class HybridTraining:
                     metrics=metrics
                 )
                 
-                # ✅ Pull data from consolidated history
+                #  Pull data from consolidated history
                 recent_metrics = self.orchestrator.kpi_logger.get_recent_metrics()
+                # self.orchestrator.dashboard.update(
+                #     env_state=self.orchestrator.env.get_current_state(),
+                #     metrics=recent_metrics,
+                #     phase="marl"
                 self.orchestrator.dashboard.update(
-                    env_state=self.orchestrator.env.get_current_state(),
-                    metrics=recent_metrics,
-                    phase="marl"
+                    phase="marl",
+                    data={
+                        "env_state": self.orchestrator.env.get_current_state(),  # Associations/users/BS
+                        "metrics" : recent_metrics
+                        # "metrics": {                                # Episode rewards/entropy
+                        #     "episode_rewards": marl_data["rewards"],
+                        #     "policy_entropy": marl_data["entropy"]
+                        # }
+                    }
                 )
+                
+                
                     
         return MarlVisualizationCallback(self)
     
