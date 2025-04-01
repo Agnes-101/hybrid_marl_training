@@ -62,7 +62,7 @@ class HybridTraining:
             #     )
             print 
             self.dashboard.update(
-                env_state=self.env.get_current_state(),
+                # env_state=self.env.get_current_state(),
                 metrics={
                     "algorithm": algorithm,
                     "positions": de_data["positions"],
