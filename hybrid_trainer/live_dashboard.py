@@ -16,8 +16,8 @@ class LiveDashboard:
             "marl": "#9B59B6"
         }
         self.fig = sp.make_subplots(
-            rows=4, cols=2,
-            row_heights=[0.1, 0.1, 0.4, 0.4],  # Prioritize first and last rows
+            rows=5, cols=2,
+            row_heights=[0.05, 0.05, 0.5, 0.5, 0.25],  # Prioritize first and last rows
             specs=[
                 [{"type": "scattergl", "rowspan": 3}, {"type": "indicator"}],
                 [None, {"type": "indicator"}],
