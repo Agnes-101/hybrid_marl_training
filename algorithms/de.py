@@ -132,10 +132,10 @@ class DEOptimization:
 
     def _initialize_population(self, env: NetworkEnvironment):
         """Generate random UE-BS associations"""
-        # self.population = [
-        #     self._rng.randint(0, int(env.num_bs), int(env.num_ue))
-        #     for _ in range(int(self.population_size))
-        # ]
+        self.population = [
+            self._rng.randint(0, int(env.num_bs), int(env.num_ue))
+            for _ in range(int(self.population_size))
+        ]
         x_min, y_min = 0, 0
         x_max, y_max = 100, 100 # env.width, env.height
         self.positions = np.random.uniform([x_min, y_min], [x_max, y_max], (self.population_size, 2))
