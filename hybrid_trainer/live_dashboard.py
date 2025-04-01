@@ -80,7 +80,7 @@ class LiveDashboard:
         
         # Trace 5 : Average SINR
         self.fig.add_trace(go.Indicator(
-            mode="gauge", name='Average SINR', title="Avg SINR",
+            mode="gauge", name='Avg SINR', title="Avg SINR",
             gauge=dict(axis=dict(range=[0, 30], tickfont_size=10),  # Smaller ticks
         bar_thickness=0.3)), row=2, col=2)
         
