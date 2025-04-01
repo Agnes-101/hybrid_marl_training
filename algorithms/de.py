@@ -10,8 +10,8 @@ class DEOptimization:
         
         self.population_size = 30
         self.iterations = 50
-        self.F = 0.8  # Mutation factor
-        self.CR = 0.9  # Crossover rate
+        self.F = 1.2  # Mutation factor
+        self.CR = 0.5  # Crossover rate
         
         # State tracking
         self.positions = np.empty((0, 3))  # Proper initialization
@@ -132,10 +132,13 @@ class DEOptimization:
 
     def _initialize_population(self, env: NetworkEnvironment):
         """Generate random UE-BS associations"""
-        self.population = [
-            self._rng.randint(0, int(env.num_bs), int(env.num_ue))
-            for _ in range(int(self.population_size))
-        ]
+        # self.population = [
+        #     self._rng.randint(0, int(env.num_bs), int(env.num_ue))
+        #     for _ in range(int(self.population_size))
+        # ]
+        x_min, y_min = 0, 0
+        x_max, y_max = env.width, env.height
+        self.positions = np.random.uniform([x_min, y_min], [x_max, y_max], (self.population_size, 2))
 
     def _create_trial_vector(self, target_idx: int, env: NetworkEnvironment) -> np.ndarray:
         """DE mutation and crossover operations"""

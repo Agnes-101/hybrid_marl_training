@@ -7,7 +7,11 @@ from IPython import display
 class LiveDashboard:
     def __init__(self, network_bounds=(0, 100), algorithm_colors=None):
         # Initialize figure with subplot grid
-    
+        # During initialization
+        self.x_grid = np.linspace(0, 100, 100)  # X-axis coordinates
+        self.y_grid = np.linspace(0, 100, 100)  # Y-axis coordinates
+        self.xx, self.yy = np.meshgrid(self.x_grid, self.y_grid)
+        
         self.algorithm_colors = algorithm_colors or {
             "pfo": "#A020F0",
             "de": "#FF6B6B",
@@ -66,7 +70,7 @@ class LiveDashboard:
                 marker=dict(size=8)), row=1, col=1
             )
         
-        # Trace 3: MARL
+        # Trace 3: MARL Associations
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='lines', visible=False,
             line=dict(width=1), name='Associations'), row=1, col=1
@@ -250,12 +254,21 @@ class LiveDashboard:
         print(f"BS Loads: {bs_loads}")  # Should be a list of floats
         bs_load_trace.visible=True
         
-        # Update SINR Heatmap
-        sinr_heatmap.x = [ue["position"][0] for ue in env_state["users"]]
-        sinr_heatmap.y = [ue["position"][1] for ue in env_state["users"]]
-        sinr_heatmap.z = [ue["sinr"] for ue in env_state["users"]]
+        # Calculate grid SINR
+        grid_sinr = self.calculate_grid_sinr(env_state)
+        
+        # Update heatmap trace
+        sinr_heatmap.x = self.x_grid  # Grid X-coordinates   self.fig.data[2]
+        sinr_heatmap.y = self.y_grid  # Grid Y-coordinates
+        sinr_heatmap.z = grid_sinr    # SINR values across grid
+        sinr_heatmap.visible = True
+        
+        # # Update SINR Heatmap
+        # sinr_heatmap.x = [ue["position"][0] for ue in env_state["users"]]
+        # sinr_heatmap.y = [ue["position"][1] for ue in env_state["users"]]
+        # sinr_heatmap.z = [ue["sinr"] for ue in env_state["users"]]
        
-        sinr_heatmap.visible = True  # Ensure visibility
+        # sinr_heatmap.visible = True  # Ensure visibility
         
         # # SINR Heatmap (Row 4, Col 1)
         # x = [ue["position"][0] for ue in env_state["users"]]
@@ -280,7 +293,7 @@ class LiveDashboard:
     #         self.fig.data[10].visible = True
     #         self.fig.data[10].x = list(range(len(metrics['reward'])))
     #         self.fig.data[10].y = metrics['reward']
-            
+          
     def _update_phase_kpis(self, phase:str, metrics):
         """Handle phase-specific KPI updates"""
         # Clear previous phase traces
@@ -310,7 +323,17 @@ class LiveDashboard:
         self.figure_widget.data[10].x = list(range(len(rewards)))
         self.figure_widget.data[10].y = rewards
         self.figure_widget.data[10].visible = True
-
+    def calculate_grid_sinr(self, env_state):
+        """Estimate SINR across the grid"""
+        grid_sinr = np.zeros_like(self.xx)
+        for bs in env_state["base_stations"]:
+            # Calculate signal strength from each BS to grid points
+            bs_x, bs_y = bs["position"]
+            distance = np.sqrt((self.xx - bs_x)**2 + (self.yy - bs_y)**2)
+            signal_strength = 1 / (1 + distance**2)  # Simplified path loss model
+            grid_sinr += signal_strength
+        return grid_sinr
+    
     def _update_diversity_heatmap(self, metrics):
         """Update population diversity visualization"""
         positions = metrics.get('agent_positions', [])
