@@ -17,6 +17,7 @@ class LiveDashboard:
         }
         self.fig = sp.make_subplots(
             rows=4, cols=2,
+            row_heights=[0.5, 0.1, 0.1, 0.3],  # Prioritize first and last rows
             specs=[
                 [{"type": "scattergl", "rowspan": 3}, {"type": "indicator"}],
                 [None, {"type": "indicator"}],
@@ -24,7 +25,7 @@ class LiveDashboard:
                 [{"type": "heatmap"}, {"type": "scatter"}]
             ],
             column_widths=[0.7, 0.3],
-            vertical_spacing=0.05
+            vertical_spacing= 0.1 #0.05
         )
         
         # Initialize all traces
@@ -92,6 +93,9 @@ class LiveDashboard:
     def _add_controls(self):
         """Add interactive controls"""
         self.fig.update_layout(
+            height=900,  # Increase total height
+            width=1400,
+            margin=dict(t=150),  # Add top margin for buttons
             updatemenus=[
                 dict(
                     buttons=[
@@ -105,7 +109,7 @@ class LiveDashboard:
                              args=[{"visible": [False]*5+[True]+[False]},
                                   {"title": "MARL View"}])
                     ],
-                    direction="down", x=0.05, y=1.1
+                    direction="down", x=0.05, y=1.05# 1.1
                 ),
                 dict(
                     buttons=[
@@ -114,7 +118,7 @@ class LiveDashboard:
                         dict(label="Associations", method="restyle",
                              args=[{"visible": [True]*8 + [False, True]}])
                     ],
-                    x=0.35, y=1.1
+                    x=0.35, y=1.05 #1.1
                 )
             ]
         )
@@ -233,8 +237,13 @@ class LiveDashboard:
         self.figure_widget.data[12].x = list(range(len(entropy)))
         self.figure_widget.data[12].y = entropy
         self.figure_widget.data[12].visible = True
+        
     def _handle_view_change(self, new_view):
         """Handle visibility changes between views"""
+        # Hide all traces first
+        for trace in self.fig.data:
+            trace.visible = False
+            
         # Hide previous view
         if self.current_view == "metaheuristic":
             for i in [2,3,4]: self.fig.data[i].visible = False
@@ -248,6 +257,7 @@ class LiveDashboard:
         """Save dashboard to HTML file"""
         self.fig.write_html(filename)
         print(f"Dashboard saved to {filename}")
+        
 # # hybrid_trainer/live_dashboard.py
 # import plotly.graph_objects as go
 # import plotly.io as pio
