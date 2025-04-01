@@ -17,7 +17,7 @@ class LiveDashboard:
         }
         self.fig = sp.make_subplots(
             rows=4, cols=2,
-            row_heights=[0.5, 0.1, 0.1, 0.3],  # Prioritize first and last rows
+            row_heights=[0.1, 0.1, 0.4, 0.4],  # Prioritize first and last rows
             specs=[
                 [{"type": "scattergl", "rowspan": 3}, {"type": "indicator"}],
                 [None, {"type": "indicator"}],
@@ -71,7 +71,7 @@ class LiveDashboard:
         # Network KPIs (Column 2)
         self.fig.add_trace(go.Indicator(
             mode="number+delta", title="Connected Users",
-            number=dict(font=dict(size=20))), row=1, col=2)
+            number=dict(font=dict(size=50))), row=1, col=2)
         
         self.fig.add_trace(go.Indicator(
             mode="gauge", title="Avg SINR",
