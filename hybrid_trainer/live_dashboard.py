@@ -161,8 +161,13 @@ class LiveDashboard:
     def _update_metaheuristic(self, metrics):
         """Update metaheuristic agents"""
         algo_idx = {"de": 2, "pso": 3, "aco": 4}[metrics['algorithm']]
-        self.fig.data[algo_idx].x = metrics['positions'][:, 0]
-        self.fig.data[algo_idx].y = metrics['positions'][:, 1]
+        
+        # Extract x and y from the list of positions
+        x = [pos[0] for pos in metrics['positions']]  # First element of each position
+        y = [pos[1] for pos in metrics['positions']]  # Second element of each position
+        
+        self.fig.data[algo_idx].x = x
+        self.fig.data[algo_idx].y = y
         self.fig.data[algo_idx].marker.color = metrics['fitness']
         self.fig.data[algo_idx].marker.colorscale = 'Viridis'
 
