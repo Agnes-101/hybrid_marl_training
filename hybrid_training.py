@@ -50,9 +50,9 @@ class HybridTraining:
         print(f"\n Initializing {algorithm.upper()} optimization...")
         from IPython import display
         # Run optimization with visualization callback
-       # Create a closure to capture DE state
+       # Create a closure to capture algo state
         def de_visualize_callback(de_data: Dict):
-            
+            display.clear_output(wait=True)  # Clear previous dashboard
             self.dashboard.update(
                     phase="metaheuristic",
                     data={
