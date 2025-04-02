@@ -65,7 +65,7 @@ class HybridTraining:
                     }
                 )           
             # # Force Colab DOM update
-            # display.display(self.dashboard.fig)
+            display.display(self.dashboard.fig)
             # time.sleep(0.1)
         # solution = run_metaheuristic(self.env, algorithm)
         # Pass the visualization hook to the metaheuristic
