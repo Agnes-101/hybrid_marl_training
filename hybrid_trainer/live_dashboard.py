@@ -166,13 +166,24 @@ class LiveDashboard:
         """Save current active button indices for all menus"""
         self.view_menu_active = self.fig.layout.updatemenus[0].active
         self.overlay_menu_active = self.fig.layout.updatemenus[1].active
-
-    def _restore_button_states(self):
-        """Reapply saved button states to retain UI settings"""
-        with self.fig.batch_update():
-            self.fig.layout.updatemenus[0].active = self.view_menu_active
-            self.fig.layout.updatemenus[1].active = self.overlay_menu_active
+        print(f"[DEBUG] Saving states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
+    # def _restore_button_states(self):
+    #     """Reapply saved button states to retain UI settings"""
+    #     with self.fig.batch_update():
+    #         self.fig.layout.updatemenus[0].active = self.view_menu_active
+    #         self.fig.layout.updatemenus[1].active = self.overlay_menu_active
     
+    def _restore_button_states(self):
+        """Reapply saved states within a batch update"""
+        with self.fig.batch_update():
+            # Restore view menu
+            if 0 <= self.view_menu_active < len(self.fig.layout.updatemenus[0].buttons):
+                self.fig.layout.updatemenus[0].active = self.view_menu_active
+            
+            # Restore overlay menu (None = no active overlay)
+            if self.overlay_menu_active is None or (0 <= self.overlay_menu_active < len(self.fig.layout.updatemenus[1].buttons)):
+                self.fig.layout.updatemenus[1].active = self.overlay_menu_active
+        print(f"[DEBUG] Restoring states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
     def update(self, phase: str, data: dict): 
         # Save current button states
         self._save_button_states()
