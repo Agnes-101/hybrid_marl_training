@@ -54,7 +54,7 @@ class HybridTraining:
         # Run optimization with visualization callback
        # Create a closure to capture algo state
         def de_visualize_callback(de_data: Dict):
-            # display.clear_output(wait=True)  # Clear previous dashboard
+            display.clear_output(wait=True)  # Clear previous dashboard
             # with self.dashboard.fig.batch_update():
             self.dashboard.update(
                         phase="metaheuristic",
@@ -291,8 +291,8 @@ if __name__ == "__main__":
         
                         
         # Training parameters
-        "max_epochs": 100,
-        "marl_steps_per_phase": 500,
+        "max_epochs": 50,
+        "marl_steps_per_phase": 200,
         "checkpoint_interval": 10,
         "checkpoint_dir": "results/checkpoints",
         
