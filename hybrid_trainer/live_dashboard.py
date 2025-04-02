@@ -56,14 +56,14 @@ class LiveDashboard:
         # Network
         # Trace 0: Base Stations
         self.fig.add_trace(go.Scattergl(
-            x=[], y=[], mode='markers', name='Base Stations',
-            marker=dict(symbol='square', size=15, color='#4E4BC5')),
+            x=[], y=[], mode='markers', visible=True, name='Base Stations',
+            marker=dict(symbol='square', size=15, color='#BD0D0D', opacity=1.0)),
             row=1, col=1
         )
         
         # Trace 1: Users
         self.fig.add_trace(go.Scattergl(
-            x=[], y=[], mode='markers', name='Users',
+            x=[], y=[], mode='markers',visible= True, name='Users',
             marker=dict(size=6, color='blue', opacity=0.4)),
             row=1, col=1
         )
@@ -403,23 +403,21 @@ class LiveDashboard:
     #     # Show new view
     #     self.current_view = new_view
     def _handle_view_change(self, new_view: str):
-        """Update visibility for the new view"""
-        # Hide previous view
-        if self.current_view == "metaheuristic":
-            for trace in ["DE Agents", "PSO Agents", "ACO Agents"]:
-                self._get_trace_by_name(trace).visible = False
-        elif self.current_view == "marl":
-            self._get_trace_by_name("Associations").visible = False
+        """Properly toggle visibility for views"""
+        # Hide all non-essential traces
+        for trace in self.fig.data:
+            if trace.name not in ['Base Stations', 'Users']:
+                trace.visible = False
         
-        # Show new view
+        # Show traces for the new view
         if new_view == "metaheuristic":
-            for trace in ["DE Agents", "PSO Agents", "ACO Agents"]:
-                self._get_trace_by_name(trace).visible = True
+            for algo in ["de", "pso", "aco"]:
+                self._get_trace_by_name(f"{algo.upper()} Agents").visible = True
         elif new_view == "marl":
             self._get_trace_by_name("Associations").visible = True
         
-        # Update current view tracking
-        self.current_view = new_view  # Critical for state consistency    
+        self.current_view = new_view
+        
     def save(self, filename="results/final_dashboard.html"):
         """Save dashboard to HTML file"""
         self.fig.write_html(filename)
