@@ -388,35 +388,35 @@ class LiveDashboard:
         self.figure_widget.data[12].y = entropy
         self.figure_widget.data[12].visible = True
         
-    # def _handle_view_change(self, new_view):
-    #     """Handle visibility changes between views"""
-    #     # Hide all traces first
-    #     for trace in self.fig.data:
-    #         trace.visible = False
-            
-    #     # Hide previous view
-    #     if self.current_view == "metaheuristic":
-    #         for i in [2,3,4]: self.fig.data[i].visible = False
-    #     elif self.current_view == "marl":
-    #         self.fig.data[5].visible = False
-        
-    #     # Show new view
-    #     self.current_view = new_view
-    def _handle_view_change(self, new_view: str):
-        """Properly toggle visibility for views"""
-        # Hide all non-essential traces
+    def _handle_view_change(self, new_view):
+        """Handle visibility changes between views"""
+        # Hide all traces first
         for trace in self.fig.data:
-            if trace.name not in ['Base Stations', 'Users']:
-                trace.visible = False
+            trace.visible = False
+            
+        # Hide previous view
+        if self.current_view == "metaheuristic":
+            for i in [2,3,4]: self.fig.data[i].visible = False
+        elif self.current_view == "marl":
+            self.fig.data[5].visible = False
         
-        # Show traces for the new view
-        if new_view == "metaheuristic":
-            for algo in ["de", "pso", "aco"]:
-                self._get_trace_by_name(f"{algo.upper()} Agents").visible = True
-        elif new_view == "marl":
-            self._get_trace_by_name("Associations").visible = True
-        
+        # Show new view
         self.current_view = new_view
+    # def _handle_view_change(self, new_view: str):
+    #     """Properly toggle visibility for views"""
+    #     # Hide all non-essential traces
+    #     for trace in self.fig.data:
+    #         if trace.name not in ['Base Stations', 'Users']:
+    #             trace.visible = False
+        
+    #     # Show traces for the new view
+    #     if new_view == "metaheuristic":
+    #         for algo in ["de", "pso", "aco"]:
+    #             self._get_trace_by_name(f"{algo.upper()} Agents").visible = True
+    #     elif new_view == "marl":
+    #         self._get_trace_by_name("Associations").visible = True
+        
+    #     self.current_view = new_view
         
     def save(self, filename="results/final_dashboard.html"):
         """Save dashboard to HTML file"""
