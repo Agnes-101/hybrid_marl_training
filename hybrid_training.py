@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from ray import tune
 from typing import Dict
+from IPython import display
 from ray.rllib.algorithms.ppo import PPOConfig
 from envs.custom_channel_env import NetworkEnvironment
 from hybrid_trainer.metaheuristic_opt import run_metaheuristic
@@ -49,7 +50,7 @@ class HybridTraining:
     def _execute_metaheuristic_phase(self, algorithm: str) -> Dict:
         """Run a single metaheuristic optimization"""
         print(f"\n Initializing {algorithm.upper()} optimization...")
-        from IPython import display
+        # from IPython import display
         # Run optimization with visualization callback
        # Create a closure to capture algo state
         def de_visualize_callback(de_data: Dict):
