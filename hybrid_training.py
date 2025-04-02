@@ -28,6 +28,7 @@ class HybridTraining:
             # algorithm_colors=self._init_algorithm_colors(),
             # update_interval=config["visualization"]["update_interval_ms"]
         )
+        display.display(self.dashboard.fig)
         
         ray.init(**config["ray_resources"])
         # Create log directory if needed
@@ -52,20 +53,21 @@ class HybridTraining:
         # Run optimization with visualization callback
        # Create a closure to capture algo state
         def de_visualize_callback(de_data: Dict):
-            display.clear_output(wait=True)  # Clear previous dashboard
+            # display.clear_output(wait=True)  # Clear previous dashboard
+            # with self.dashboard.fig.batch_update():
             self.dashboard.update(
-                    phase="metaheuristic",
-                    data={
-                        "env_state": self.env.get_current_state(),  # Pass env_state here
-                        "metrics": {
-                            "algorithm": algorithm,
-                            "positions": de_data["positions"],
-                            "fitness": de_data["fitness"]
+                        phase="metaheuristic",
+                        data={
+                            "env_state": self.env.get_current_state(),  # Pass env_state here
+                            "metrics": {
+                                "algorithm": algorithm,
+                                "positions": de_data["positions"],
+                                "fitness": de_data["fitness"]
+                            }
                         }
-                    }
-                )           
+                    )           
             # # Force Colab DOM update
-            display.display(self.dashboard.fig)
+            # display.display(self.dashboard.fig)
             time.sleep(0.1)
         # solution = run_metaheuristic(self.env, algorithm)
         # Pass the visualization hook to the metaheuristic
