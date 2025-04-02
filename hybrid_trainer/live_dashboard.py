@@ -39,7 +39,7 @@ class LiveDashboard:
         
         # Display initial figure
         self.figure_widget = go.FigureWidget(self.fig)
-        display.display(self.figure_widget)
+        #  display.display(self.figure_widget)
         
         # Track UI state
         self.current_view = "network"  # Initialize with default view
