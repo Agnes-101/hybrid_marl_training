@@ -40,11 +40,11 @@ class LiveDashboard:
         # Display initial figure
         self.figure_widget = go.FigureWidget(self.fig)
         display.display(self.figure_widget)
-     
         
-        # State tracking
-        self.current_view = "network"
-        self.overlays = {"overlay": False, "associations": False}
+        # Track active button indices for each updatemenu
+        self.view_menu_active = 0  # Default: "Network" view
+        self.overlay_menu_active = None  # No overlay active by default
+
 
     def _init_traces(self, bounds):
         """Initialize all visualization traces"""
@@ -134,7 +134,9 @@ class LiveDashboard:
                             args=[{"visible": [False]*5+[True]+[False]},
                                 {"title": "MARL View"}])
                     ],
-                    direction="down", x=0.05, y=1.05, xanchor="left", yanchor="bottom" 
+                    active=0,  # "Network" view is default
+                showactive=True,  # Highlight active button
+                direction="down", x=0.05, y=1.05, xanchor="left", yanchor="bottom" 
                 ),
                 dict(
                     buttons=[
@@ -143,7 +145,8 @@ class LiveDashboard:
                         dict(label="Associations", method="restyle",
                             args=[{"visible": [True]*8 + [True, True]}])
                     ],
-                    x=0.35, y=1.05, xanchor="left", yanchor="bottom"
+                    active=None,  # No overlay active by default
+                showactive=True, x=0.35, y=1.05, xanchor="left", yanchor="bottom"
                 )
             ]
         )
@@ -155,10 +158,20 @@ class LiveDashboard:
                 return trace
         raise ValueError(f"Trace '{name}' not found")
     
+    def _save_button_states(self):
+        """Save current active button indices for all menus"""
+        self.view_menu_active = self.fig.layout.updatemenus[0].active
+        self.overlay_menu_active = self.fig.layout.updatemenus[1].active
+
+    def _restore_button_states(self):
+        """Reapply saved button states to retain UI settings"""
+        with self.fig.batch_update():
+            self.fig.layout.updatemenus[0].active = self.view_menu_active
+            self.fig.layout.updatemenus[1].active = self.overlay_menu_active
+    
     def update(self, phase: str, data: dict): 
-        # Save current UI state
-        prev_view = self.current_view
-        prev_overlays = self.overlays.copy()
+        # Save current button states
+        self._save_button_states()
         
         """Main update entry point"""
         with self.fig.batch_update():
@@ -183,10 +196,9 @@ class LiveDashboard:
             # Update current state tracking
             self.current_view = phase
             
-        # Restore UI state
-        self._apply_view(prev_view)
-        # self._apply_overlays(prev_overlays)
-        
+        # Restore button states to previous UI configuration
+        self._restore_button_states()
+    
     def _update_network(self, env_state):
         # """Update base stations and users"""
         # # Base Stations
