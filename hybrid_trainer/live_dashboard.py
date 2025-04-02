@@ -41,6 +41,10 @@ class LiveDashboard:
         self.figure_widget = go.FigureWidget(self.fig)
         display.display(self.figure_widget)
         
+        # Track UI state
+        self.current_view = "network"  # Initialize with default view
+        self.overlays = {"Overlay": False, "associations": False}  # Track overlay states
+        
         # Track active button indices for each updatemenu
         self.view_menu_active = 0  # Default: "Network" view
         self.overlay_menu_active = None  # No overlay active by default
@@ -67,7 +71,7 @@ class LiveDashboard:
         # Trace 2: Metaheuristic
         for algo in ["de", "pso", "aco"]:
             self.fig.add_trace(go.Scattergl(
-                x=[], y=[], mode='markers', visible=False, name=f'{algo.upper()} Agents',
+                x=[], y=[], name = ["DE Agents", "PSO Agents", "ACO Agents"], mode='markers', visible=False, name=f'{algo.upper()} Agents',
                 marker=dict(size=8)), row=1, col=1
             )
         
@@ -384,21 +388,38 @@ class LiveDashboard:
         self.figure_widget.data[12].y = entropy
         self.figure_widget.data[12].visible = True
         
-    def _handle_view_change(self, new_view):
-        """Handle visibility changes between views"""
-        # Hide all traces first
-        for trace in self.fig.data:
-            trace.visible = False
+    # def _handle_view_change(self, new_view):
+    #     """Handle visibility changes between views"""
+    #     # Hide all traces first
+    #     for trace in self.fig.data:
+    #         trace.visible = False
             
+    #     # Hide previous view
+    #     if self.current_view == "metaheuristic":
+    #         for i in [2,3,4]: self.fig.data[i].visible = False
+    #     elif self.current_view == "marl":
+    #         self.fig.data[5].visible = False
+        
+    #     # Show new view
+    #     self.current_view = new_view
+    def _handle_view_change(self, new_view: str):
+        """Update visibility for the new view"""
         # Hide previous view
         if self.current_view == "metaheuristic":
-            for i in [2,3,4]: self.fig.data[i].visible = False
+            for trace in ["DE Agents", "PSO Agents", "ACO Agents"]:
+                self._get_trace_by_name(trace).visible = False
         elif self.current_view == "marl":
-            self.fig.data[5].visible = False
+            self._get_trace_by_name("Associations").visible = False
         
         # Show new view
-        self.current_view = new_view
+        if new_view == "metaheuristic":
+            for trace in ["DE Agents", "PSO Agents", "ACO Agents"]:
+                self._get_trace_by_name(trace).visible = True
+        elif new_view == "marl":
+            self._get_trace_by_name("Associations").visible = True
         
+        # Update current view tracking
+        self.current_view = new_view  # Critical for state consistency    
     def save(self, filename="results/final_dashboard.html"):
         """Save dashboard to HTML file"""
         self.fig.write_html(filename)
