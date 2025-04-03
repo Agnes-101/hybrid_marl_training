@@ -55,14 +55,14 @@ class LiveDashboard:
         # Main View (Column 1)
         # Network
         # Trace 0: Base Stations
-        self.figure_widget.add_trace(go.Scattergl(
+        self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='markers', visible=True, name='Base Stations',
             marker=dict(symbol='square', size=25, color='#BD0D0D', opacity=1.0)),
             row=1, col=1
         )
         
         # Trace 1: Users
-        self.figure_widget.add_trace(go.Scattergl(
+        self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='markers',visible= True, name='Users',
             marker=dict(size=6, color='blue', opacity=0.4)),
             row=1, col=1
@@ -70,52 +70,52 @@ class LiveDashboard:
         
         # Trace 2: Metaheuristic
         for algo in ["de", "pso", "aco"]:
-            self.figure_widget.add_trace(go.Scattergl(
+            self.fig.add_trace(go.Scattergl(
                 x=[], y=[],  mode='markers', visible=False, name=f'{algo.upper()} Agents',
                 marker=dict(size=8)), row=1, col=1
             )
         
         # Trace 3: MARL Associations
-        self.figure_widget.add_trace(go.Scattergl(
+        self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='lines', visible=False,
             line=dict(width=1), name='Associations'), row=1, col=1
         )
 
         # Network KPIs (Column 2)
         # Trace 4: Connected Users
-        self.figure_widget.add_trace(go.Indicator(
+        self.fig.add_trace(go.Indicator(
             mode="number+delta", name= 'Connected Users', visible=True,title="Connected Users",
             number=dict(font=dict(size=40))), row=1, col=2)
         
         # Trace 5 : Average SINR
-        self.figure_widget.add_trace(go.Indicator(
+        self.fig.add_trace(go.Indicator(
             mode="gauge", name='Avg SINR', visible=True,title="Avg SINR",
             gauge=dict(axis=dict(range=[0, 30], tickfont_size=10),  # Smaller ticks
         bar_thickness=0.3)), row=2, col=2)
         
         # Trace 6: BS load Bar
-        self.figure_widget.add_trace(go.Bar(
+        self.fig.add_trace(go.Bar(
             x=[], y=[], name='BS Load', visible=True), row=3, col=2)
 
         # Phase KPIs (Row 4)
         # Trace 7: SINR Heatmap
-        self.figure_widget.add_trace(go.Heatmap(
+        self.fig.add_trace(go.Heatmap(
             x=[], y=[], name= 'SINR Heatmap', colorscale='Viridis', showscale=False,
             visible=False), row=4, col=1)
         # Trace 8: Fitness
-        self.figure_widget.add_trace(go.Scatter(
+        self.fig.add_trace(go.Scatter(
             x=[], y=[], name='Fitness', visible=False), row=4, col=2)
         # Trace 9: Reward
-        self.figure_widget.add_trace(go.Scatter(
+        self.fig.add_trace(go.Scatter(
             x=[], y=[], name='Reward', visible=False), row=4, col=2)
         
         # After adding traces, update axes:
-        self.figure_widget.update_xaxes(title_text="X Coordinate (meters)", row=1, col=1)
-        self.figure_widget.update_yaxes(title_text="Y Coordinate (meters)", row=1, col=1) 
-        self.figure_widget.update_xaxes(title_text="X Position (meters)", row=4, col=1)
-        self.figure_widget.update_yaxes(title_text="Y Position (meters)", row=4, col=1)  
-        self.figure_widget.update_xaxes(title_text="Base Station ID", row=3, col=2)
-        self.figure_widget.update_yaxes(title_text="Load (%)", row=3, col=2)
+        self.fig.update_xaxes(title_text="X Coordinate (meters)", row=1, col=1)
+        self.fig.update_yaxes(title_text="Y Coordinate (meters)", row=1, col=1) 
+        self.fig.update_xaxes(title_text="X Position (meters)", row=4, col=1)
+        self.fig.update_yaxes(title_text="Y Position (meters)", row=4, col=1)  
+        self.fig.update_xaxes(title_text="Base Station ID", row=3, col=2)
+        self.fig.update_yaxes(title_text="Load (%)", row=3, col=2)
         
         
     
@@ -157,7 +157,7 @@ class LiveDashboard:
         
     def _get_trace_by_name(self, name: str):
         """Get trace by name (safer than indices)"""
-        for trace in self.figure_widget.data:
+        for trace in self.fig.data:
             if trace.name == name:
                 return trace
         raise ValueError(f"Trace '{name}' not found")
