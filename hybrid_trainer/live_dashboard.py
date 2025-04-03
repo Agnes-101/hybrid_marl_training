@@ -35,7 +35,9 @@ class LiveDashboard:
                         
         # Display initial figure
         # self.figure_widget = go.FigureWidget(self.fig)
-        # display.display(self.figure_widget)
+        # display.display(self.fig)
+        fig.show(renderer="colab")
+
         # display(self.fig)
         # Initialize all traces
         self._init_traces(network_bounds)

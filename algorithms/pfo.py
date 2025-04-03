@@ -6,7 +6,7 @@ from envs.custom_channel_env import evaluate_detailed_solution
 class PolarFoxOptimization:
     def __init__(self, num_users, num_cells, env, 
                  population_size=40, iterations=100,
-                 mutation_factor=0.2, jump_rate=0.2, follow_rate=0.3, seed=42):
+                 mutation_factor=0.2, jump_rate=0.2, follow_rate=0.3, seed=42, kpi_logger=None):
         np.random.seed(seed)
         self.num_users = num_users
         self.num_cells = num_cells
@@ -17,6 +17,7 @@ class PolarFoxOptimization:
         self.jump_rate = jump_rate  
         self.follow_rate = follow_rate  
         self.seed = seed
+        self.kpi_logger = kpi_logger
         
         # Group parameters [PF, LF, a, b, m]
         self.types = np.array([
@@ -31,7 +32,9 @@ class PolarFoxOptimization:
         self.group_weights = [1000, 1000, 1000, 1000]
         self.best_solution = None
         self.best_fitness = -np.inf
-
+        # For live updates, you can also keep track of positions and fitness history:
+        self.positions = None  # will be computed from population later        
+        
     def initialize_population(self):
         """Generate initial population with 20% heuristic solutions."""
         population = []
@@ -134,7 +137,7 @@ class PolarFoxOptimization:
             best_group = self.population[np.argmax([f["group"] for f in self.population])]["group"]
             self.group_weights[best_group] += stagnation_count * 100
 
-    def optimize(self):
+    def optimize(self, visualize_callback: callable = None) -> np.ndarray:
         """Enhanced optimization loop with anti-stagnation mechanisms."""
         best_solution = self.population[0].copy()
         best_fitness = -np.inf
@@ -148,6 +151,9 @@ class PolarFoxOptimization:
         diversity_history = []
 
         for iteration in range(self.iterations):
+            # Adaptive parameter update
+            self.adaptive_parameters(iteration)
+            
             # Evaluate population
             fitness_values = [self.fitness(fox) for fox in self.population]
             
@@ -169,6 +175,35 @@ class PolarFoxOptimization:
             else:
                 no_improvement_streak += 1
 
+            # Log metrics per iteration via KPI logger if available
+            if self.kpi_logger:
+                self.kpi_logger.log_metrics(
+                    episode=iteration,
+                    phase="metaheuristic",
+                    algorithm="pfo",
+                    metrics={"fitness": best_fitness, "diversity": diversity}
+                )
+                print(f"PFO Iter {iteration}: Best Fitness = {best_fitness:.4f}, Diversity = {diversity:.2f}")
+            
+            historical_bests.append(best_fitness)
+            
+            # Periodic live dashboard updates (every 5 iterations)
+            if visualize_callback and iteration % 5 == 0:
+                # Compute visualization positions (example: use diversity as x and best fitness as y)
+                positions = np.column_stack((
+                    np.full((self.population_size,), diversity),   # Dummy x: diversity for all
+                    np.array(fitness_values)                        # y: fitness values
+                ))
+                self.positions = positions  # Save current positions for visualization
+                
+                visualize_callback({
+                    "positions": positions.tolist(),
+                    "fitness": historical_bests,
+                    "algorithm": "pfo",
+                    "env_state": self.env.get_current_state()
+                })
+                print(f"PFO Visual Update @ Iter {iteration}")
+            
             # Enhanced stagnation detection with diversity check
             avg_diversity = np.mean(diversity_history[-3:]) if diversity_history else 0
             if (iteration > 20 and 
@@ -217,7 +252,16 @@ class PolarFoxOptimization:
             # Adaptive mutation decay
             if no_improvement_streak == 0 and self.mutation_factor > mutation_reset:
                 self.mutation_factor *= 0.95  # Gradual decay on improvement
-
+                
+            # Update environment with current best solution
+            self.best_solution = best_solution.copy()
+            self.env.apply_solution(self.best_solution)
+            actions = {
+                f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
+                for bs_id in range(self.env.num_bs)
+            }
+            self.env.step(actions)  # Update environment state
+            
             # Progress tracking
             historical_bests.append(best_fitness)
             print(f"Iter {iteration+1}: Best = {best_fitness:.4f}, "
