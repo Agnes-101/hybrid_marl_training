@@ -32,15 +32,14 @@ class LiveDashboard:
             column_widths=[0.7, 0.3],
             vertical_spacing= 0.1 #0.05
         )
-        
-        # Initialize all traces
-        self._init_traces(network_bounds)
-        self._add_controls()
-        
+                        
         # Display initial figure
         self.fig = go.FigureWidget(self.fig)
         display.display(self.fig)
         
+        # Initialize all traces
+        self._init_traces(network_bounds)
+        self._add_controls()
         # Track UI state
         self.current_view = "network"  # Initialize with default view
         self.overlays = {"Overlay": False, "associations": False}  # Track overlay states
