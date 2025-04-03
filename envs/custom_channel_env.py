@@ -213,89 +213,89 @@ class NetworkEnvironment:
         for bs in self.base_stations:
             bs.calculate_load()
     
-    # def apply_solution(self, solution):
-        # """Apply a solution (numpy array or dict) to the environment"""
-        # # Handle full algorithm result dict format
-        # if isinstance(solution, dict) and "solutiSon" in solution:
-        #     solution = solution["solution"]
-        
-        # # Convert numpy array to dict format
-        # if isinstance(solution, np.ndarray):
-        #     solution_dict = {}
-        #     for ue_idx, bs_id in enumerate(solution):
-        #         bs_id = int(bs_id)  # Force integer type conversion
-                
-        #         # Initialize list if key doesn't exist
-        #         if bs_id not in solution_dict:
-        #             solution_dict[bs_id] = []
-                
-        #         solution_dict[bs_id].append(ue_idx)
-        #     solution = solution_dict
-
-        # # Validate BS IDs exist
-        # valid_bs_ids = {int(bs.id) for bs in self.base_stations}
-        # for bs_id in solution.keys():
-        #     try:
-        #         bs_id_int = int(bs_id)
-        #         if bs_id_int not in valid_bs_ids:
-        #             raise ValueError(f"Invalid BS ID {bs_id} in solution")
-        #     except ValueError:
-        #         raise ValueError(f"BS ID {bs_id} is not an integer")
-
-        # # Clear existing associations
-        # for bs in self.base_stations:
-        #     bs.allocated_resources = {}
-        #     self.associations[bs.id] = []
-
-        # # Apply new associations
-        # for bs_id, ue_ids in solution.items():
-        #     bs_id_int = int(bs_id)
-        #     bs = next(bs for bs in self.base_stations if int(bs.id) == bs_id_int)
-        #     for ue_id in ue_ids:
-        #         self.ues[ue_id].associated_bs = bs_id_int
-        #         bs.allocated_resources[ue_id] = self.ues[ue_id].demand
-
-        # self._update_system_metrics()
-    
     def apply_solution(self, solution):
-        """Apply a solution (either numpy array or dict) to the environment"""
-        # Convert numpy array to dict format if necessary
+        """Apply a solution (numpy array or dict) to the environment"""
+        # Handle full algorithm result dict format
+        if isinstance(solution, dict) and "solutiSon" in solution:
+            solution = solution["solution"]
+        
+        # Convert numpy array to dict format
         if isinstance(solution, np.ndarray):
-            # Format: {bs_id: [ue_indices]}
             solution_dict = {}
             for ue_idx, bs_id in enumerate(solution):
-                # Convert bs_id to int
-                bs_id = int(bs_id)
+                bs_id = int(bs_id)  # Force integer type conversion
+                
+                # Initialize list if key doesn't exist
                 if bs_id not in solution_dict:
                     solution_dict[bs_id] = []
+                
                 solution_dict[bs_id].append(ue_idx)
             solution = solution_dict
 
-        # Optionally, validate BS IDs exist (after type conversion)
+        # Validate BS IDs exist
         valid_bs_ids = {int(bs.id) for bs in self.base_stations}
         for bs_id in solution.keys():
-            if int(bs_id) not in valid_bs_ids:
-                raise ValueError(f"Invalid BS ID {bs_id} in solution")
+            try:
+                bs_id_int = int(bs_id)
+                if bs_id_int not in valid_bs_ids:
+                    raise ValueError(f"Invalid BS ID {bs_id} in solution")
+            except ValueError:
+                raise ValueError(f"BS ID {bs_id} is not an integer")
 
         # Clear existing associations
         for bs in self.base_stations:
             bs.allocated_resources = {}
             self.associations[bs.id] = []
 
-        # Apply new associations: convert bs.id in lookup to int as well
+        # Apply new associations
         for bs_id, ue_ids in solution.items():
-            bs = next(bs for bs in self.base_stations if int(bs.id) == int(bs_id))
+            bs_id_int = int(bs_id)
+            bs = next(bs for bs in self.base_stations if int(bs.id) == bs_id_int)
             for ue_id in ue_ids:
-                self.ues[ue_id].associated_bs = bs_id
+                self.ues[ue_id].associated_bs = bs_id_int
                 bs.allocated_resources[ue_id] = self.ues[ue_id].demand
 
-        self._update_system_metrics()   
+        self._update_system_metrics()
+    
+    # def apply_solution(self, solution):
+    #     """Apply a solution (either numpy array or dict) to the environment"""
+    #     # Convert numpy array to dict format if necessary
+    #     if isinstance(solution, np.ndarray):
+    #         # Format: {bs_id: [ue_indices]}
+    #         solution_dict = {}
+    #         for ue_idx, bs_id in enumerate(solution):
+    #             # Convert bs_id to int
+    #             bs_id = int(bs_id)
+    #             if bs_id not in solution_dict:
+    #                 solution_dict[bs_id] = []
+    #             solution_dict[bs_id].append(ue_idx)
+    #         solution = solution_dict
+
+    #     # Optionally, validate BS IDs exist (after type conversion)
+    #     valid_bs_ids = {int(bs.id) for bs in self.base_stations}
+    #     for bs_id in solution.keys():
+    #         if int(bs_id) not in valid_bs_ids:
+    #             raise ValueError(f"Invalid BS ID {bs_id} in solution")
+
+    #     # Clear existing associations
+    #     for bs in self.base_stations:
+    #         bs.allocated_resources = {}
+    #         self.associations[bs.id] = []
+
+    #     # Apply new associations: convert bs.id in lookup to int as well
+    #     for bs_id, ue_ids in solution.items():
+    #         bs = next(bs for bs in self.base_stations if int(bs.id) == int(bs_id))
+    #         for ue_id in ue_ids:
+    #             self.ues[ue_id].associated_bs = bs_id
+    #             bs.allocated_resources[ue_id] = self.ues[ue_id].demand
+
+    #     self._update_system_metrics()   
     
     
     # Added evaluate_detailed_solution function
     def evaluate_detailed_solution(self, solution, alpha=0.1, beta=0.1):
         original_state = self.get_state_snapshot()
-        self.apply_solution(solution['solution'])  # Ensure state is updated
+        self.apply_solution(solution)  # Ensure state is updated
                 
         rewards = [self.calculate_reward() for _ in range(10)]  # Simulate over 10 steps
         sinr_list = [ue.sinr for ue in self.ues]
