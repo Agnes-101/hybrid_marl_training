@@ -19,7 +19,7 @@ class LiveDashboard:
             "pso": "#45B7D1",
             "marl": "#9B59B6"
         }
-        self.fig = sp.make_subplots(
+        self.figure_widget = sp.make_subplots(
             rows=5, cols=2,
             row_heights=[0.05, 0.05, 0.5, 0.5, 0.25],  # Prioritize first and last rows
             specs=[
@@ -38,8 +38,8 @@ class LiveDashboard:
         self._add_controls()
         
         # Display initial figure
-        self.figure_widget = go.FigureWidget(self.fig)
-        display.display(self.figure_widget)
+        self.fig = go.FigureWidget(self.figure_widget)
+        display.display(self.fig)
         
         # Track UI state
         self.current_view = "network"  # Initialize with default view
