@@ -75,18 +75,18 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     # solution = algorithms[algorithm].run(num_bs=num_bs, num_ue=num_ue).run(env)
     
     
-    # Evaluate using environment's built-in method
-    metrics = env.evaluate_detailed_solution(solution)
-    print(f"\n Metrics, {metrics}")
+    # # Evaluate using environment's built-in method
+    # metrics = env.evaluate_detailed_solution(solution)
+    # print(f"\n Metrics, {metrics}")
     
-    # Log metrics using KPI tracker
-    kpi_logger.log_kpis(
-        episode=epoch,
-        reward=metrics["fitness"],
-        sinr=metrics["average_sinr"],
-        fairness=metrics["fairness"],
-        load_variance=metrics["load_variance"]
-    )
+    # # Log metrics using KPI tracker
+    # kpi_logger.log_kpis(
+    #     episode=epoch,
+    #     reward=metrics["fitness"],
+    #     sinr=metrics["average_sinr"],
+    #     fairness=metrics["fairness"],
+    #     load_variance=metrics["load_variance"]
+    # )
     
     return {
         "solution": solution,

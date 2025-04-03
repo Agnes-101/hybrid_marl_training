@@ -19,7 +19,7 @@ class LiveDashboard:
             "pso": "#45B7D1",
             "marl": "#9B59B6"
         }
-        self.fig = sp.make_subplots(
+        self.fig = go.Figure( sp.make_subplots(
             rows=5, cols=2,
             row_heights=[0.1, 0.1, 0.5, 0.5, 0.5],  # Prioritize first and last rows
             specs=[
@@ -31,12 +31,12 @@ class LiveDashboard:
             ],
             column_widths=[0.7, 0.3],
             vertical_spacing= 0.1 #0.05
-        )
+        ))
                         
         # Display initial figure
-        self.figure_widget = go.FigureWidget(self.fig)
-        display.display(self.figure_widget)
-        #display.display(self.fig)
+        # self.figure_widget = go.FigureWidget(self.fig)
+        # display.display(self.figure_widget)
+        display.display(self.fig)
         # Initialize all traces
         self._init_traces(network_bounds)
         self._add_controls()
