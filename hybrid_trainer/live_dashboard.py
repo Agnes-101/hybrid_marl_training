@@ -418,7 +418,7 @@ class LiveDashboard:
     def _handle_view_change(self, new_view: str):
         """Properly toggle visibility for views"""
         # Hide all non-essential traces
-        for trace in self.figure_widget.data:
+        for trace in self.fig.data:
             if trace.name not in ['Base Stations', 'Users']:
                 trace.visible = False
         
