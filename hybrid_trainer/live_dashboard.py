@@ -211,7 +211,7 @@ class LiveDashboard:
             # self._update_phase_kpis(phase, metrics)
             # Update current state tracking
             self.current_view = phase
-        self.figure_widget.update_layout()
+        self.figure_widget.update_layout(title="Updated Layout Example")
 
         # Restore button states to previous UI configuration
         self._restore_button_states()
