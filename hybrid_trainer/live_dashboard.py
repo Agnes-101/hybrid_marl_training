@@ -34,7 +34,7 @@ class LiveDashboard:
         )
                         
         # Display initial figure
-        self.figure_widget = go.FigureWidget(self.figure_widget)
+        self.figure_widget = go.FigureWidget(self.fig)
         display.display(self.figure_widget)
         
         # Initialize all traces
