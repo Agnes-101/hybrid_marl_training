@@ -164,8 +164,8 @@ class LiveDashboard:
     
     def _save_button_states(self):
         """Save current active button indices for all menus"""
-        self.view_menu_active = self.fig.update_layout.updatemenus[0].active
-        self.overlay_menu_active = self.fig.update_layout.updatemenus[1].active
+        self.view_menu_active = self.fig.layout.updatemenus[0].active
+        self.overlay_menu_active = self.fig.layout.updatemenus[1].active
         print(f"[DEBUG] Saving states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
     # def _restore_button_states(self):
     #     """Reapply saved button states to retain UI settings"""
