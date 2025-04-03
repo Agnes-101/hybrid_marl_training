@@ -21,7 +21,7 @@ class LiveDashboard:
         }
         self.fig = sp.make_subplots(
             rows=5, cols=2,
-            row_heights=[0.05, 0.05, 0.5, 0.5, 0.25],  # Prioritize first and last rows
+            row_heights=[0.1, 0.1, 0.5, 0.5, 0.5],  # Prioritize first and last rows
             specs=[
                 [{"type": "scattergl", "rowspan": 3}, {"type": "indicator"}],
                 [None, {"type": "indicator"}],
@@ -164,8 +164,8 @@ class LiveDashboard:
     
     def _save_button_states(self):
         """Save current active button indices for all menus"""
-        self.view_menu_active = self.figure_widget.layout.updatemenus[0].active
-        self.overlay_menu_active = self.figure_widget.layout.updatemenus[1].active
+        self.view_menu_active = self.fig.update_layout.updatemenus[0].active
+        self.overlay_menu_active = self.fig.update_layout.updatemenus[1].active
         print(f"[DEBUG] Saving states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
     # def _restore_button_states(self):
     #     """Reapply saved button states to retain UI settings"""
@@ -175,14 +175,14 @@ class LiveDashboard:
     
     def _restore_button_states(self):
         """Reapply saved states within a batch update"""
-        with self.figure_widget.batch_update():
+        with self.fig.batch_update():
             # Restore view menu
-            if 0 <= self.view_menu_active < len(self.figure_widget.layout.updatemenus[0].buttons):
-                self.figure_widget.layout.updatemenus[0].active = self.view_menu_active
+            if 0 <= self.view_menu_active < len(self.fig.layout.updatemenus[0].buttons):
+                self.fig.layout.updatemenus[0].active = self.view_menu_active
             
             # Restore overlay menu (None = no active overlay)
-            if self.overlay_menu_active is None or (0 <= self.overlay_menu_active < len(self.figure_widget.layout.updatemenus[1].buttons)):
-                self.figure_widget.layout.updatemenus[1].active = self.overlay_menu_active
+            if self.overlay_menu_active is None or (0 <= self.overlay_menu_active < len(self.fig.layout.updatemenus[1].buttons)):
+                self.fig.layout.updatemenus[1].active = self.overlay_menu_active
         print(f"[DEBUG] Restoring states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
         
     def update(self, phase: str, data: dict): 
@@ -211,7 +211,7 @@ class LiveDashboard:
             # self._update_phase_kpis(phase, metrics)
             # Update current state tracking
             self.current_view = phase
-        self.fig.update_layout(title="Updated Layout Example")
+        # self.fig.update_layout(title="Updated Layout Example")
 
         # Restore button states to previous UI configuration
         self._restore_button_states()
