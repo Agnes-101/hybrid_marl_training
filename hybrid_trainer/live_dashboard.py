@@ -57,7 +57,7 @@ class LiveDashboard:
         # Trace 0: Base Stations
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='markers', visible=True, name='Base Stations',
-            marker=dict(symbol='square', size=15, color='#BD0D0D', opacity=1.0)),
+            marker=dict(symbol='square', size=25, color='#BD0D0D', opacity=1.0)),
             row=1, col=1
         )
         
@@ -207,7 +207,7 @@ class LiveDashboard:
                 self._update_marl(env_state)
             
             # Update persistent KPIs
-            self._update_phase_kpis(phase, metrics)
+            # self._update_phase_kpis(phase, metrics)
             # Update current state tracking
             self.current_view = phase
             
