@@ -223,17 +223,17 @@ class LiveDashboard:
         # self.figure_widget.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
         # self.figure_widget.data[0].marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
         
-        bs_trace = self.figure_widget.data[0]
+        bs_trace = self.fig.data[0]
         bs_trace.x = [bs["position"][0] for bs in env_state["base_stations"]]
         bs_trace.y = [bs["position"][1] for bs in env_state["base_stations"]]
         bs_trace.marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
 
         
         # Users
-        self.figure_widget.data[1].x = [ue["position"][0] for ue in env_state["users"]]
-        self.figure_widget.data[1].y = [ue["position"][1] for ue in env_state["users"]]
-        # self.figure_widget.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
-        self.figure_widget.data[1].marker.color = [float(ue["sinr"]) for ue in env_state["users"]]  # Force float
+        self.fig.data[1].x = [ue["position"][0] for ue in env_state["users"]]
+        self.fig.data[1].y = [ue["position"][1] for ue in env_state["users"]]
+        # self.fig.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
+        self.fig.data[1].marker.color = [float(ue["sinr"]) for ue in env_state["users"]]  # Force float
         
     
     def _update_metaheuristic(self, metrics):
@@ -244,10 +244,10 @@ class LiveDashboard:
         x = [pos[0] for pos in metrics['positions']]  # First element of each position
         y = [pos[1] for pos in metrics['positions']]  # Second element of each position
         
-        self.figure_widget.data[algo_idx].x = x
-        self.figure_widget.data[algo_idx].y = y
-        self.figure_widget.data[algo_idx].marker.color = metrics['fitness']
-        self.figure_widget.data[algo_idx].marker.colorscale = 'Viridis'
+        self.fig.data[algo_idx].x = x
+        self.fig.data[algo_idx].y = y
+        self.fig.data[algo_idx].marker.color = metrics['fitness']
+        self.fig.data[algo_idx].marker.colorscale = 'Viridis'
 
     def _update_marl(self, env_state):
         """Update MARL associations"""
@@ -258,16 +258,16 @@ class LiveDashboard:
             x.extend([ue_pos[0], bs_pos[0], None])
             y.extend([ue_pos[1], bs_pos[1], None])
         
-        self.figure_widget.data[5].x = x
-        self.figure_widget.data[5].y = y
-        self.figure_widget.data[5].line.color = [ue["sinr"] for ue in env_state["users"]]
+        self.fig.data[5].x = x
+        self.fig.data[5].y = y
+        self.fig.data[5].line.color = [ue["sinr"] for ue in env_state["users"]]
 
     # def _update_network_kpis(self, metrics):
     #     """Update persistent network metrics"""
-    #     self.figure_widget.data[6].value = metrics.get('connected_users', 0)
-    #     self.figure_widget.data[7].value = metrics.get('avg_sinr', 0)
-    #     self.figure_widget.data[8].x = [bs['id'] for bs in metrics['base_stations']]
-    #     self.figure_widget.data[8].y = [bs['load'] for bs in metrics['base_stations']]
+    #     self.fig.data[6].value = metrics.get('connected_users', 0)
+    #     self.fig.data[7].value = metrics.get('avg_sinr', 0)
+    #     self.fig.data[8].x = [bs['id'] for bs in metrics['base_stations']]
+    #     self.fig.data[8].y = [bs['load'] for bs in metrics['base_stations']]
         
     def _update_network_kpis(self, env_state: dict):
         
@@ -302,7 +302,7 @@ class LiveDashboard:
         grid_sinr = self.calculate_grid_sinr(env_state)
         
         # Update heatmap trace
-        sinr_heatmap.x = self.x_grid  # Grid X-coordinates   self.figure_widget.data[2]
+        sinr_heatmap.x = self.x_grid  # Grid X-coordinates   self.fig.data[2]
         sinr_heatmap.y = self.y_grid  # Grid Y-coordinates
         sinr_heatmap.z = grid_sinr    # SINR values across grid
         sinr_heatmap.visible = True
@@ -316,38 +316,38 @@ class LiveDashboard:
         }
         
         # Set visibility for all traces
-        for trace in self.figure_widget.data:
+        for trace in self.fig.data:
             trace.visible = trace.name in trace_visibility.get(view_name, [])
             
     def _apply_overlays(self, overlays: dict):
         """Restore overlay states"""
         # SINR Heatmap
-        sinr_trace = next(t for t in self.figure_widget.data if t.name == "SINR Heatmap")
+        sinr_trace = next(t for t in self.fig.data if t.name == "SINR Heatmap")
         sinr_trace.visible = overlays["sinr"]
         
         # Associations
-        assoc_trace = next(t for t in self.figure_widget.data if t.name == "Associations")
+        assoc_trace = next(t for t in self.fig.data if t.name == "Associations")
         assoc_trace.visible = overlays["associations"]
 
 
     # def _update_phase_kpis(self, phase, metrics):
     #     """Update phase-specific KPIs"""
     #     if phase == "metaheuristic":
-    #         self.figure_widget.data[9].visible = True
-    #         self.figure_widget.data[10].visible = False
-    #         self.figure_widget.data[9].x = list(range(len(metrics['fitness'])))
-    #         self.figure_widget.data[9].y = metrics['fitness']
+    #         self.fig.data[9].visible = True
+    #         self.fig.data[10].visible = False
+    #         self.fig.data[9].x = list(range(len(metrics['fitness'])))
+    #         self.fig.data[9].y = metrics['fitness']
     #     elif phase == "marl":
-    #         self.figure_widget.data[9].visible = False
-    #         self.figure_widget.data[10].visible = True
-    #         self.figure_widget.data[10].x = list(range(len(metrics['reward'])))
-    #         self.figure_widget.data[10].y = metrics['reward']
+    #         self.fig.data[9].visible = False
+    #         self.fig.data[10].visible = True
+    #         self.fig.data[10].x = list(range(len(metrics['reward'])))
+    #         self.fig.data[10].y = metrics['reward']
           
     def _update_phase_kpis(self, phase:str, metrics):
         """Handle phase-specific KPI updates"""
         # Clear previous phase traces
-        self.figure_widget.data[9].visible = False  # Fitness plot
-        self.figure_widget[10].visible = False  # Reward plot
+        self.fig.data[9].visible = False  # Fitness plot
+        self.fig[10].visible = False  # Reward plot
         
         if phase == "metaheuristic":
             # Update and show metaheuristic KPIs
@@ -401,39 +401,39 @@ class LiveDashboard:
         self.figure_widget.data[12].y = entropy
         self.figure_widget.data[12].visible = True
         
-    def _handle_view_change(self, new_view):
-        """Handle visibility changes between views"""
-        # Hide all traces first
-        for trace in self.figure_widget.data:
-            trace.visible = False
-            
-        # Hide previous view
-        if self.current_view == "metaheuristic":
-            for i in [2,3,4]: self.figure_widget.data[i].visible = False
-        elif self.current_view == "marl":
-            self.figure_widget.data[5].visible = False
-        
-        # Show new view
-        self.current_view = new_view
-    # def _handle_view_change(self, new_view: str):
-    #     """Properly toggle visibility for views"""
-    #     # Hide all non-essential traces
+    # def _handle_view_change(self, new_view):
+    #     """Handle visibility changes between views"""
+    #     # Hide all traces first
     #     for trace in self.figure_widget.data:
-    #         if trace.name not in ['Base Stations', 'Users']:
-    #             trace.visible = False
+    #         trace.visible = False
+            
+    #     # Hide previous view
+    #     if self.current_view == "metaheuristic":
+    #         for i in [2,3,4]: self.figure_widget.data[i].visible = False
+    #     elif self.current_view == "marl":
+    #         self.figure_widget.data[5].visible = False
         
-    #     # Show traces for the new view
-    #     if new_view == "metaheuristic":
-    #         for algo in ["de", "pso", "aco"]:
-    #             self._get_trace_by_name(f"{algo.upper()} Agents").visible = True
-    #     elif new_view == "marl":
-    #         self._get_trace_by_name("Associations").visible = True
-        
+    #     # Show new view
     #     self.current_view = new_view
+    def _handle_view_change(self, new_view: str):
+        """Properly toggle visibility for views"""
+        # Hide all non-essential traces
+        for trace in self.figure_widget.data:
+            if trace.name not in ['Base Stations', 'Users']:
+                trace.visible = False
+        
+        # Show traces for the new view
+        if new_view == "metaheuristic":
+            for algo in ["de", "pso", "aco"]:
+                self._get_trace_by_name(f"{algo.upper()} Agents").visible = True
+        elif new_view == "marl":
+            self._get_trace_by_name("Associations").visible = True
+        
+        self.current_view = new_view
         
     def save(self, filename="results/final_dashboard.html"):
         """Save dashboard to HTML file"""
-        self.figure_widget.write_html(filename)
+        self.fig.write_html(filename)
         print(f"Dashboard saved to {filename}")
         
 # # hybrid_trainer/live_dashboard.py
