@@ -368,7 +368,7 @@ class LiveDashboard:
     def _update_reward_plot(self, metrics):
         """Update MARL reward plot"""
         rewards = metrics.get('episode_rewards', [])
-        self.figure_widget.[10].x = list(range(len(rewards)))
+        self.figure_widget[10].x = list(range(len(rewards)))
         self.figure_widget[10].y = rewards
         self.figure_widget[10].visible = True
         
