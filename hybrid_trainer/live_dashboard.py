@@ -190,7 +190,7 @@ class LiveDashboard:
         self._save_button_states()
         
         """Main update entry point"""
-        with self.figure_widget.batch_update():
+        with self.fig.batch_update():
             # Update main view
             # Extract env_state and metrics from data
             env_state = data.get("env_state", {})
@@ -199,8 +199,8 @@ class LiveDashboard:
             self._update_network(env_state)
             self._update_network_kpis(env_state)
             
-            # if phase != self.current_view:
-            #     self._handle_view_change(phase)
+            if phase != self.current_view:
+                self._handle_view_change(phase)
             
             # if phase == "metaheuristic":
             #     self._update_metaheuristic(metrics)
