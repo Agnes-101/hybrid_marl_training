@@ -79,6 +79,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     metrics = env.evaluate_detailed_solution(solution)
     print(f"\n Metrics, {metrics}")
     
+    
     # # Log metrics using KPI tracker
     # kpi_logger.log_kpis(
     #     episode=epoch,
