@@ -19,7 +19,7 @@ class LiveDashboard:
             "pso": "#45B7D1",
             "marl": "#9B59B6"
         }
-        self.figure_widget = sp.make_subplots(
+        self.fig = sp.make_subplots(
             rows=5, cols=2,
             row_heights=[0.05, 0.05, 0.5, 0.5, 0.25],  # Prioritize first and last rows
             specs=[
@@ -34,12 +34,13 @@ class LiveDashboard:
         )
                         
         # Display initial figure
-        self.fig = go.FigureWidget(self.figure_widget)
-        display.display(self.fig)
+        self.figure_widget = go.FigureWidget(self.figure_widget)
+        display.display(self.figure_widget)
         
         # Initialize all traces
         self._init_traces(network_bounds)
         self._add_controls()
+        
         # Track UI state
         self.current_view = "network"  # Initialize with default view
         self.overlays = {"Overlay": False, "associations": False}  # Track overlay states
@@ -54,14 +55,14 @@ class LiveDashboard:
         # Main View (Column 1)
         # Network
         # Trace 0: Base Stations
-        self.fig.add_trace(go.Scattergl(
+        self.figure_widget.add_trace(go.Scattergl(
             x=[], y=[], mode='markers', visible=True, name='Base Stations',
             marker=dict(symbol='square', size=25, color='#BD0D0D', opacity=1.0)),
             row=1, col=1
         )
         
         # Trace 1: Users
-        self.fig.add_trace(go.Scattergl(
+        self.figure_widget.add_trace(go.Scattergl(
             x=[], y=[], mode='markers',visible= True, name='Users',
             marker=dict(size=6, color='blue', opacity=0.4)),
             row=1, col=1
@@ -69,58 +70,58 @@ class LiveDashboard:
         
         # Trace 2: Metaheuristic
         for algo in ["de", "pso", "aco"]:
-            self.fig.add_trace(go.Scattergl(
+            self.figure_widget.add_trace(go.Scattergl(
                 x=[], y=[],  mode='markers', visible=False, name=f'{algo.upper()} Agents',
                 marker=dict(size=8)), row=1, col=1
             )
         
         # Trace 3: MARL Associations
-        self.fig.add_trace(go.Scattergl(
+        self.figure_widget.add_trace(go.Scattergl(
             x=[], y=[], mode='lines', visible=False,
             line=dict(width=1), name='Associations'), row=1, col=1
         )
 
         # Network KPIs (Column 2)
         # Trace 4: Connected Users
-        self.fig.add_trace(go.Indicator(
+        self.figure_widget.add_trace(go.Indicator(
             mode="number+delta", name= 'Connected Users', visible=True,title="Connected Users",
             number=dict(font=dict(size=40))), row=1, col=2)
         
         # Trace 5 : Average SINR
-        self.fig.add_trace(go.Indicator(
+        self.figure_widget.add_trace(go.Indicator(
             mode="gauge", name='Avg SINR', visible=True,title="Avg SINR",
             gauge=dict(axis=dict(range=[0, 30], tickfont_size=10),  # Smaller ticks
         bar_thickness=0.3)), row=2, col=2)
         
         # Trace 6: BS load Bar
-        self.fig.add_trace(go.Bar(
+        self.figure_widget.add_trace(go.Bar(
             x=[], y=[], name='BS Load', visible=True), row=3, col=2)
 
         # Phase KPIs (Row 4)
         # Trace 7: SINR Heatmap
-        self.fig.add_trace(go.Heatmap(
+        self.figure_widget.add_trace(go.Heatmap(
             x=[], y=[], name= 'SINR Heatmap', colorscale='Viridis', showscale=False,
             visible=False), row=4, col=1)
         # Trace 8: Fitness
-        self.fig.add_trace(go.Scatter(
+        self.figure_widget.add_trace(go.Scatter(
             x=[], y=[], name='Fitness', visible=False), row=4, col=2)
         # Trace 9: Reward
-        self.fig.add_trace(go.Scatter(
+        self.figure_widget.add_trace(go.Scatter(
             x=[], y=[], name='Reward', visible=False), row=4, col=2)
         
         # After adding traces, update axes:
-        self.fig.update_xaxes(title_text="X Coordinate (meters)", row=1, col=1)
-        self.fig.update_yaxes(title_text="Y Coordinate (meters)", row=1, col=1) 
-        self.fig.update_xaxes(title_text="X Position (meters)", row=4, col=1)
-        self.fig.update_yaxes(title_text="Y Position (meters)", row=4, col=1)  
-        self.fig.update_xaxes(title_text="Base Station ID", row=3, col=2)
-        self.fig.update_yaxes(title_text="Load (%)", row=3, col=2)
+        self.figure_widget.update_xaxes(title_text="X Coordinate (meters)", row=1, col=1)
+        self.figure_widget.update_yaxes(title_text="Y Coordinate (meters)", row=1, col=1) 
+        self.figure_widget.update_xaxes(title_text="X Position (meters)", row=4, col=1)
+        self.figure_widget.update_yaxes(title_text="Y Position (meters)", row=4, col=1)  
+        self.figure_widget.update_xaxes(title_text="Base Station ID", row=3, col=2)
+        self.figure_widget.update_yaxes(title_text="Load (%)", row=3, col=2)
         
         
     
     def _add_controls(self):
         """Add interactive controls"""
-        self.fig.update_layout(
+        self.figure_widget.update_layout(
             height=900,  # Increase total height
             width=1400,
             margin=dict(t=150),  # Add top margin for buttons
@@ -156,39 +157,40 @@ class LiveDashboard:
         
     def _get_trace_by_name(self, name: str):
         """Get trace by name (safer than indices)"""
-        for trace in self.fig.data:
+        for trace in self.figure_widget.data:
             if trace.name == name:
                 return trace
         raise ValueError(f"Trace '{name}' not found")
     
     def _save_button_states(self):
         """Save current active button indices for all menus"""
-        self.view_menu_active = self.fig.layout.updatemenus[0].active
-        self.overlay_menu_active = self.fig.layout.updatemenus[1].active
+        self.view_menu_active = self.figure_widget.layout.updatemenus[0].active
+        self.overlay_menu_active = self.figure_widget.layout.updatemenus[1].active
         print(f"[DEBUG] Saving states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
     # def _restore_button_states(self):
     #     """Reapply saved button states to retain UI settings"""
-    #     with self.fig.batch_update():
-    #         self.fig.layout.updatemenus[0].active = self.view_menu_active
-    #         self.fig.layout.updatemenus[1].active = self.overlay_menu_active
+    #     with self.figure_widget.batch_update():
+    #         self.figure_widget.layout.updatemenus[0].active = self.view_menu_active
+    #         self.figure_widget.layout.updatemenus[1].active = self.overlay_menu_active
     
     def _restore_button_states(self):
         """Reapply saved states within a batch update"""
-        with self.fig.batch_update():
+        with self.figure_widget.batch_update():
             # Restore view menu
-            if 0 <= self.view_menu_active < len(self.fig.layout.updatemenus[0].buttons):
-                self.fig.layout.updatemenus[0].active = self.view_menu_active
+            if 0 <= self.view_menu_active < len(self.figure_widget.layout.updatemenus[0].buttons):
+                self.figure_widget.layout.updatemenus[0].active = self.view_menu_active
             
             # Restore overlay menu (None = no active overlay)
-            if self.overlay_menu_active is None or (0 <= self.overlay_menu_active < len(self.fig.layout.updatemenus[1].buttons)):
-                self.fig.layout.updatemenus[1].active = self.overlay_menu_active
+            if self.overlay_menu_active is None or (0 <= self.overlay_menu_active < len(self.figure_widget.layout.updatemenus[1].buttons)):
+                self.figure_widget.layout.updatemenus[1].active = self.overlay_menu_active
         print(f"[DEBUG] Restoring states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
+        
     def update(self, phase: str, data: dict): 
         # Save current button states
         self._save_button_states()
         
         """Main update entry point"""
-        with self.fig.batch_update():
+        with self.figure_widget.batch_update():
             # Update main view
             # Extract env_state and metrics from data
             env_state = data.get("env_state", {})
@@ -216,21 +218,21 @@ class LiveDashboard:
     def _update_network(self, env_state):
         # """Update base stations and users"""
         # # Base Stations
-        # self.fig.data[0].x = [bs["position"][0] for bs in env_state["base_stations"]]
-        # self.fig.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
-        # self.fig.data[0].marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
+        # self.figure_widget.data[0].x = [bs["position"][0] for bs in env_state["base_stations"]]
+        # self.figure_widget.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
+        # self.figure_widget.data[0].marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
         
-        bs_trace = self.fig.data[0]
+        bs_trace = self.figure_widget.data[0]
         bs_trace.x = [bs["position"][0] for bs in env_state["base_stations"]]
         bs_trace.y = [bs["position"][1] for bs in env_state["base_stations"]]
         bs_trace.marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
 
         
         # Users
-        self.fig.data[1].x = [ue["position"][0] for ue in env_state["users"]]
-        self.fig.data[1].y = [ue["position"][1] for ue in env_state["users"]]
-        # self.fig.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
-        self.fig.data[1].marker.color = [float(ue["sinr"]) for ue in env_state["users"]]  # Force float
+        self.figure_widget.data[1].x = [ue["position"][0] for ue in env_state["users"]]
+        self.figure_widget.data[1].y = [ue["position"][1] for ue in env_state["users"]]
+        # self.figure_widget.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
+        self.figure_widget.data[1].marker.color = [float(ue["sinr"]) for ue in env_state["users"]]  # Force float
         
     
     def _update_metaheuristic(self, metrics):
@@ -241,10 +243,10 @@ class LiveDashboard:
         x = [pos[0] for pos in metrics['positions']]  # First element of each position
         y = [pos[1] for pos in metrics['positions']]  # Second element of each position
         
-        self.fig.data[algo_idx].x = x
-        self.fig.data[algo_idx].y = y
-        self.fig.data[algo_idx].marker.color = metrics['fitness']
-        self.fig.data[algo_idx].marker.colorscale = 'Viridis'
+        self.figure_widget.data[algo_idx].x = x
+        self.figure_widget.data[algo_idx].y = y
+        self.figure_widget.data[algo_idx].marker.color = metrics['fitness']
+        self.figure_widget.data[algo_idx].marker.colorscale = 'Viridis'
 
     def _update_marl(self, env_state):
         """Update MARL associations"""
@@ -255,16 +257,16 @@ class LiveDashboard:
             x.extend([ue_pos[0], bs_pos[0], None])
             y.extend([ue_pos[1], bs_pos[1], None])
         
-        self.fig.data[5].x = x
-        self.fig.data[5].y = y
-        self.fig.data[5].line.color = [ue["sinr"] for ue in env_state["users"]]
+        self.figure_widget.data[5].x = x
+        self.figure_widget.data[5].y = y
+        self.figure_widget.data[5].line.color = [ue["sinr"] for ue in env_state["users"]]
 
     # def _update_network_kpis(self, metrics):
     #     """Update persistent network metrics"""
-    #     self.fig.data[6].value = metrics.get('connected_users', 0)
-    #     self.fig.data[7].value = metrics.get('avg_sinr', 0)
-    #     self.fig.data[8].x = [bs['id'] for bs in metrics['base_stations']]
-    #     self.fig.data[8].y = [bs['load'] for bs in metrics['base_stations']]
+    #     self.figure_widget.data[6].value = metrics.get('connected_users', 0)
+    #     self.figure_widget.data[7].value = metrics.get('avg_sinr', 0)
+    #     self.figure_widget.data[8].x = [bs['id'] for bs in metrics['base_stations']]
+    #     self.figure_widget.data[8].y = [bs['load'] for bs in metrics['base_stations']]
         
     def _update_network_kpis(self, env_state: dict):
         
@@ -299,7 +301,7 @@ class LiveDashboard:
         grid_sinr = self.calculate_grid_sinr(env_state)
         
         # Update heatmap trace
-        sinr_heatmap.x = self.x_grid  # Grid X-coordinates   self.fig.data[2]
+        sinr_heatmap.x = self.x_grid  # Grid X-coordinates   self.figure_widget.data[2]
         sinr_heatmap.y = self.y_grid  # Grid Y-coordinates
         sinr_heatmap.z = grid_sinr    # SINR values across grid
         sinr_heatmap.visible = True
@@ -313,38 +315,38 @@ class LiveDashboard:
         }
         
         # Set visibility for all traces
-        for trace in self.fig.data:
+        for trace in self.figure_widget.data:
             trace.visible = trace.name in trace_visibility.get(view_name, [])
             
     def _apply_overlays(self, overlays: dict):
         """Restore overlay states"""
         # SINR Heatmap
-        sinr_trace = next(t for t in self.fig.data if t.name == "SINR Heatmap")
+        sinr_trace = next(t for t in self.figure_widget.data if t.name == "SINR Heatmap")
         sinr_trace.visible = overlays["sinr"]
         
         # Associations
-        assoc_trace = next(t for t in self.fig.data if t.name == "Associations")
+        assoc_trace = next(t for t in self.figure_widget.data if t.name == "Associations")
         assoc_trace.visible = overlays["associations"]
 
 
     # def _update_phase_kpis(self, phase, metrics):
     #     """Update phase-specific KPIs"""
     #     if phase == "metaheuristic":
-    #         self.fig.data[9].visible = True
-    #         self.fig.data[10].visible = False
-    #         self.fig.data[9].x = list(range(len(metrics['fitness'])))
-    #         self.fig.data[9].y = metrics['fitness']
+    #         self.figure_widget.data[9].visible = True
+    #         self.figure_widget.data[10].visible = False
+    #         self.figure_widget.data[9].x = list(range(len(metrics['fitness'])))
+    #         self.figure_widget.data[9].y = metrics['fitness']
     #     elif phase == "marl":
-    #         self.fig.data[9].visible = False
-    #         self.fig.data[10].visible = True
-    #         self.fig.data[10].x = list(range(len(metrics['reward'])))
-    #         self.fig.data[10].y = metrics['reward']
+    #         self.figure_widget.data[9].visible = False
+    #         self.figure_widget.data[10].visible = True
+    #         self.figure_widget.data[10].x = list(range(len(metrics['reward'])))
+    #         self.figure_widget.data[10].y = metrics['reward']
           
     def _update_phase_kpis(self, phase:str, metrics):
         """Handle phase-specific KPI updates"""
         # Clear previous phase traces
-        self.fig[9].visible = False  # Fitness plot
-        self.fig[10].visible = False  # Reward plot
+        self.figure_widget.data[9].visible = False  # Fitness plot
+        self.figure_widget[10].visible = False  # Reward plot
         
         if phase == "metaheuristic":
             # Update and show metaheuristic KPIs
@@ -359,16 +361,16 @@ class LiveDashboard:
     def _update_fitness_plot(self, metrics):
         """Update fitness progression plot"""
         fitness = metrics.get('fitness_history', [])
-        self.fig[9].x = list(range(len(fitness)))
-        self.fig[9].y = fitness
-        self.fig[9].visible = True
+        self.figure_widget[9].x = list(range(len(fitness)))
+        self.figure_widget[9].y = fitness
+        self.figure_widget[9].visible = True
 
     def _update_reward_plot(self, metrics):
         """Update MARL reward plot"""
         rewards = metrics.get('episode_rewards', [])
-        self.fig[10].x = list(range(len(rewards)))
-        self.fig[10].y = rewards
-        self.fig[10].visible = True
+        self.figure_widget.[10].x = list(range(len(rewards)))
+        self.figure_widget[10].y = rewards
+        self.figure_widget[10].visible = True
         
     def calculate_grid_sinr(self, env_state):
         """Estimate SINR across the grid"""
@@ -387,35 +389,35 @@ class LiveDashboard:
         if positions:
             x = [p[0] for p in positions]
             y = [p[1] for p in positions]
-            self.fig[11].x = x
-            self.fig[11].y = y
-            self.fig[11].visible = True
+            self.figure_widget.data[11].x = x
+            self.figure_widget.data[11].y = y
+            self.figure_widget.data[11].visible = True
 
     def _update_entropy_plot(self, metrics):
         """Update policy entropy visualization"""
         entropy = metrics.get('policy_entropy', [])
-        self.fig[12].x = list(range(len(entropy)))
-        self.fig[12].y = entropy
-        self.fig[12].visible = True
+        self.figure_widget.data[12].x = list(range(len(entropy)))
+        self.figure_widget.data[12].y = entropy
+        self.figure_widget.data[12].visible = True
         
     def _handle_view_change(self, new_view):
         """Handle visibility changes between views"""
         # Hide all traces first
-        for trace in self.fig.data:
+        for trace in self.figure_widget.data:
             trace.visible = False
             
         # Hide previous view
         if self.current_view == "metaheuristic":
-            for i in [2,3,4]: self.fig.data[i].visible = False
+            for i in [2,3,4]: self.figure_widget.data[i].visible = False
         elif self.current_view == "marl":
-            self.fig.data[5].visible = False
+            self.figure_widget.data[5].visible = False
         
         # Show new view
         self.current_view = new_view
     # def _handle_view_change(self, new_view: str):
     #     """Properly toggle visibility for views"""
     #     # Hide all non-essential traces
-    #     for trace in self.fig.data:
+    #     for trace in self.figure_widget.data:
     #         if trace.name not in ['Base Stations', 'Users']:
     #             trace.visible = False
         
@@ -430,7 +432,7 @@ class LiveDashboard:
         
     def save(self, filename="results/final_dashboard.html"):
         """Save dashboard to HTML file"""
-        self.fig.write_html(filename)
+        self.figure_widget.write_html(filename)
         print(f"Dashboard saved to {filename}")
         
 # # hybrid_trainer/live_dashboard.py
@@ -443,7 +445,7 @@ class LiveDashboard:
 
 # class LiveDashboard:
 #     def __init__(self, network_bounds=(0, 100), algorithm_colors=None):
-#         self.fig = make_subplots(
+#         self.figure_widget = make_subplots(
 #             rows=2, cols=2,
 #             specs=[
 #                 [{"type": "scatter3d", "rowspan": 2}, {"type": "xy"}],
@@ -469,9 +471,9 @@ class LiveDashboard:
 #         self._add_controls()
 #         self._setup_layout(network_bounds)
 #         self.env_version = 0  # Track state changes
-#         self.fig.update_layout(title="6G Network Optimization")
-#         # self.fig.show(renderer="colab")  # Force Colab rendering
-#         self.figure_handle = display.display(self.fig, display_id='live-dashboard')
+#         self.figure_widget.update_layout(title="6G Network Optimization")
+#         # self.figure_widget.show(renderer="colab")  # Force Colab rendering
+#         self.figure_handle = display.display(self.figure_widget, display_id='live-dashboard')
 #         self.algorithm_metrics = {}  # Track metrics per algorithm
 #         self.fitness_traces = {}  # For fitness progression plots
 #         self.sinr_heatmap_trace = None  # Initialize heatmap trace reference
@@ -482,7 +484,7 @@ class LiveDashboard:
 #         """Create all visualization traces (initially hidden)"""
         
 #         # 3D Network Traces
-#         self.fig.add_trace(go.Scatter3d(
+#         self.figure_widget.add_trace(go.Scatter3d(
 #             x=[], y=[] , z=[],
 #             mode='markers',
 #             marker=dict(size=6, color='red'),
@@ -490,7 +492,7 @@ class LiveDashboard:
 #             visible=True
 #         ), row=1, col=1)
         
-#         self.fig.add_trace(go.Scatter3d(
+#         self.figure_widget.add_trace(go.Scatter3d(
 #             x=[], y=[], z=[],
 #             mode='markers',
 #             marker=dict(size=3, color='blue', opacity=0.5),
@@ -512,25 +514,25 @@ class LiveDashboard:
 #                 name=f'{algo.upper()} Agents',
 #                 visible=False
 #             )
-#             self.fig.add_trace(trace, row=1, col=1)
+#             self.figure_widget.add_trace(trace, row=1, col=1)
 #             self.algorithm_traces[algo] = trace
 
 #         # 2D KPI Traces
-#         self.fig.add_trace(go.Scatter(  # Global Reward
+#         self.figure_widget.add_trace(go.Scatter(  # Global Reward
 #             x=[], y=[],
 #             name='Global Reward',
 #             line=dict(color="#9B59B6"), #,self.algorithm_colors["marl"]
 #             visible=False
 #         ), row=1, col=2)
         
-#         self.fig.add_trace(go.Scatter(   # Fairness Index
+#         self.figure_widget.add_trace(go.Scatter(   # Fairness Index
 #             x=[], y=[],  
 #             name='Fairness Index',
 #             line=dict(color='#2ECC71'),
 #             visible=False
 #         ), row=1, col=2)
         
-#         self.fig.add_trace(go.Heatmap(
+#         self.figure_widget.add_trace(go.Heatmap(
 #             x=[], y=[], z=[],
 #             colorscale='Viridis',
 #             name='Load Distribution',
@@ -539,7 +541,7 @@ class LiveDashboard:
 
 #     def _add_controls(self):
 #         """Add dropdown menus and buttons"""
-#         self.fig.update_layout(
+#         self.figure_widget.update_layout(
 #             updatemenus=[
 #                 # Main view selector
 #                 dict(
@@ -586,7 +588,7 @@ class LiveDashboard:
 
 #     def _setup_layout(self, bounds):
 #         """Configure layout dimensions and labels"""
-#         self.fig.update_layout(
+#         self.figure_widget.update_layout(
 #             width=1200,  # Add explicit width
 #             height=900,
 #             scene=dict(
@@ -604,10 +606,10 @@ class LiveDashboard:
 #             legend=dict(x=1.1, y=1.0)
 #         )
         
-#         self.fig.update_xaxes(title_text="Iteration", row=1, col=2)
-#         self.fig.update_yaxes(title_text="Reward", row=1, col=2)
-#         self.fig.update_xaxes(title_text="Iteration", row=2, col=2)
-#         self.fig.update_yaxes(title_text="Fairness", row=2, col=2)
+#         self.figure_widget.update_xaxes(title_text="Iteration", row=1, col=2)
+#         self.figure_widget.update_yaxes(title_text="Reward", row=1, col=2)
+#         self.figure_widget.update_xaxes(title_text="Iteration", row=2, col=2)
+#         self.figure_widget.update_yaxes(title_text="Fairness", row=2, col=2)
 
 #     def update(self, env_state: dict, metrics: dict, phase: str = "metaheuristic"):
 #         from IPython import display
@@ -646,11 +648,11 @@ class LiveDashboard:
 #                 )
         
 #         # Optional: Force refresh in Colab
-#         # self.fig.show(renderer="colab")
+#         # self.figure_widget.show(renderer="colab")
 #         # Colab-optimized rendering
 #         # Clear previous output
 #         # display.clear_output(wait=True)
-#         display.display(self.fig)
+#         display.display(self.figure_widget)
         
 #         # Add small delay to prevent DOM overflow        
 #         time.sleep(0.3)  # 300ms interval between updates
@@ -659,19 +661,19 @@ class LiveDashboard:
 #     def update_network_state(self, base_stations, users):
 #         """Update 3D network visualization"""
         
-#         with self.fig.batch_update():
+#         with self.figure_widget.batch_update():
 #             # Base stations (load as z-axis)
-#             self.fig.data[0].x = [bs['position'][0] for bs in base_stations]
-#             self.fig.data[0].y = [bs['position'][1] for bs in base_stations]
-#             self.fig.data[0].z = [bs['load'] for bs in base_stations]
-#             self.fig.data[0].marker.size = [bs["load"]*5 for bs in base_stations]  # Scale for visibility
+#             self.figure_widget.data[0].x = [bs['position'][0] for bs in base_stations]
+#             self.figure_widget.data[0].y = [bs['position'][1] for bs in base_stations]
+#             self.figure_widget.data[0].z = [bs['load'] for bs in base_stations]
+#             self.figure_widget.data[0].marker.size = [bs["load"]*5 for bs in base_stations]  # Scale for visibility
 #             # Users
-#             self.fig.data[1].x = [u['position'][0] for u in users]
-#             self.fig.data[1].y = [u['position'][1] for u in users]
-#             self.fig.data[1].z = [u.get('sinr', 0) for u in users]
+#             self.figure_widget.data[1].x = [u['position'][0] for u in users]
+#             self.figure_widget.data[1].y = [u['position'][1] for u in users]
+#             self.figure_widget.data[1].z = [u.get('sinr', 0) for u in users]
             
 #         print(f"Updating network with {len(base_stations)} BS, {len(users)} UEs")
-#         self.fig.show(renderer="colab")  # Refresh display
+#         self.figure_widget.show(renderer="colab")  # Refresh display
         
 #     def update_metaheuristic(self, algorithm, positions, fitness):
 #         """Update metaheuristic agents visualization"""
@@ -679,7 +681,7 @@ class LiveDashboard:
 #         fitness = np.array(fitness)
     
 #         trace = self.algorithm_traces[algorithm]
-#         with self.fig.batch_update():
+#         with self.figure_widget.batch_update():
 #             trace.x = positions[:, 0]
 #             trace.y = positions[:, 1]
 #             trace.z = fitness
@@ -689,7 +691,7 @@ class LiveDashboard:
         
 #     def update_marl(self, associations, rewards, fairness):
 #         """Update MARL-related visualizations"""
-#         with self.fig.batch_update():
+#         with self.figure_widget.batch_update():
 #             # Heatmap (convert associations to 2D grid)
 #             x_bins = np.linspace(0, 100, 20)
 #             y_bins = np.linspace(0, 100, 20)
@@ -698,23 +700,23 @@ class LiveDashboard:
 #                 [u['position'][1] for u in associations],
 #                 bins=[x_bins, y_bins]
 #             )
-#             self.fig.data[5].x = x_bins
-#             self.fig.data[5].y = y_bins
-#             self.fig.data[5].z = heatmap
+#             self.figure_widget.data[5].x = x_bins
+#             self.figure_widget.data[5].y = y_bins
+#             self.figure_widget.data[5].z = heatmap
             
 #             # KPI curves
-#             self.fig.data[3].x = list(range(len(rewards)))
-#             self.fig.data[3].y = rewards
-#             self.fig.data[4].x = list(range(len(fairness)))
-#             self.fig.data[4].y = fairness
+#             self.figure_widget.data[3].x = list(range(len(rewards)))
+#             self.figure_widget.data[3].y = rewards
+#             self.figure_widget.data[4].x = list(range(len(fairness)))
+#             self.figure_widget.data[4].y = fairness
 
 #     def show(self):
 #         """Display the dashboard"""
-#         self.fig.show()
+#         self.figure_widget.show()
 
 #     def save(self, filename="dashboard.html"):
 #         """Save as standalone HTML file"""
-#         self.fig.write_html(filename)
+#         self.figure_widget.write_html(filename)
     
 #     def update_algorithm_metrics(self, algorithm: str, metrics: dict):
 #         """Update visualization with algorithm-specific metrics"""
@@ -736,7 +738,7 @@ class LiveDashboard:
 #             self.fitness_traces[algorithm] = go.Scatter(
 #                 x=[], y=[], name=f"{algorithm.upper()} Fitness"
 #             )
-#             self.fig.add_trace(self.fitness_traces[algorithm], row=1, col=2)
+#             self.figure_widget.add_trace(self.fitness_traces[algorithm], row=1, col=2)
         
 #         trace = self.fitness_traces[algorithm]
 #         trace.x = list(trace.x) + [len(trace.x)]
@@ -755,7 +757,7 @@ class LiveDashboard:
 #                 colorscale='Viridis',
 #                 name=f'{algorithm.upper()} SINR'
 #             )
-#             self.fig.add_trace(self.sinr_heatmap_trace, row=1, col=2)
+#             self.figure_widget.add_trace(self.sinr_heatmap_trace, row=1, col=2)
 #         else:
 #             # Update existing trace (append new value)
 #             new_z = np.vstack([self.sinr_heatmap_trace.z, [sinr_value]])
@@ -763,5 +765,5 @@ class LiveDashboard:
     
 #     def finalize_visualizations(self):
 #         """Save final plots and clean up resources"""
-#         self.fig.write_html("results/final_dashboard.html")
+#         self.figure_widget.write_html("results/final_dashboard.html")
        
