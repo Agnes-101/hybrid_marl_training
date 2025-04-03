@@ -19,7 +19,7 @@ class LiveDashboard:
             "pso": "#45B7D1",
             "marl": "#9B59B6"
         }
-        self.fig = go.Figure( sp.make_subplots(
+        self.fig = go.FigureWidget( sp.make_subplots(
             rows=5, cols=2,
             row_heights=[0.1, 0.1, 0.5, 0.5, 0.5],  # Prioritize first and last rows
             specs=[
