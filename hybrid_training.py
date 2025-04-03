@@ -29,7 +29,7 @@ class HybridTraining:
             # algorithm_colors=self._init_algorithm_colors(),
             # update_interval=config["visualization"]["update_interval_ms"]
         )
-        display.display(self.dashboard.fig)
+        # display.display(self.dashboard.fig)
         
         ray.init(**config["ray_resources"])
         # Create log directory if needed
