@@ -344,8 +344,8 @@ class LiveDashboard:
     def _update_phase_kpis(self, phase:str, metrics):
         """Handle phase-specific KPI updates"""
         # Clear previous phase traces
-        self.figure_widget.data[9].visible = False  # Fitness plot
-        self.figure_widget.data[10].visible = False  # Reward plot
+        self.fig[9].visible = False  # Fitness plot
+        self.fig[10].visible = False  # Reward plot
         
         if phase == "metaheuristic":
             # Update and show metaheuristic KPIs
@@ -360,16 +360,16 @@ class LiveDashboard:
     def _update_fitness_plot(self, metrics):
         """Update fitness progression plot"""
         fitness = metrics.get('fitness_history', [])
-        self.figure_widget.data[9].x = list(range(len(fitness)))
-        self.figure_widget.data[9].y = fitness
-        self.figure_widget.data[9].visible = True
+        self.fig[9].x = list(range(len(fitness)))
+        self.fig[9].y = fitness
+        self.fig[9].visible = True
 
     def _update_reward_plot(self, metrics):
         """Update MARL reward plot"""
         rewards = metrics.get('episode_rewards', [])
-        self.figure_widget.data[10].x = list(range(len(rewards)))
-        self.figure_widget.data[10].y = rewards
-        self.figure_widget.data[10].visible = True
+        self.fig[10].x = list(range(len(rewards)))
+        self.fig[10].y = rewards
+        self.fig[10].visible = True
         
     def calculate_grid_sinr(self, env_state):
         """Estimate SINR across the grid"""
@@ -388,16 +388,16 @@ class LiveDashboard:
         if positions:
             x = [p[0] for p in positions]
             y = [p[1] for p in positions]
-            self.figure_widget.data[11].x = x
-            self.figure_widget.data[11].y = y
-            self.figure_widget.data[11].visible = True
+            self.fig[11].x = x
+            self.fig[11].y = y
+            self.fig[11].visible = True
 
     def _update_entropy_plot(self, metrics):
         """Update policy entropy visualization"""
         entropy = metrics.get('policy_entropy', [])
-        self.figure_widget.data[12].x = list(range(len(entropy)))
-        self.figure_widget.data[12].y = entropy
-        self.figure_widget.data[12].visible = True
+        self.fig[12].x = list(range(len(entropy)))
+        self.fig[12].y = entropy
+        self.fig[12].visible = True
         
     def _handle_view_change(self, new_view):
         """Handle visibility changes between views"""
