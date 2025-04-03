@@ -2,7 +2,7 @@
 import plotly.graph_objects as go
 import plotly.subplots as sp
 import numpy as np
-from IPython import display
+from IPython.display import display
 
 class LiveDashboard:
     def __init__(self, network_bounds=(0, 100), algorithm_colors=None):
@@ -36,7 +36,7 @@ class LiveDashboard:
         # Display initial figure
         # self.figure_widget = go.FigureWidget(self.fig)
         # display.display(self.figure_widget)
-        # display(self.fig)
+        display(self.fig)
         # Initialize all traces
         self._init_traces(network_bounds)
         self._add_controls()
