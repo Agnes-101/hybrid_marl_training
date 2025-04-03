@@ -295,7 +295,7 @@ class NetworkEnvironment:
     # Added evaluate_detailed_solution function
     def evaluate_detailed_solution(self, solution, alpha=0.1, beta=0.1):
         original_state = self.get_state_snapshot()
-        self.apply_solution(solution["solution"])  # Ensure state is updated
+        self.apply_solution(solution['solution'])  # Ensure state is updated
                 
         rewards = [self.calculate_reward() for _ in range(10)]  # Simulate over 10 steps
         sinr_list = [ue.sinr for ue in self.ues]
