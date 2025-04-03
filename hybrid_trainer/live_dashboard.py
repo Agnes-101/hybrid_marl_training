@@ -121,7 +121,7 @@ class LiveDashboard:
     
     def _add_controls(self):
         """Add interactive controls"""
-        self.figure_widget.update_layout(
+        self.fig.update_layout(
             height=900,  # Increase total height
             width=1400,
             margin=dict(t=150),  # Add top margin for buttons
@@ -211,7 +211,7 @@ class LiveDashboard:
             # self._update_phase_kpis(phase, metrics)
             # Update current state tracking
             self.current_view = phase
-        self.figure_widget.update_layout(title="Updated Layout Example")
+        self.fig.update_layout(title="Updated Layout Example")
 
         # Restore button states to previous UI configuration
         self._restore_button_states()
