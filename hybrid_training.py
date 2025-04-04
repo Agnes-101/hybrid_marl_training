@@ -130,12 +130,18 @@ class HybridTraining:
                 self.orchestrator = orchestrator
                 
             def on_step_end(self, iteration, trials, **kwargs):
+                # Guard against empty trials or missing results
+                if not trials or not trials[0].last_result:
+                    print("Missing results for trial!")
+                    return
+
+                last_result = trials[0].last_result
                 # ✅ Unified logging for MARL metrics
                 metrics = {
-                    "fitness": trials[0].last_result["episode_reward_mean"],
-                    "average_sinr": trials[0].last_result["custom_metrics"]["sinr_mean"],
-                    "fairness": trials[0].last_result["custom_metrics"]["fairness"],
-                    "load_variance": trials[0].last_result["custom_metrics"]["load_variance"]
+                    "episode_reward_mean": last_result.get("episode_reward_mean",0),
+                    "average_sinr": last_result.get("custom_metrics", {}).get("sinr_mean", 0),
+                    "fairness": last_result.get("custom_metrics", {}).get("fairness", 0),
+                    "load_variance": last_result.get("custom_metrics", {}).get("load_variance", 0)
                 }
                 
                 self.orchestrator.kpi_logger.log_metrics(

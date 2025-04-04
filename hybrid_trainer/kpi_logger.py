@@ -35,10 +35,12 @@ class KPITracker:
                 'episode': episode,
                 'phase': phase,
                 'algorithm': algorithm,
-                'reward': metrics.get('fitness', 0),
+                'episode_reward_mean': metrics.get('episode_reward_mean', 0),
+                'fitness': metrics.get('fitness', 0),
                 'average_sinr': metrics.get('average_sinr', 0),
                 'fairness': metrics.get('fairness', 0),
-                'load_variance': metrics.get('load_variance', 0)
+                'load_variance': metrics.get('load_variance', 0),
+                'diversity':metrics.get('diversity', 0)
             }])
         ], ignore_index=True)
         
