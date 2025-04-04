@@ -36,6 +36,7 @@ class KPITracker:
                 'phase': phase,
                 'algorithm': algorithm,
                 'episode_reward_mean': metrics.get('episode_reward_mean', 0),
+                'policy entropy': metrics.get ('policy entropy',0),
                 'fitness': metrics.get('fitness', 0),
                 'average_sinr': metrics.get('average_sinr', 0),
                 'fairness': metrics.get('fairness', 0),

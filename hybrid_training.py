@@ -141,7 +141,8 @@ class HybridTraining:
                     "episode_reward_mean": last_result.get("episode_reward_mean",0),
                     "average_sinr": last_result.get("custom_metrics", {}).get("sinr_mean", 0),
                     "fairness": last_result.get("custom_metrics", {}).get("fairness", 0),
-                    "load_variance": last_result.get("custom_metrics", {}).get("load_variance", 0)
+                    "load_variance": last_result.get("custom_metrics", {}).get("load_variance", 0),
+                    "policy_entropy": last_result.get("policy_entropy", 0)
                 }
                 
                 self.orchestrator.kpi_logger.log_metrics(
@@ -152,22 +153,20 @@ class HybridTraining:
                 )
                 
                 #  Pull data from consolidated history
-                recent_metrics = self.orchestrator.kpi_logger.get_recent_metrics()
-                # self.orchestrator.dashboard.update(
-                #     env_state=self.orchestrator.env.get_current_state(),
-                #     metrics=recent_metrics,
-                #     phase="marl"
+                
                 self.orchestrator.dashboard.update(
                     phase="marl",
                     data={
                         "env_state": self.orchestrator.env.get_current_state(),  # Associations/users/BS
-                        "metrics" : recent_metrics
-                        # "metrics": {                                # Episode rewards/entropy
-                        #     "episode_rewards": marl_data["rewards"],
-                        #     "policy_entropy": marl_data["entropy"]
-                        # }
+                        # "metrics" : recent_metrics
+                        "metrics": {
+                        "episode_rewards": metrics["fitness"],
+                        "policy_entropy": metrics["policy_entropy"],
+                        "average_sinr": metrics["average_sinr"]
+                        }
                     }
-                )
+                    )
+                
                 
                 
                     
