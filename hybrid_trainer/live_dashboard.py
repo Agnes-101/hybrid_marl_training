@@ -15,7 +15,7 @@ class LiveDashboard:
         self.x_grid = np.linspace(0, 100, 100)  # X-axis coordinates
         self.y_grid = np.linspace(0, 100, 100)  # Y-axis coordinates
         self.xx, self.yy = np.meshgrid(self.x_grid, self.y_grid)
-        
+        self.current_algorithm = None  # Track active algorithm
         self.algorithm_colors = algorithm_colors or {
             "pfo": "#A020F0",
             "de": "#FF6B6B",
@@ -190,6 +190,24 @@ class LiveDashboard:
             if self.overlay_menu_active is None or (0 <= self.overlay_menu_active < len(self.fig.layout.updatemenus[1].buttons)):
                 self.fig.layout.updatemenus[1].active = self.overlay_menu_active
         print(f"[DEBUG] Restoring states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
+    
+    def _handle_view_change(self, new_view: str):
+        """Properly toggle visibility for views"""
+        # Hide all non-essential traces
+        for trace in self.fig.data:
+            if trace.name not in ['Base Stations', 'Users']:
+                trace.visible = False
+        
+        # Show traces for the new view
+        if new_view == "metaheuristic":
+            # Activate only the current algorithm's trace
+            if self.current_algorithm:
+                trace_name = f"{self.current_algorithm.upper()} Agents"
+                self._get_trace_by_name(trace_name).visible = True
+        elif new_view == "marl":
+            self._get_trace_by_name("Associations").visible = True
+        
+        self.current_view = new_view    
         
     def update(self, phase: str, data: dict): 
         # Save current button states
@@ -202,6 +220,12 @@ class LiveDashboard:
             env_state = data.get("env_state", {})
             metrics = data.get("metrics", {})
             
+            # Track current algorithm (if in metaheuristic phase)
+            if phase == "metaheuristic":
+                self.current_algorithm = metrics.get("algorithm", "de")  # Default to DE
+            else:
+                self.current_algorithm = None
+                
             self._update_network(env_state)
             self._update_network_kpis(env_state)
             
@@ -437,21 +461,21 @@ class LiveDashboard:
         
     #     # Show new view
     #     self.current_view = new_view
-    def _handle_view_change(self, new_view: str):
-        """Properly toggle visibility for views"""
-        # Hide all non-essential traces
-        for trace in self.fig.data:
-            if trace.name not in ['Base Stations', 'Users']:
-                trace.visible = False
+    # def _handle_view_change(self, new_view: str):
+    #     """Properly toggle visibility for views"""
+    #     # Hide all non-essential traces
+    #     for trace in self.fig.data:
+    #         if trace.name not in ['Base Stations', 'Users']:
+    #             trace.visible = False
         
-        # Show traces for the new view
-        if new_view == "metaheuristic":
-            for algo in ["de", "pso", "aco"]:
-                self._get_trace_by_name(f"{algo.upper()} Agents").visible = True
-        elif new_view == "marl":
-            self._get_trace_by_name("Associations").visible = True
+    #     # Show traces for the new view
+    #     if new_view == "metaheuristic":
+    #         for algo in ["de", "pso", "aco"]:
+    #             self._get_trace_by_name(f"{algo.upper()} Agents").visible = True
+    #     elif new_view == "marl":
+    #         self._get_trace_by_name("Associations").visible = True
         
-        self.current_view = new_view
+    #     self.current_view = new_view
         
     def save(self, filename="results/final_dashboard.html"):
         """Save dashboard to HTML file"""
