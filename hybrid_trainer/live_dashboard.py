@@ -66,14 +66,14 @@ class LiveDashboard:
         # Network
         # Trace 0: Base Stations
         self.fig.add_trace(go.Scattergl(
-            x=[], y=[], mode='markers', visible=True, name='Base Stations',
+            x=[0], y=[0], mode='markers', visible=True, name='Base Stations',
             marker=dict(symbol='square', size=25, color='#BD0D0D', opacity=1.0)),
             row=1, col=1
         )
         
         # Trace 1: Users
         self.fig.add_trace(go.Scattergl(
-            x=[], y=[], mode='markers',visible= True, name='Users',
+            x=[0], y=[0], mode='markers',visible= True, name='Users',
             marker=dict(size=6, color='blue', opacity=0.4)),
             row=1, col=1
         )
@@ -118,12 +118,12 @@ class LiveDashboard:
         #     x=[], y=[], name='Average sinr', visible=True), row=2, col=2)
         # Trace 6: BS load Bar
         self.fig.add_trace(go.Bar(
-            x=[], y=[], name='BS Load', visible=True), row=3, col=2)
+            x=[0], y=[0], name='BS Load', visible=True), row=3, col=2)
 
         # Phase KPIs (Row 4)
         # Trace 7: SINR Heatmap
         self.fig.add_trace(go.Heatmap(
-            x=[], y=[], name= 'SINR Heatmap', colorscale='Viridis', showscale=False,
+            x=[0], y=[0], name= 'SINR Heatmap', colorscale='Viridis', showscale=False,
             visible=True), row=4, col=1)
         # Trace 8: Fitness
         self.fig.add_trace(go.Scatter(
@@ -293,17 +293,21 @@ class LiveDashboard:
         # self.figure_widget.data[0].y = [bs["position"][1] for bs in env_state["base_stations"]]
         # self.figure_widget.data[0].marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
         
-        bs_trace = self.fig.data[0]
+        bs_trace = self._get_trace_by_name('Base Stations')# self.fig.data[0]
         bs_trace.x = [bs["position"][0] for bs in env_state["base_stations"]]
         bs_trace.y = [bs["position"][1] for bs in env_state["base_stations"]]
         bs_trace.marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
 
-        
-        # Users
-        self.fig.data[1].x = [ue["position"][0] for ue in env_state["users"]]
-        self.fig.data[1].y = [ue["position"][1] for ue in env_state["users"]]
-        # self.fig.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
-        self.fig.data[1].marker.color = [float(ue["sinr"]) for ue in env_state["users"]]  # Force float
+        # Update Users
+        user_trace = self._get_trace_by_name('Users')
+        user_trace.x = [ue["position"][0] for ue in env_state["users"]]
+        user_trace.y = [ue["position"][1] for ue in env_state["users"]]
+        user_trace.marker.color = [float(ue["sinr"]) for ue in env_state["users"]] 
+        # # Users
+        # self.fig.data[1].x = [ue["position"][0] for ue in env_state["users"]]
+        # self.fig.data[1].y = [ue["position"][1] for ue in env_state["users"]]
+        # # self.fig.data[1].marker.color = [ue["sinr"] for ue in env_state["users"]]
+        # self.fig.data[1].marker.color = [float(ue["sinr"]) for ue in env_state["users"]]  # Force float
         
     
     def _update_metaheuristic(self, metrics):
