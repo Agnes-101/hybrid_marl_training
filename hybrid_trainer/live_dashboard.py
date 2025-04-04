@@ -201,10 +201,12 @@ class LiveDashboard:
             if trace.name not in ['Base Stations', 'Users']:
                 trace.visible = False
                 
+                
         # Hide all metaheuristic traces first
         for algo in ["de", "pso", "aco"]:
             trace = self._get_trace_by_name(f"{algo.upper()} Agents")
             trace.visible = False
+            print(f"[DEBUG] Activated: {trace}, visible: {trace.visible}")  # Use trace.visible
             
         print(f"[DEBUG] Switching to {new_view}. Current algorithm: {self.current_algorithm}")
         # Show traces for the new view
