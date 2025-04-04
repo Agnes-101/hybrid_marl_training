@@ -87,7 +87,7 @@ class LiveDashboard:
         
         # Trace 3: MARL Associations
         self.fig.add_trace(go.Scattergl(
-            x=[], y=[], mode='lines', # visible=False,
+            x=[], y=[], mode='lines', visible=False,
             line=dict(width=1), name='Associations'), row=1, col=1
         )
 
@@ -198,12 +198,25 @@ class LiveDashboard:
     def _handle_view_change(self, new_view: str):
         """Properly toggle visibility for views"""
         # Hide all non-essential traces
+        trace_0= self._get_trace_by_name('DE Agents')  # Get trace object
+        trace_0.visible = True
+        print(f"[DEBUG] Activated: {trace_0.name}, visible: {trace_0.visible}")  # Use trace.visible
+        
         for trace in self.fig.data:            
             # print(f"[DEBUG] Existing trace: {trace.name}")
             if trace.name not in ['Base Stations', 'Users']:
                 trace.visible = False
                 print(f"[DEBUG] Deactivated: {trace.name}, visible: {trace.visible}")  # Use trace.visible
-                
+        
+        trace = self._get_trace_by_name("ACO Agents")
+        trace.visible = False
+        print(f"[DEBUG] {trace.name} visibility is now: {trace.visible}")
+        
+        trace_2 = self._get_trace_by_name("Associations")
+        trace_2.visible = False
+        print(f"[DEBUG] {trace_2.name} visibility is now: {trace_2.visible}")
+
+        
         # # Hide all metaheuristic traces first
         # for algo in ["de", "pso", "aco"]:
         #     trace = self._get_trace_by_name(f"{algo.upper()} Agents")
