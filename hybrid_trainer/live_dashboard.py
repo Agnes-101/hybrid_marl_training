@@ -44,7 +44,10 @@ class LiveDashboard:
 
         # display(self.fig)
         # Initialize all traces
-        self._init_traces(network_bounds)
+        print("[INIT] Initializing LiveDashboard...")
+        self._init_traces(network_bounds)  # Should be called early
+        print("[INIT] Traces after initialization:", [t.name for t in self.fig.data])
+        
         self._add_controls()
         
         # Track UI state
