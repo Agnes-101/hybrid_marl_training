@@ -213,26 +213,26 @@ class HybridTraining:
         return algorithm_results
 
     def run(self):
-        """Main training orchestration"""
-        try:
-            if self.config["comparison_mode"]:
-                algorithm_results = self._compare_algorithms()
-                best_algorithm = max(
-                    algorithm_results,
-                    key=lambda x: algorithm_results[x]["metrics"]["fitness_score"]
-                )
-                print(f"\n Best algorithm selected: {best_algorithm.upper()}")
-                initial_solution = algorithm_results[best_algorithm]
-            else:
-                # initial_solution = self._execute_metaheuristic_phase(
-                #     self.config["metaheuristic"]
-                # )
-                # Run metaheuristic phase only if not already done
-                if self.metaheuristic_runs < self.max_metaheuristic_runs:
-                    initial_solution = self._execute_metaheuristic_phase(
-                        self.config["metaheuristic"]
-                    )
-                    self.metaheuristic_runs += 1
+        # """Main training orchestration"""
+        # try:
+        #     if self.config["comparison_mode"]:
+        #         algorithm_results = self._compare_algorithms()
+        #         best_algorithm = max(
+        #             algorithm_results,
+        #             key=lambda x: algorithm_results[x]["metrics"]["fitness_score"]
+        #         )
+        #         print(f"\n Best algorithm selected: {best_algorithm.upper()}")
+        #         initial_solution = algorithm_results[best_algorithm]
+        #     else:
+        #         # initial_solution = self._execute_metaheuristic_phase(
+        #         #     self.config["metaheuristic"]
+        #         # )
+        #         # Run metaheuristic phase only if not already done
+        #         if self.metaheuristic_runs < self.max_metaheuristic_runs:
+        #             initial_solution = self._execute_metaheuristic_phase(
+        #                 self.config["metaheuristic"]
+        #             )
+        #             self.metaheuristic_runs += 1
 
             # Hybrid training loop
             current_phase = "marl"
