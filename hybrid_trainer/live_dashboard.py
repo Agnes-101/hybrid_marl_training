@@ -5,8 +5,8 @@ import plotly.subplots as sp
 import numpy as np
 from google.colab import output
 output.enable_custom_widget_manager()  # Enable Colab's widget manager
-# from IPython.display import display  # Required to render widgets
-from IPython import display  # Required to render widgets
+from IPython.display import display  # Required to render widgets
+#from IPython import display  # Required to render widgets
 
 
 class LiveDashboard:
@@ -24,7 +24,7 @@ class LiveDashboard:
             "pso": "#45B7D1",
             "marl": "#9B59B6"
         }
-        self.fig = go.Figure( sp.make_subplots(
+        self.fig = go.FigureWidget( sp.make_subplots(
             rows=5, cols=2,
             row_heights=[0.1, 0.1, 0.4, 0.3, 0.1],  # Prioritize first and last rows
             specs=[
@@ -40,9 +40,9 @@ class LiveDashboard:
                         
         # Display initial figure
         # self.figure_widget = go.FigureWidget(self.fig)
-        display.display(self.fig)
+        # display.display(self.fig)
         # self.fig.show(renderer="colab")
-        # Sdisplay(self.fig)
+        display(self.fig)
         # Initialize all traces
         print("[INIT] Initializing LiveDashboard...")
         self._init_traces(network_bounds)  # Should be called early
