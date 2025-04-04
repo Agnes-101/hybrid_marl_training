@@ -197,12 +197,17 @@ class LiveDashboard:
         for trace in self.fig.data:
             if trace.name not in ['Base Stations', 'Users']:
                 trace.visible = False
-        
+        # Hide all metaheuristic traces first
+        for algo in ["de", "pso", "aco"]:
+            trace = self._get_trace_by_name(f"{algo.upper()} Agents")
+            trace.visible = False
+            
+        print(f"[DEBUG] Switching to {new_view}. Current algorithm: {self.current_algorithm}")
         # Show traces for the new view
-        if new_view == "metaheuristic":
-            # Activate only the current algorithm's trace
-            if self.current_algorithm:
+        if new_view == "metaheuristic" and self.current_algorithm:
+            # Activate only the current algorithm's trace 
                 trace_name = f"{self.current_algorithm.upper()} Agents"
+                print(f"Trace name: {trace_name}")
                 self._get_trace_by_name(trace_name).visible = True
         elif new_view == "marl":
             self._get_trace_by_name("Associations").visible = True
@@ -222,7 +227,7 @@ class LiveDashboard:
             
             # Track current algorithm (if in metaheuristic phase)
             if phase == "metaheuristic":
-                self.current_algorithm = metrics.get("algorithm", "de")  # Default to DE
+                self.current_algorithm = metrics.get("algorithm", "de").lower()  # Default to DE
             else:
                 self.current_algorithm = None
                 
