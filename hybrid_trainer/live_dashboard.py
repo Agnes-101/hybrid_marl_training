@@ -150,13 +150,13 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Network", method="update",
-                            args=[{"visible": [True, True]+[False]*4+[True]*6},
+                            args=[{"visible": [True, True]+[False]*4+[True]*3},
                                 {"title": "Network View"}]),
                         dict(label="Metaheuristic", method="update",
-                            args=[{"visible": [False]*2+[True]+[False]*4},
+                            args=[{"visible": [False]*2+[True]+[False]*6},
                                 {"title": "Metaheuristic View"}]),
                         dict(label="MARL", method="update",
-                            args=[{"visible": [False]*5+[True]+[False]},
+                            args=[{"visible": [False]*3+[True]*2+[False]*3},
                                 {"title": "MARL View"}])
                     ],
                     active=0,  # "Network" view is default
@@ -166,7 +166,7 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Overlay", method="restyle",
-                            args=[{"visible": [True]*3 +[False]*2 + [True]*5}]),
+                            args=[{"visible": [True]*3 +[False]*2 + [True]*4}]),
                         dict(label="Associations", method="restyle",
                             args=[{}]) # "visible": [True]*8 + [True, True]
                     ],
