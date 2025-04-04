@@ -85,7 +85,7 @@ class LiveDashboard:
         #         marker=dict(size=8)), row=1, col=1
         #     )
         self.fig.add_trace(go.Scattergl(
-                x=[0], y=[0],  mode='markers', visible=False, name= 'DE Agents',
+                x=[0], y=[0],  mode='markers', visible=True, name= 'DE Agents',
                 marker=dict(size=8)), row=1, col=1
             )
         # self.fig.add_trace(go.Scattergl(
