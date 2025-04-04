@@ -110,13 +110,13 @@ class LiveDashboard:
             number=dict(font=dict(size=40))), row=1, col=2)
         
         # # Trace 5 : Average SINR
-        # self.fig.add_trace(go.Indicator(
-        #     mode="gauge", name='Avg SINR', visible=True,title="Avg SINR",
-        #     gauge=dict(axis=dict(range=[0, 30], tickfont_size=10),  # Smaller ticks
-        # bar_thickness=0.3)), row=2, col=2)
-        # Trace 6: BS load Bar
-        self.fig.add_trace(go.Bar(
-            x=[], y=[], name='Average sinr', visible=True), row=2, col=2)
+        self.fig.add_trace(go.Indicator(
+            mode="gauge", name='Avg SINR', visible=True,title="Avg SINR",
+            gauge=dict(axis=dict(range=[0, 30], tickfont_size=10),  # Smaller ticks
+        bar_thickness=0.3)), row=2, col=2)
+        # # Trace 6: BS load Bar
+        # self.fig.add_trace(go.Bar(
+        #     x=[], y=[], name='Average sinr', visible=True), row=2, col=2)
         # Trace 6: BS load Bar
         self.fig.add_trace(go.Bar(
             x=[], y=[], name='BS Load', visible=True), row=3, col=2)
