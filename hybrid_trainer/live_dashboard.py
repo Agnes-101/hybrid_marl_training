@@ -5,7 +5,7 @@ import plotly.subplots as sp
 import numpy as np
 from google.colab import output
 output.enable_custom_widget_manager()  # Enable Colab's widget manager
-from IPython.display import display  # Required to render widgets
+from IPython import display  # Required to render widgets
 
 
 class LiveDashboard:
@@ -39,10 +39,10 @@ class LiveDashboard:
                         
         # Display initial figure
         # self.figure_widget = go.FigureWidget(self.fig)
-        # display.display(self.fig)
+        display.display(self.fig)
         # self.fig.show(renderer="colab")
 
-        display(self.fig)
+        # display(self.fig)
         # Initialize all traces
         self._init_traces(network_bounds)
         self._add_controls()
