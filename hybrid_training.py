@@ -82,19 +82,12 @@ class HybridTraining:
             kpi_logger=self.kpi_logger,
             visualize_callback= de_visualize_callback  # Proper data flow
         )
-        # solution = run_metaheuristic(
-        #         self.env,
-        #         algorithm,
-        #         visualize_callback=lambda: self.dashboard.update(
-        #             agents=self._get_current_agents(),
-        #             metrics=self.kpi_logger.get_recent_metrics()
-        #         )
-        #     )
+        
         print("Final KPI History after metaheuristic phase:")
-        print(self.kpi_logger.history)
+        # print(self.kpi_logger.history)
         # Log and visualize results
         self.kpi_logger.log_algorithm_performance(algorithm=algorithm,metrics=solution["metrics"])
-        self.dashboard.update_algorithm_metrics(algorithm=algorithm,metrics=solution["metrics"] )
+        # self.dashboard.update_algorithm_metrics(algorithm=algorithm,metrics=solution["metrics"] )
         
         return solution
 
@@ -243,6 +236,8 @@ class HybridTraining:
 
             # Hybrid training loop
             current_phase = "marl"
+            print(f"\n Current phase: {current_phase}")
+            
             for epoch in range(1, self.config["max_epochs"] + 1):
                 self.current_epoch = epoch
                 if current_phase == "metaheuristic":
