@@ -81,7 +81,7 @@ class LiveDashboard:
         # Trace 2: Metaheuristic
         for algo in ["de","pso", "aco"]:  # , "pso", "aco"
             self.fig.add_trace(go.Scattergl(
-                x=[], y=[],  mode='markers', visible=False, name=f'{algo.upper()} Agents',
+                x=[0], y=[0],  mode='markers', visible=False, name=f'{algo.upper()} Agents',
                 marker=dict(size=8)), row=1, col=1
             )
         
