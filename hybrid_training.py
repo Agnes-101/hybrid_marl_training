@@ -270,10 +270,10 @@ class HybridTraining:
                         f"{self.config['checkpoint_dir']}/epoch_{epoch}.pkl"
                     )
 
-        finally:
-           # self.dashboard.finalize_visualizations()
-            self.kpi_logger.generate_final_reports()
-            ray.shutdown()
+        # finally:
+        #    # self.dashboard.finalize_visualizations()
+        #     self.kpi_logger.generate_final_reports()
+        #     ray.shutdown()
 
 
 if __name__ == "__main__":
