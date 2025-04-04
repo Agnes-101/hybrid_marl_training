@@ -59,6 +59,7 @@ class LiveDashboard:
     def _init_traces(self, bounds):
         """Initialize all visualization traces"""
         # Main View (Column 1)
+        print(f"[INIT] Traces added: {[trace.name for trace in self.fig.data]}")
         # Network
         # Trace 0: Base Stations
         self.fig.add_trace(go.Scattergl(
@@ -135,13 +136,13 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Network", method="update",
-                            args=[{}, # "visible": [True, True]+[False]*4+[True]*6
+                            args=[{"visible": [True, True]+[False]*4+[True]*6},
                                 {"title": "Network View"}]),
                         dict(label="Metaheuristic", method="update",
-                            args=[{}, # "visible": [False]*2+[True]*3+[False]*2
+                            args=[{"visible": [False]*2+[True]+[False]*4},
                                 {"title": "Metaheuristic View"}]),
                         dict(label="MARL", method="update",
-                            args=[{}, # "visible": [False]*5+[True]+[False]
+                            args=[{"visible": [False]*5+[True]+[False]},
                                 {"title": "MARL View"}])
                     ],
                     active=0,  # "Network" view is default
@@ -151,9 +152,9 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Overlay", method="restyle",
-                            args=[{}]), # "visible": [True]*8 + [True, True]
+                            args=[{"visible": [True]*3 +[False]*2 + [True]*5}]),
                         dict(label="Associations", method="restyle",
-                            args=[{}]) # "visible": [True]*8 + [True, True]S
+                            args=[{}]) # "visible": [True]*8 + [True, True]
                     ],
                     active=None,  # No overlay active by default
                 showactive=True, x=0.35, y=1.05, xanchor="left", yanchor="bottom"
@@ -216,7 +217,8 @@ class LiveDashboard:
             self._get_trace_by_name("Associations").visible = True
         
         self.current_view = new_view    
-        
+        print(f"[DEBUG] View changed to {new_view}. Active traces: {[t.name for t in self.fig.data if t.visible]}")
+
     def update(self, phase: str, data: dict): 
         # Save current button states
         self._save_button_states()
