@@ -5,7 +5,7 @@ import plotly.subplots as sp
 import numpy as np
 from google.colab import output
 output.enable_custom_widget_manager()  # Enable Colab's widget manager
-from IPython.display import display  # Required to render widgets
+from IPython.display import display, clear_output  # Required to render widgets
 #from IPython import display  # Required to render widgets
 
 
@@ -42,7 +42,7 @@ class LiveDashboard:
         # self.figure_widget = go.FigureWidget(self.fig)
         # display.display(self.fig)
         # self.fig.show(renderer="colab")
-        display(self.fig)
+        # display(self.fig)
         # Initialize all traces
         print("[INIT] Initializing LiveDashboard...")
         self._init_traces(network_bounds)  # Should be called early
@@ -282,7 +282,9 @@ class LiveDashboard:
             # Update current state tracking
             self.current_view = phase
         # self.fig.update_layout(title="Updated Layout Example")
-
+        # Force Colab redraw
+        clear_output(wait=True)
+        display(self.fig)
         # Restore button states to previous UI configuration
         self._restore_button_states()
     
