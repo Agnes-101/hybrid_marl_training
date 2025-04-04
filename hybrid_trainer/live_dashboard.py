@@ -283,7 +283,7 @@ class LiveDashboard:
             self.current_view = phase
         # self.fig.update_layout(title="Updated Layout Example")
         # Force Colab redraw
-        clear_output(wait=True)
+        # clear_output(wait=True)
         display(self.fig)
         # Restore button states to previous UI configuration
         self._restore_button_states()
@@ -298,7 +298,7 @@ class LiveDashboard:
         bs_trace = self._get_trace_by_name('Base Stations')# self.fig.data[0]
         bs_trace.x = [bs["position"][0] for bs in env_state["base_stations"]]
         bs_trace.y = [bs["position"][1] for bs in env_state["base_stations"]]
-        bs_trace.marker.size = [float(bs["load"]) * 10 for bs in env_state["base_stations"]]
+        bs_trace.marker.size = [float(bs["load"]) * 100 for bs in env_state["base_stations"]]
 
         # Update Users
         user_trace = self._get_trace_by_name('Users')
