@@ -195,6 +195,8 @@ class LiveDashboard:
         """Properly toggle visibility for views"""
         # Hide all non-essential traces
         for trace in self.fig.data:
+            
+            print(f"[DEBUG] Existing trace: {trace.name}")
             if trace.name not in ['Base Stations', 'Users']:
                 trace.visible = False
         # Hide all metaheuristic traces first
