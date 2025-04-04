@@ -10,7 +10,7 @@ from typing import Dict, List
 from hybrid_trainer.kpi_logger import KPITracker  # Import the KPI logger
 class UE:
     def __init__(self, id, position, velocity, demand):
-        self.id = id
+        self.id = int(id)
         self.position = torch.tensor(position, dtype=torch.float32)
         self.velocity = torch.tensor(velocity, dtype=torch.float32)
         self.demand = demand  # Mbps
@@ -23,7 +23,7 @@ class UE:
 
 class BaseStation:
     def __init__(self, id, position, frequency, bandwidth):
-        self.id = id
+        self.id = int(id)
         self.position = torch.tensor(position, dtype=torch.float32)
         self.frequency = torch.tensor(frequency, dtype=torch.float32)
         self.bandwidth = torch.tensor(bandwidth , dtype=torch.float32) # MHz
@@ -97,36 +97,84 @@ class NetworkEnvironment:
         overload_penalty = torch.sum(torch.relu(loads - 1.0))
         
         return throughput + 2.0 * jain - 0.5 * overload_penalty
-
+    
     def step(self, actions: Dict[str, int]):
-        self.version += 1  # Increment on state change
+        self.version += 1
         for ue in self.ues:
-            ue.update_position()  # Actually move UEs each step
+            ue.update_position()  # Update UE positions
+
+        # Process actions to associate UEs with BSs
         for bs_id, ue_ids in actions.items():
             bs = next(bs for bs in self.base_stations if bs.id == int(bs_id.split("_")[1]))
             for ue_id in ue_ids:
                 ue = self.ues[ue_id]
                 ue.associated_bs = bs.id
-                bs.allocated_resources[ue_id] = ue.demand / sum(ue.demand for ue in self.ues if ue.associated_bs == bs.id)
-        
+                # Calculate allocated resources proportionally
+                total_demand = sum(ue.demand for ue in self.ues if ue.associated_bs == bs.id)
+                bs.allocated_resources[ue_id] = ue.demand / total_demand if total_demand != 0 else 0.0
+
+        # Calculate BS load and UE SINR
         for bs in self.base_stations:
             bs.calculate_load()
+        
+        sinr_values = []
         for ue in self.ues:
             if ue.associated_bs is not None:
                 bs = next(bs for bs in self.base_stations if bs.id == ue.associated_bs)
                 ue.sinr = self.calculate_sinr(ue, bs)
-        
+                sinr_values.append(ue.sinr)
+            else:
+                sinr_values.append(0.0)  # Handle unassociated UEs
+
+        # Calculate reward and metrics
         reward = self.calculate_reward()
+        avg_sinr = np.mean(sinr_values) if sinr_values else 0.0
+        fairness = (sum(sinr_values) ** 2) / (len(sinr_values) * sum(s**2 for s in sinr_values)) if sinr_values else 0.0
+        load_variance = np.var([bs.load for bs in self.base_stations])
+
+        # Populate info dict with metrics
+        info = {
+            "custom_metrics": {
+                "sinr_mean": avg_sinr,
+                "fairness": fairness,
+                "load_variance": load_variance
+            }
+        }
+
         self.current_step += 1
         done = self.current_step >= self.episode_length
+
+        return self._get_obs(), reward, done, info
+    # def step(self, actions: Dict[str, int]):
+    #     self.version += 1  # Increment on state change
+    #     for ue in self.ues:
+    #         ue.update_position()  # Actually move UEs each step
+            
+    #     for bs_id, ue_ids in actions.items():
+    #         bs = next(bs for bs in self.base_stations if bs.id == int(bs_id.split("_")[1]))
+    #         for ue_id in ue_ids:
+    #             ue = self.ues[ue_id]
+    #             ue.associated_bs = bs.id
+    #             bs.allocated_resources[ue_id] = ue.demand / sum(ue.demand for ue in self.ues if ue.associated_bs == bs.id)
         
-        # if self.log_kpis:
-        #     self.kpi_logger.log(self.current_step, self.ues, self.base_stations)
+    #     for bs in self.base_stations:
+    #         bs.calculate_load()
+    #     for ue in self.ues:
+    #         if ue.associated_bs is not None:
+    #             bs = next(bs for bs in self.base_stations if bs.id == ue.associated_bs)
+    #             ue.sinr = self.calculate_sinr(ue, bs)
         
-        return self._get_obs(), reward, done, {}
+    #     reward = self.calculate_reward()
+    #     self.current_step += 1
+    #     done = self.current_step >= self.episode_length
+        
+    #     # if self.log_kpis:
+    #     #     self.kpi_logger.log(self.current_step, self.ues, self.base_stations)
+        
+    #     return self._get_obs(), reward, done, {}
     
     def _get_obs(self):
-        #return {f"BS_{bs.id}": {"load": bs.load} for bs in self.base_stations}
+        
         return {  # Explicitly cast to float32
             f"BS_{bs.id}": {"load": np.float32(bs.load)} for bs in self.base_stations
             }

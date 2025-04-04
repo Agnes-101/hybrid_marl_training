@@ -252,24 +252,40 @@ class LiveDashboard:
         self.fig.data[algo_idx].marker.colorscale = 'Viridis'
 
     def _update_marl(self, env_state):
-        """Update MARL associations"""
         x, y = [], []
-        for ue, bs in env_state["associations"].items():
-            ue_pos = next(u["position"] for u in env_state["users"] if u["id"] == ue)
-            bs_pos = next(b["position"] for b in env_state["base_stations"] if b["id"] == bs)
-            x.extend([ue_pos[0], bs_pos[0], None])
-            y.extend([ue_pos[1], bs_pos[1], None])
+        for ue_id, bs_id in env_state["associations"].items():
+            # Convert BS ID to integer if necessary
+            bs_id = int(bs_id.split("_")[1]) if isinstance(bs_id, str) else bs_id
+            
+            # Find UE and BS positions (with type safety)
+            ue_pos = next((u["position"] for u in env_state["users"] if u["id"] == int(ue_id)), None)
+            bs_pos = next((b["position"] for b in env_state["base_stations"] if b["id"] == bs_id), None)
+            
+            if ue_pos and bs_pos:
+                x.extend([ue_pos[0], bs_pos[0], None])
+                y.extend([ue_pos[1], bs_pos[1], None])
+            else:
+                print(f"Invalid association: UE {ue_id} → BS {bs_id}")
         
-        self.fig.data[5].x = x
-        self.fig.data[5].y = y
-        self.fig.data[5].line.color = [ue["sinr"] for ue in env_state["users"]]
+        # Update traces
+        associations_trace = self._get_trace_by_name("Associations")
+        associations_trace.x = x
+        associations_trace.y = y
+    
+    # def _update_marl(self, env_state):
+    #     """Update MARL associations"""
+    #     x, y = [], []
+    #     for ue, bs in env_state["associations"].items():
+    #         ue_pos = next(u["position"] for u in env_state["users"] if u["id"] == ue)
+    #         bs_pos = next(b["position"] for b in env_state["base_stations"] if b["id"] == bs)
+    #         x.extend([ue_pos[0], bs_pos[0], None])
+    #         y.extend([ue_pos[1], bs_pos[1], None])
+        
+    #     self.fig.data[5].x = x
+    #     self.fig.data[5].y = y
+    #     self.fig.data[5].line.color = [ue["sinr"] for ue in env_state["users"]]
 
-    # def _update_network_kpis(self, metrics):
-    #     """Update persistent network metrics"""
-    #     self.fig.data[6].value = metrics.get('connected_users', 0)
-    #     self.fig.data[7].value = metrics.get('avg_sinr', 0)
-    #     self.fig.data[8].x = [bs['id'] for bs in metrics['base_stations']]
-    #     self.fig.data[8].y = [bs['load'] for bs in metrics['base_stations']]
+    
         
     def _update_network_kpis(self, env_state: dict):
         
