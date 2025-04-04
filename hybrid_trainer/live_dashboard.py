@@ -220,9 +220,9 @@ class LiveDashboard:
                 print(f"[DEBUG] Deactivated: {trace.name}, visible: {trace.visible}")  # Use trace.visible
         
                 
-        trace_2 = self._get_trace_by_name("Associations")
-        trace_2.visible = False
-        print(f"[DEBUG] {trace_2.name} visibility is now: {trace_2.visible}")        
+        # trace_2 = self._get_trace_by_name("Associations")
+        # trace_2.visible = False
+        # print(f"[DEBUG] {trace_2.name} visibility is now: {trace_2.visible}")        
         
             
         print(f"[DEBUG] Switching to {new_view}. Current algorithm: {self.current_algorithm}")
