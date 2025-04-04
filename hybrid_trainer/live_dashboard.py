@@ -211,9 +211,9 @@ class LiveDashboard:
         if new_view == "metaheuristic" and self.current_algorithm:
             # Activate only the current algorithm's trace 
                 trace_name = f"{self.current_algorithm.upper()} Agents"
-                print(f"Trace name: {trace_name}")
-                trace = self._get_trace_by_name(trace_name).visible = True
-                print(f"[DEBUG] Activated: {trace.name}, visible: {trace.visible}")
+                trace = self._get_trace_by_name(trace_name)  # Get trace object
+                trace.visible = True
+                print(f"[DEBUG] Activated: {trace.name}, visible: {trace.visible}")  # Use trace.visible
         elif new_view == "marl":
             self._get_trace_by_name("Associations").visible = True
         
@@ -346,14 +346,14 @@ class LiveDashboard:
         avg_sinr = np.mean(sinr_values) if sinr_values else 0
         print(f"Avg SINR: {avg_sinr}")  # Should be a float
         avg_sinr_trace.value = avg_sinr
-        avg_sinr_trace.visible=True
+        # avg_sinr_trace.visible=True
 
         # Update BS Load bar chart
         bs_load_trace.x = [bs["id"] for bs in env_state["base_stations"]]
         bs_load_trace.y = [bs["load"] for bs in env_state["base_stations"]]
         bs_loads = [bs["load"] for bs in env_state["base_stations"]]
         print(f"BS Loads: {bs_loads}")  # Should be a list of floats
-        bs_load_trace.visible=True
+        # bs_load_trace.visible=True
         
         # Calculate grid SINR
         grid_sinr = self.calculate_grid_sinr(env_state)
