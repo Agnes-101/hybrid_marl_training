@@ -96,11 +96,11 @@ class LiveDashboard:
         #         x=[0], y=[0],  mode='markers', visible=False, name='ACO Agents',
         #         marker=dict(size=8)), row=1, col=1
         #     )
-        # Trace 3: MARL Associations
-        self.fig.add_trace(go.Scattergl(
-            x=[], y=[], mode='lines', visible=False,
-            line=dict(width=1), name='Associations'), row=1, col=1
-        )
+        # # Trace 3: MARL Associations
+        # self.fig.add_trace(go.Scattergl(
+        #     x=[], y=[], mode='lines', visible=False,
+        #     line=dict(width=1), name='Associations'), row=1, col=1
+        # )
 
         # Network KPIs (Column 2)
         # Trace 4: Connected Users
@@ -190,9 +190,9 @@ class LiveDashboard:
         print(f"[DEBUG] Saving states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
     def _restore_button_states(self):
         """Reapply saved button states to retain UI settings"""
-        with self.figure_widget.batch_update():
-            self.figure_widget.layout.updatemenus[0].active = self.view_menu_active
-            self.figure_widget.layout.updatemenus[1].active = self.overlay_menu_active
+        with self.fig.batch_update():
+            self.fig.layout.updatemenus[0].active = self.view_menu_active
+            self.fig.layout.updatemenus[1].active = self.overlay_menu_active
     
     # def _restore_button_states(self):
     #     """Reapply saved states within a batch update"""
