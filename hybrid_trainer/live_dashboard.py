@@ -5,7 +5,7 @@ import plotly.subplots as sp
 import numpy as np
 from google.colab import output
 output.enable_custom_widget_manager()  # Enable Colab's widget manager
-from IPython import display  # Required to render widgets
+from IPython.display import display  # Required to render widgets
 
 
 class LiveDashboard:
@@ -39,10 +39,10 @@ class LiveDashboard:
                         
         # Display initial figure
         # self.figure_widget = go.FigureWidget(self.fig)
-        display.display(self.fig)
+        # display.display(self.fig)
         # self.fig.show(renderer="colab")
 
-        # display(self.fig)
+        display(self.fig)
         # Initialize all traces
         print("[INIT] Initializing LiveDashboard...")
         self._init_traces(network_bounds)  # Should be called early
@@ -198,12 +198,11 @@ class LiveDashboard:
     def _handle_view_change(self, new_view: str):
         """Properly toggle visibility for views"""
         # Hide all non-essential traces
-        for trace in self.fig.data:
-            
-            print(f"[DEBUG] Existing trace: {trace.name}")
+        for trace in self.fig.data:            
+            # print(f"[DEBUG] Existing trace: {trace.name}")
             if trace.name not in ['Base Stations', 'Users']:
                 trace.visible = False
-                print(f"[DEBUG] Activated: {trace.name}, visible: {trace.visible}")  # Use trace.visible
+                print(f"[DEBUG] Deactivated: {trace.name}, visible: {trace.visible}")  # Use trace.visible
                 
         # # Hide all metaheuristic traces first
         # for algo in ["de", "pso", "aco"]:
