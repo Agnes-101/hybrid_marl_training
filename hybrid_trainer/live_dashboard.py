@@ -42,7 +42,6 @@ class LiveDashboard:
         # self.figure_widget = go.FigureWidget(self.fig)
         # display.display(self.fig)
         # self.fig.show(renderer="colab")
-
         display(self.fig)
         # Initialize all traces
         print("[INIT] Initializing LiveDashboard...")
@@ -106,7 +105,7 @@ class LiveDashboard:
         # Network KPIs (Column 2)
         # Trace 4: Connected Users
         self.fig.add_trace(go.Indicator(
-            mode="number+delta", name= 'Connected Users', visible=True,title="Connected Users",
+            mode="number+delta", domain=dict(x=[0.8, 0.95], y=[0.9, 1.0]), name= 'Connected Users', visible=True,title="Connected Users",
             number=dict(font=dict(size=40))), row=1, col=2)
         
         # # Trace 5 : Average SINR
@@ -158,13 +157,13 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Network", method="update",
-                            args=[{"visible": [True, True]+[False]*4+[True]*2},
+                            args=[{"visible": [True, True]+[False]*4+[True]*3},
                                 {"title": "Network View"}]),
                         dict(label="Metaheuristic", method="update",
-                            args=[{"visible": [False]*2+[True]+[False]*5},
+                            args=[{"visible": [False]*2+[True]+[False]*6},
                                 {"title": "Metaheuristic View"}]),
                         dict(label="MARL", method="update",
-                            args=[{"visible": [False]*3+[True]*2+[False]*2},
+                            args=[{"visible": [False]*3+[True]*2+[False]*3},
                                 {"title": "MARL View"}])
                     ],
                     active=0,  # "Network" view is default
@@ -266,7 +265,7 @@ class LiveDashboard:
                 self.current_algorithm = None
                 
             self._update_network(env_state)
-            self._update_network_kpis(env_state)
+            # self._update_network_kpis(env_state)
             
             if phase != self.current_view:
                 self._handle_view_change(phase)
