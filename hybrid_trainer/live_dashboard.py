@@ -262,13 +262,13 @@ class LiveDashboard:
             self._update_network(env_state)
             self._update_network_kpis(env_state)
             
-            # if phase != self.current_view:
-            #     self._handle_view_change(phase)
+            if phase != self.current_view:
+                self._handle_view_change(phase)
             
-            # if phase == "metaheuristic":
-            #     self._update_metaheuristic(metrics)
-            # elif phase == "marl":
-            #     self._update_marl(env_state)
+            if phase == "metaheuristic":
+                self._update_metaheuristic(metrics)
+            elif phase == "marl":
+                self._update_marl(env_state)
             
             # Update persistent KPIs
             # self._update_phase_kpis(phase, metrics)
