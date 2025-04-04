@@ -5,7 +5,8 @@ import plotly.subplots as sp
 import numpy as np
 from google.colab import output
 output.enable_custom_widget_manager()  # Enable Colab's widget manager
-from IPython.display import display  # Required to render widgets
+# from IPython.display import display  # Required to render widgets
+from IPython import display  # Required to render widgets
 
 
 class LiveDashboard:
@@ -25,7 +26,7 @@ class LiveDashboard:
         }
         self.fig = go.FigureWidget( sp.make_subplots(
             rows=5, cols=2,
-            row_heights=[0.1, 0.1, 0.5, 0.5, 0.5],  # Prioritize first and last rows
+            row_heights=[0.1, 0.1, 0.4, 0.3, 0.1],  # Prioritize first and last rows
             specs=[
                 [{"type": "scattergl", "rowspan": 3}, {"type": "indicator"}],
                 [None, {"type": "indicator"}],
@@ -108,12 +109,14 @@ class LiveDashboard:
             mode="number+delta", name= 'Connected Users', visible=True,title="Connected Users",
             number=dict(font=dict(size=40))), row=1, col=2)
         
-        # Trace 5 : Average SINR
-        self.fig.add_trace(go.Indicator(
-            mode="gauge", name='Avg SINR', visible=True,title="Avg SINR",
-            gauge=dict(axis=dict(range=[0, 30], tickfont_size=10),  # Smaller ticks
-        bar_thickness=0.3)), row=2, col=2)
-        
+        # # Trace 5 : Average SINR
+        # self.fig.add_trace(go.Indicator(
+        #     mode="gauge", name='Avg SINR', visible=True,title="Avg SINR",
+        #     gauge=dict(axis=dict(range=[0, 30], tickfont_size=10),  # Smaller ticks
+        # bar_thickness=0.3)), row=2, col=2)
+        # Trace 6: BS load Bar
+        self.fig.add_trace(go.Bar(
+            x=[], y=[], name='Average sinr', visible=True), row=2, col=2)
         # Trace 6: BS load Bar
         self.fig.add_trace(go.Bar(
             x=[], y=[], name='BS Load', visible=True), row=3, col=2)
@@ -188,6 +191,7 @@ class LiveDashboard:
         self.view_menu_active = self.fig.layout.updatemenus[0].active
         self.overlay_menu_active = self.fig.layout.updatemenus[1].active
         print(f"[DEBUG] Saving states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
+        
     def _restore_button_states(self):
         """Reapply saved button states to retain UI settings"""
         with self.fig.batch_update():
@@ -305,7 +309,8 @@ class LiveDashboard:
         # Extract x and y from the list of positions
         x = [pos[0] for pos in metrics['positions']]  # First element of each position
         y = [pos[1] for pos in metrics['positions']]  # Second element of each position
-        algo_trace=self. _get_trace_by_name('DE Agents')
+        
+        algo_trace=self._get_trace_by_name('DE Agents')
         print(f"\n Trace {algo_trace}")
         algo_trace.x = x
         algo_trace.y = y
