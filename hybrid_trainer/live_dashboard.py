@@ -149,6 +149,11 @@ class LiveDashboard:
             height=900,  # Increase total height
             width=1400,
             margin=dict(t=150),  # Add top margin for buttons
+            # margin=dict(t=100, b=20, l=50, r=50),
+            # Prevent auto-sizing
+            autosize=False,
+            # Grid mode for strict cell adherence
+            grid=dict(rows=5, columns=2, pattern='independent'),
             updatemenus=[
                 dict(
                     buttons=[
