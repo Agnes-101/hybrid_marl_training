@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from ray import tune
 from typing import Dict
-from IPython.display import display
+from IPython import display
 from ray.rllib.algorithms.ppo import PPOConfig
 from envs.custom_channel_env import NetworkEnvironment
 from hybrid_trainer.metaheuristic_opt import run_metaheuristic
