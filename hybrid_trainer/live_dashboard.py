@@ -212,7 +212,8 @@ class LiveDashboard:
             # Activate only the current algorithm's trace 
                 trace_name = f"{self.current_algorithm.upper()} Agents"
                 print(f"Trace name: {trace_name}")
-                self._get_trace_by_name(trace_name).visible = True
+                trace = self._get_trace_by_name(trace_name).visible = True
+                print(f"[DEBUG] Activated: {trace.name}, visible: {trace.visible}")
         elif new_view == "marl":
             self._get_trace_by_name("Associations").visible = True
         
