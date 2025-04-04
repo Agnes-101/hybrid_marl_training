@@ -56,20 +56,36 @@ class HybridTraining:
         # from IPython import display
         # Run optimization with visualization callback
        # Create a closure to capture algo state
+        # def de_visualize_callback(de_data: Dict):
+        #     # display.clear_output(wait=True)  # Clear previous dashboard
+        #     with self.dashboard.fig.batch_update():
+        #         self.dashboard.update(
+        #                 phase="metaheuristic",
+        #                 data={
+        #                     "env_state": self.env.get_current_state(),  # Pass env_state here
+        #                     "metrics": {
+        #                         "algorithm": algorithm,
+        #                         "positions": de_data["positions"],
+        #                         "fitness": de_data["fitness"]
+        #                     }
+        #                 }
+        #             )     
         def de_visualize_callback(de_data: Dict):
-            # display.clear_output(wait=True)  # Clear previous dashboard
+            # Convert data upfront
+            x_pos = de_data["positions"][:, 0].tolist()
+            y_pos = de_data["positions"][:, 1].tolist()
+            fitness = de_data["fitness"].tolist()
+            
             with self.dashboard.fig.batch_update():
-                self.dashboard.update(
-                        phase="metaheuristic",
-                        data={
-                            "env_state": self.env.get_current_state(),  # Pass env_state here
-                            "metrics": {
-                                "algorithm": algorithm,
-                                "positions": de_data["positions"],
-                                "fitness": de_data["fitness"]
-                            }
-                        }
-                    )           
+                # Update by trace name (safer than indices)
+                trace = self.dashboard._get_trace_by_name("DE Agents")
+                trace.x = x_pos
+                trace.y = y_pos
+                trace.marker.color = fitness
+                
+            # Optional sync for rapid updates
+            # self.dashboard.fig._send_update_traces()
+            # time.sleep(0.05)  # Only if needed
             # # Force Colab DOM update
             # display.display(self.dashboard.fig)
             # time.sleep(0.1)

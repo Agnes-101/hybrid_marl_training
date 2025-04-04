@@ -1,4 +1,5 @@
 # hybrid_trainer/live_dashboard.py
+
 import plotly.graph_objects as go
 import plotly.subplots as sp
 import numpy as np
@@ -61,14 +62,14 @@ class LiveDashboard:
         # Network
         # Trace 0: Base Stations
         self.fig.add_trace(go.Scattergl(
-            x=[], y=[], mode='markers', visible=True, name='Base Stations',
+            x=[0], y=[0], mode='markers', visible=True, name='Base Stations',
             marker=dict(symbol='square', size=25, color='#BD0D0D', opacity=1.0)),
             row=1, col=1
         )
         
         # Trace 1: Users
         self.fig.add_trace(go.Scattergl(
-            x=[], y=[], mode='markers',visible= True, name='Users',
+            x=[0], y=[0], mode='markers',visible= True, name='Users',
             marker=dict(size=6, color='blue', opacity=0.4)),
             row=1, col=1
         )
