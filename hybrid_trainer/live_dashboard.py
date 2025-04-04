@@ -66,14 +66,14 @@ class LiveDashboard:
         # Network
         # Trace 0: Base Stations
         self.fig.add_trace(go.Scattergl(
-            x=[0], y=[0], mode='markers', visible=True, name='Base Stations',
+            x=[], y=[], mode='markers', visible=True, name='Base Stations',
             marker=dict(symbol='square', size=25, color='#BD0D0D', opacity=1.0)),
             row=1, col=1
         )
         
         # Trace 1: Users
         self.fig.add_trace(go.Scattergl(
-            x=[0], y=[0], mode='markers',visible= True, name='Users',
+            x=[], y=[], mode='markers',visible= True, name='Users',
             marker=dict(size=6, color='blue', opacity=0.4)),
             row=1, col=1
         )
@@ -124,7 +124,7 @@ class LiveDashboard:
         # Trace 7: SINR Heatmap
         self.fig.add_trace(go.Heatmap(
             x=[], y=[], name= 'SINR Heatmap', colorscale='Viridis', showscale=False,
-            visible=False), row=4, col=1)
+            visible=True), row=4, col=1)
         # Trace 8: Fitness
         self.fig.add_trace(go.Scatter(
             x=[], y=[], name='Fitness', visible=False), row=4, col=2)
@@ -157,13 +157,13 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Network", method="update",
-                            args=[{"visible": [True, True]+[False]*4+[True]*3},
+                            args=[{"visible": [True, True]+[False]+[True]*6},
                                 {"title": "Network View"}]),
                         dict(label="Metaheuristic", method="update",
-                            args=[{"visible": [False]*2+[True]+[False]*6},
+                            args=[{"visible": [False]*2+[True]*7},# +[False]*6
                                 {"title": "Metaheuristic View"}]),
                         dict(label="MARL", method="update",
-                            args=[{"visible": [False]*3+[True]*2+[False]*3},
+                            args=[{"visible": [False]*3+[True]*3+[False]*2},
                                 {"title": "MARL View"}])
                     ],
                     active=0,  # "Network" view is default
@@ -173,7 +173,7 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Overlay", method="restyle",
-                            args=[{"visible": [True]*3 +[False]*2 + [True]*3}]),
+                            args=[{"visible": [True]*3  + [True]*6}]),# +[False]*3
                         dict(label="Associations", method="restyle",
                             args=[{}]) # "visible": [True]*8 + [True, True]
                     ],
@@ -315,7 +315,7 @@ class LiveDashboard:
         y = [pos[1] for pos in metrics['positions']]  # Second element of each position
         
         algo_trace=self._get_trace_by_name('DE Agents')
-        print(f"\n Trace {algo_trace}")
+        # print(f"\n Trace {algo_trace}")
         algo_trace.x = x
         algo_trace.y = y
         algo_trace.marker.color = metrics['fitness']
