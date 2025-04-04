@@ -135,13 +135,13 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Network", method="update",
-                            args=[{"visible": [True, True]+[False]*4+[True]*6},
+                            args=[{}, # "visible": [True, True]+[False]*4+[True]*6
                                 {"title": "Network View"}]),
                         dict(label="Metaheuristic", method="update",
-                            args=[{"visible": [False]*2+[True]*3+[False]*2},
+                            args=[{}, # "visible": [False]*2+[True]*3+[False]*2
                                 {"title": "Metaheuristic View"}]),
                         dict(label="MARL", method="update",
-                            args=[{"visible": [False]*5+[True]+[False]},
+                            args=[{}, # "visible": [False]*5+[True]+[False]
                                 {"title": "MARL View"}])
                     ],
                     active=0,  # "Network" view is default
@@ -151,9 +151,9 @@ class LiveDashboard:
                 dict(
                     buttons=[
                         dict(label="Overlay", method="restyle",
-                            args=[{"visible": [True]*8 + [True, True]}]),
+                            args=[{}]), # "visible": [True]*8 + [True, True]
                         dict(label="Associations", method="restyle",
-                            args=[{"visible": [True]*8 + [True, True]}])
+                            args=[{}]) # "visible": [True]*8 + [True, True]S
                     ],
                     active=None,  # No overlay active by default
                 showactive=True, x=0.35, y=1.05, xanchor="left", yanchor="bottom"
@@ -199,6 +199,7 @@ class LiveDashboard:
             print(f"[DEBUG] Existing trace: {trace.name}")
             if trace.name not in ['Base Stations', 'Users']:
                 trace.visible = False
+                
         # Hide all metaheuristic traces first
         for algo in ["de", "pso", "aco"]:
             trace = self._get_trace_by_name(f"{algo.upper()} Agents")
