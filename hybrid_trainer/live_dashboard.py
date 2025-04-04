@@ -79,12 +79,23 @@ class LiveDashboard:
         )
         
         # Trace 2: Metaheuristic
-        for algo in ["de","pso", "aco"]:  # , "pso", "aco"
-            self.fig.add_trace(go.Scattergl(
-                x=[0], y=[0],  mode='markers', visible=False, name=f'{algo.upper()} Agents',
+        # for algo in ["de","pso", "aco"]:  # , "pso", "aco"
+        #     self.fig.add_trace(go.Scattergl(
+        #         x=[0], y=[0],  mode='markers', visible=False, name=f'{algo.upper()} Agents',
+        #         marker=dict(size=8)), row=1, col=1
+        #     )
+        self.fig.add_trace(go.Scattergl(
+                x=[0], y=[0],  mode='markers', visible=False, name= 'DE Agents',
                 marker=dict(size=8)), row=1, col=1
             )
-        
+        self.fig.add_trace(go.Scattergl(
+                x=[0], y=[0],  mode='markers', visible=False, name='PSO Agents',
+                marker=dict(size=8)), row=1, col=1
+            )
+        self.fig.add_trace(go.Scattergl(
+                x=[0], y=[0],  mode='markers', visible=False, name='ACO Agents',
+                marker=dict(size=8)), row=1, col=1
+            )
         # Trace 3: MARL Associations
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='lines', visible=False,
