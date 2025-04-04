@@ -203,13 +203,13 @@ class LiveDashboard:
             print(f"[DEBUG] Existing trace: {trace.name}")
             if trace.name not in ['Base Stations', 'Users']:
                 trace.visible = False
+                print(f"[DEBUG] Activated: {trace.name}, visible: {trace.visible}")  # Use trace.visible
                 
-                
-        # Hide all metaheuristic traces first
-        for algo in ["de", "pso", "aco"]:
-            trace = self._get_trace_by_name(f"{algo.upper()} Agents")
-            trace.visible = False
-            print(f"[DEBUG] Activated: {trace}, visible: {trace.visible}")  # Use trace.visible
+        # # Hide all metaheuristic traces first
+        # for algo in ["de", "pso", "aco"]:
+        #     trace = self._get_trace_by_name(f"{algo.upper()} Agents")
+        #     trace.visible = False
+        #     print(f"[DEBUG] Activated: {trace}, visible: {trace.visible}")  # Use trace.visible
             
         print(f"[DEBUG] Switching to {new_view}. Current algorithm: {self.current_algorithm}")
         # Show traces for the new view
@@ -236,22 +236,22 @@ class LiveDashboard:
             env_state = data.get("env_state", {})
             metrics = data.get("metrics", {})
             
-            # # Track current algorithm (if in metaheuristic phase)
-            # if phase == "metaheuristic":
-            #     self.current_algorithm = metrics.get("algorithm", "de").lower()  # Default to DE
-            # else:
-            #     self.current_algorithm = None
+            # Track current algorithm (if in metaheuristic phase)
+            if phase == "metaheuristic":
+                self.current_algorithm = metrics.get("algorithm", "de").lower()  # Default to DE
+            else:
+                self.current_algorithm = None
                 
             self._update_network(env_state)
             self._update_network_kpis(env_state)
             
-            # if phase != self.current_view:
-            #     self._handle_view_change(phase)
+            if phase != self.current_view:
+                self._handle_view_change(phase)
             
-            # if phase == "metaheuristic":
-            #     self._update_metaheuristic(metrics)
-            # elif phase == "marl":
-            #     self._update_marl(env_state)
+            if phase == "metaheuristic":
+                self._update_metaheuristic(metrics)
+            elif phase == "marl":
+                self._update_marl(env_state)
             
             # Update persistent KPIs
             # self._update_phase_kpis(phase, metrics)
