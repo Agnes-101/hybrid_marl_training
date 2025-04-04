@@ -265,7 +265,7 @@ class LiveDashboard:
                 self.current_algorithm = None
                 
             self._update_network(env_state)
-            # self._update_network_kpis(env_state)
+            self._update_network_kpis(env_state)
             
             if phase != self.current_view:
                 self._handle_view_change(phase)
@@ -382,14 +382,14 @@ class LiveDashboard:
         avg_sinr = np.mean(sinr_values) if sinr_values else 0
         print(f"Avg SINR: {avg_sinr}")  # Should be a float
         avg_sinr_trace.value = avg_sinr
-        # avg_sinr_trace.visible=True
+        avg_sinr_trace.visible=True
 
         # Update BS Load bar chart
         bs_load_trace.x = [bs["id"] for bs in env_state["base_stations"]]
         bs_load_trace.y = [bs["load"] for bs in env_state["base_stations"]]
         bs_loads = [bs["load"] for bs in env_state["base_stations"]]
         print(f"BS Loads: {bs_loads}")  # Should be a list of floats
-        # bs_load_trace.visible=True
+        bs_load_trace.visible=True
         
         # Calculate grid SINR
         grid_sinr = self.calculate_grid_sinr(env_state)
