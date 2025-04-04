@@ -160,7 +160,7 @@ class HybridTraining:
                         "env_state": self.orchestrator.env.get_current_state(),  # Associations/users/BS
                         # "metrics" : recent_metrics
                         "metrics": {
-                        "episode_rewards": metrics["fitness"],
+                        "episode_rewards_mean": metrics["episode_reward_mean"],
                         "policy_entropy": metrics["policy_entropy"],
                         "average_sinr": metrics["average_sinr"]
                         }
