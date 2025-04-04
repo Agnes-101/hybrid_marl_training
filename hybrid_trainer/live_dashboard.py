@@ -86,12 +86,12 @@ class LiveDashboard:
         #     )
         self.fig.add_trace(go.Scattergl(
                 x=[0], y=[0],  mode='markers', visible=False, name= 'DE Agents',
-                marker=dict(size=8)), row=1, col=1
+                marker=dict(size=8), colour= '#FF6B6B'), row=1, col=1
             )
-        self.fig.add_trace(go.Scattergl(
-                x=[0], y=[0],  mode='markers', visible=False, name='PSO Agents',
-                marker=dict(size=8)), row=1, col=1
-            )
+        # self.fig.add_trace(go.Scattergl(
+        #         x=[0], y=[0],  mode='markers', visible=False, name='PSO Agents',
+        #         marker=dict(size=8)), row=1, col=1
+        #     )
         # self.fig.add_trace(go.Scattergl(
         #         x=[0], y=[0],  mode='markers', visible=False, name='ACO Agents',
         #         marker=dict(size=8)), row=1, col=1
@@ -225,14 +225,8 @@ class LiveDashboard:
         
         trace_2 = self._get_trace_by_name("Associations")
         trace_2.visible = False
-        print(f"[DEBUG] {trace_2.name} visibility is now: {trace_2.visible}")
-
+        print(f"[DEBUG] {trace_2.name} visibility is now: {trace_2.visible}")        
         
-        # # Hide all metaheuristic traces first
-        # for algo in ["de", "pso", "aco"]:
-        #     trace = self._get_trace_by_name(f"{algo.upper()} Agents")
-        #     trace.visible = False
-        #     print(f"[DEBUG] Activated: {trace}, visible: {trace.visible}")  # Use trace.visible
             
         print(f"[DEBUG] Switching to {new_view}. Current algorithm: {self.current_algorithm}")
         # Show traces for the new view
@@ -268,13 +262,13 @@ class LiveDashboard:
             self._update_network(env_state)
             self._update_network_kpis(env_state)
             
-            if phase != self.current_view:
-                self._handle_view_change(phase)
+            # if phase != self.current_view:
+            #     self._handle_view_change(phase)
             
-            if phase == "metaheuristic":
-                self._update_metaheuristic(metrics)
-            elif phase == "marl":
-                self._update_marl(env_state)
+            # if phase == "metaheuristic":
+            #     self._update_metaheuristic(metrics)
+            # elif phase == "marl":
+            #     self._update_marl(env_state)
             
             # Update persistent KPIs
             # self._update_phase_kpis(phase, metrics)
