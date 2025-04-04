@@ -188,23 +188,23 @@ class LiveDashboard:
         self.view_menu_active = self.fig.layout.updatemenus[0].active
         self.overlay_menu_active = self.fig.layout.updatemenus[1].active
         print(f"[DEBUG] Saving states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
-    # def _restore_button_states(self):
-    #     """Reapply saved button states to retain UI settings"""
-    #     with self.figure_widget.batch_update():
-    #         self.figure_widget.layout.updatemenus[0].active = self.view_menu_active
-    #         self.figure_widget.layout.updatemenus[1].active = self.overlay_menu_active
-    
     def _restore_button_states(self):
-        """Reapply saved states within a batch update"""
-        with self.fig.batch_update():
-            # Restore view menu
-            if 0 <= self.view_menu_active < len(self.fig.layout.updatemenus[0].buttons):
-                self.fig.layout.updatemenus[0].active = self.view_menu_active
+        """Reapply saved button states to retain UI settings"""
+        with self.figure_widget.batch_update():
+            self.figure_widget.layout.updatemenus[0].active = self.view_menu_active
+            self.figure_widget.layout.updatemenus[1].active = self.overlay_menu_active
+    
+    # def _restore_button_states(self):
+    #     """Reapply saved states within a batch update"""
+    #     with self.fig.batch_update():
+    #         # Restore view menu
+    #         if 0 <= self.view_menu_active < len(self.fig.layout.updatemenus[0].buttons):
+    #             self.fig.layout.updatemenus[0].active = self.view_menu_active
             
-            # Restore overlay menu (None = no active overlay)
-            if self.overlay_menu_active is None or (0 <= self.overlay_menu_active < len(self.fig.layout.updatemenus[1].buttons)):
-                self.fig.layout.updatemenus[1].active = self.overlay_menu_active
-        print(f"[DEBUG] Restoring states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
+    #         # Restore overlay menu (None = no active overlay)
+    #         if self.overlay_menu_active is None or (0 <= self.overlay_menu_active < len(self.fig.layout.updatemenus[1].buttons)):
+    #             self.fig.layout.updatemenus[1].active = self.overlay_menu_active
+    #     print(f"[DEBUG] Restoring states - View: {self.view_menu_active}, Overlay: {self.overlay_menu_active}")
     
     def _handle_view_change(self, new_view: str):
         """Properly toggle visibility for views"""
@@ -219,10 +219,7 @@ class LiveDashboard:
                 trace.visible = False
                 print(f"[DEBUG] Deactivated: {trace.name}, visible: {trace.visible}")  # Use trace.visible
         
-        # trace = self._get_trace_by_name("ACO Agents")
-        # trace.visible = False
-        # print(f"[DEBUG] {trace.name} visibility is now: {trace.visible}")
-        
+                
         trace_2 = self._get_trace_by_name("Associations")
         trace_2.visible = False
         print(f"[DEBUG] {trace_2.name} visibility is now: {trace_2.visible}")        
@@ -266,8 +263,10 @@ class LiveDashboard:
                 self._handle_view_change(phase)
             
             if phase == "metaheuristic":
+                print("Metaheuristic Phase")
                 self._update_metaheuristic(metrics)
             elif phase == "marl":
+                print("Marl Phase")
                 self._update_marl(env_state)
             
             # Update persistent KPIs
@@ -306,11 +305,17 @@ class LiveDashboard:
         # Extract x and y from the list of positions
         x = [pos[0] for pos in metrics['positions']]  # First element of each position
         y = [pos[1] for pos in metrics['positions']]  # Second element of each position
-        
-        self.fig.data[algo_idx].x = x
-        self.fig.data[algo_idx].y = y
-        self.fig.data[algo_idx].marker.color = metrics['fitness']
-        self.fig.data[algo_idx].marker.colorscale = 'Viridis'
+        algo_trace=self. _get_trace_by_name('DE Agents')
+        print(f"\n Trace {algo_trace}")
+        algo_trace.x = x
+        algo_trace.y = y
+        algo_trace.marker.color = metrics['fitness']
+        algo_trace.marker.colorscale = 'Viridis'
+
+        # self.fig.data[algo_idx].x = x
+        # self.fig.data[algo_idx].y = y
+        # self.fig.data[algo_idx].marker.color = metrics['fitness']
+        # self.fig.data[algo_idx].marker.colorscale = 'Viridis'
 
     def _update_marl(self, env_state):
         x, y = [], []
