@@ -87,7 +87,7 @@ class LiveDashboard:
         
         # Trace 3: MARL Associations
         self.fig.add_trace(go.Scattergl(
-            x=[], y=[], mode='lines', visible=False,
+            x=[], y=[], mode='lines', # visible=False,
             line=dict(width=1), name='Associations'), row=1, col=1
         )
 
