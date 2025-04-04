@@ -92,10 +92,10 @@ class LiveDashboard:
                 x=[0], y=[0],  mode='markers', visible=False, name='PSO Agents',
                 marker=dict(size=8)), row=1, col=1
             )
-        self.fig.add_trace(go.Scattergl(
-                x=[0], y=[0],  mode='markers', visible=False, name='ACO Agents',
-                marker=dict(size=8)), row=1, col=1
-            )
+        # self.fig.add_trace(go.Scattergl(
+        #         x=[0], y=[0],  mode='markers', visible=False, name='ACO Agents',
+        #         marker=dict(size=8)), row=1, col=1
+        #     )
         # Trace 3: MARL Associations
         self.fig.add_trace(go.Scattergl(
             x=[], y=[], mode='lines', visible=False,
@@ -219,9 +219,9 @@ class LiveDashboard:
                 trace.visible = False
                 print(f"[DEBUG] Deactivated: {trace.name}, visible: {trace.visible}")  # Use trace.visible
         
-        trace = self._get_trace_by_name("ACO Agents")
-        trace.visible = False
-        print(f"[DEBUG] {trace.name} visibility is now: {trace.visible}")
+        # trace = self._get_trace_by_name("ACO Agents")
+        # trace.visible = False
+        # print(f"[DEBUG] {trace.name} visibility is now: {trace.visible}")
         
         trace_2 = self._get_trace_by_name("Associations")
         trace_2.visible = False
