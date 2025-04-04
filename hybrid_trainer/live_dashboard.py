@@ -42,7 +42,7 @@ class LiveDashboard:
         # self.figure_widget = go.FigureWidget(self.fig)
         # display.display(self.fig)
         # self.fig.show(renderer="colab")
-        # display(self.fig)
+        display(self.fig)
         # Initialize all traces
         print("[INIT] Initializing LiveDashboard...")
         self._init_traces(network_bounds)  # Should be called early
