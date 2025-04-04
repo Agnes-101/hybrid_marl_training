@@ -283,8 +283,8 @@ class LiveDashboard:
             self.current_view = phase
         # self.fig.update_layout(title="Updated Layout Example")
         # Force Colab redraw
-        clear_output(wait=True)
-        display(self.fig)
+        # clear_output(wait=True)
+        # display(self.fig)
         # Restore button states to previous UI configuration
         self._restore_button_states()
     
