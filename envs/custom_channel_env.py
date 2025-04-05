@@ -6,6 +6,7 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 import torch
 import numpy as np
+import gymnasium as gym
 from ray.rllib.env import EnvContext
 from typing import Dict, List
 from hybrid_trainer.kpi_logger import KPITracker  # Import the KPI logger
