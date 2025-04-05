@@ -144,7 +144,7 @@ class HybridTraining:
                     "load_variance": last_result.get("custom_metrics", {}).get("load_variance", 0),
                     "policy_entropy": last_result.get("policy_entropy", 0)
                 }
-                
+                print(f"MARL Metrics at iteration {iteration} : {metrics}: ")
                 self.orchestrator.kpi_logger.log_metrics(
                     episode=iteration,
                     phase="marl",
@@ -154,18 +154,18 @@ class HybridTraining:
                 
                 #  Pull data from consolidated history
                 
-                self.orchestrator.dashboard.update(
-                    phase="marl",
-                    data={
-                        "env_state": self.orchestrator.env.get_current_state(),  # Associations/users/BS
-                        # "metrics" : recent_metrics
-                        "metrics": {
-                        "episode_rewards_mean": metrics["episode_reward_mean"],
-                        "policy_entropy": metrics["policy_entropy"],
-                        "average_sinr": metrics["average_sinr"]
-                        }
-                    }
-                    )
+                # self.orchestrator.dashboard.update(
+                #     phase="marl",
+                #     data={
+                #         "env_state": self.orchestrator.env.get_current_state(),  # Associations/users/BS
+                #         # "metrics" : recent_metrics
+                #         "metrics": {
+                #         "episode_rewards_mean": metrics["episode_reward_mean"],
+                #         "policy_entropy": metrics["policy_entropy"],
+                #         "average_sinr": metrics["average_sinr"]
+                #         }
+                #     }
+                #     )
                 
                 
                 

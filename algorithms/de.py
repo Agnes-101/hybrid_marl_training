@@ -86,17 +86,17 @@ class DEOptimization:
             self.best_fitness_history.append(best_iter_fitness)
             self._update_visual_state(env)
             
-            # Visualization handling (no duplicate logging)
-            if iteration % 5 == 0 and visualize_callback:
-                print(" Logged Metrics:", kpi_logger.recent_logs()) 
-                visualize_callback({
-                    "positions": self.positions.tolist(),
-                    "fitness": self.fitness.tolist(),
-                    "algorithm": "de",
-                    "env_state": env.get_current_state()
-                })
+            # # Visualization handling (no duplicate logging)
+            # if iteration % 5 == 0 and visualize_callback:
+            #     print(" Logged Metrics:", kpi_logger.recent_logs()) 
+            #     visualize_callback({
+            #         "positions": self.positions.tolist(),
+            #         "fitness": self.fitness.tolist(),
+            #         "algorithm": "de",
+            #         "env_state": env.get_current_state()
+            #     })
                 
-                print(f"DE Visual Update @ Iter {iteration}")
+            #     print(f"DE Visual Update @ Iter {iteration}")
             
             # Environment agent tracking
             env.current_metaheuristic_agents = [{
