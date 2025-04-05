@@ -95,23 +95,32 @@ class HybridTraining:
         """Execute MARL training phase"""
         # print(f"\n Starting {self.config['marl_algorithm'].upper()} training...")
         print(f"\n Starting {self.config.get('marl_algorithm', 'PPO').upper()} training...")
-
-        
-        marl_config = (PPOConfig()
-            .environment(NetworkEnvironment, env_config=self.config["env_config"])
-            .training(model={"custom_model": initial_policy} if initial_policy else {})
-            .resources(num_gpus=self.config["marl_training"]["num_gpus"]))
+        # Configure environment with current network state
+        env_config = {
+            **self.config["env_config"],
+            "current_state": self.env.get_current_state()  # Capture initial state
+        }
         
         # marl_config = (PPOConfig()
         #     .environment(NetworkEnvironment, env_config=self.config["env_config"])
-        #     .training(
-        #         model={"custom_model": initial_policy} if initial_policy else {},
-        #         num_cpus_per_worker=2  # ✅ Correct parameter location
-        #     )
-        #     .resources(
-        #         num_gpus=self.config["marl_training"]["num_gpus"],
-        #         num_learner_workers=1  # Optional but recommended
-        #     ))
+        #     .training(model={"custom_model": initial_policy} if initial_policy else {})
+        #     .resources(num_gpus=self.config["marl_training"]["num_gpus"]))
+        
+        marl_config = (PPOConfig()
+        .environment(
+            NetworkEnvironment,
+            env_config=env_config,
+            env_task=self.env  # Pass environment instance
+        )
+        .training(
+            model={"custom_model": initial_policy} if initial_policy else {},
+            num_sgd_iter=5,
+            train_batch_size=4000
+        )
+        .resources(
+            num_gpus=self.config["marl_training"]["num_gpus"],
+            num_cpus_per_worker=2
+        ))
         
         analysis = tune.run(
             "PPO",
@@ -128,22 +137,34 @@ class HybridTraining:
         class MarlVisualizationCallback(tune.Callback):
             def __init__(self, orchestrator):
                 self.orchestrator = orchestrator
+                self.last_env_state = None
                 
-            def on_step_end(self, iteration, trials, **kwargs):
+            def on_step_end(self, iteration, trials, trial, result, **info ):# **kwargs
                 # Guard against empty trials or missing results
                 if not trials or not trials[0].last_result:
                     print("Missing results for trial!")
                     return
-
-                last_result = trials[0].last_result
-                # ✅ Unified logging for MARL metrics
+                # Capture environment state from worker
+                self.last_env_state = result.get("custom_metrics", {}).get("env_state")
+                
+                # Extract metrics
                 metrics = {
-                    "episode_reward_mean": last_result.get("episode_reward_mean",0),
-                    "average_sinr": last_result.get("custom_metrics", {}).get("sinr_mean", 0),
-                    "fairness": last_result.get("custom_metrics", {}).get("fairness", 0),
-                    "load_variance": last_result.get("custom_metrics", {}).get("load_variance", 0),
-                    "policy_entropy": last_result.get("policy_entropy", 0)
+                    "episode_reward_mean": result.get("episode_reward_mean", 0),
+                    "average_sinr": result.get("custom_metrics", {}).get("sinr_mean", 0),
+                    "fairness": result.get("custom_metrics", {}).get("fairness_index", 0),
+                    "load_variance": result.get("custom_metrics", {}).get("load_variance", 0),
+                    "policy_entropy": result.get("policy_entropy", 0)
                 }
+                
+                # last_result = trials[0].last_result
+                # # ✅ Unified logging for MARL metrics
+                # metrics = {
+                #     "episode_reward_mean": last_result.get("episode_reward_mean",0),
+                #     "average_sinr": last_result.get("custom_metrics", {}).get("sinr_mean", 0),
+                #     "fairness": last_result.get("custom_metrics", {}).get("fairness", 0),
+                #     "load_variance": last_result.get("custom_metrics", {}).get("load_variance", 0),
+                #     "policy_entropy": last_result.get("policy_entropy", 0)
+                # }
                 print(f"MARL Metrics at iteration {iteration} : {metrics}: ")
                 self.orchestrator.kpi_logger.log_metrics(
                     episode=iteration,
