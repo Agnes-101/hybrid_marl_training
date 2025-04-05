@@ -299,6 +299,9 @@ class LiveDashboard:
         bs_trace.x = [bs["position"][0] for bs in env_state["base_stations"]]
         bs_trace.y = [bs["position"][1] for bs in env_state["base_stations"]]
         bs_trace.marker.size = [float(bs["load"]) * 10000 for bs in env_state["base_stations"]]
+        loads = [float(bs["load"]) for bs in env_state["base_stations"]]
+        print("Base Station Loads:", loads)
+
 
         # Update Users
         user_trace = self._get_trace_by_name('Users')

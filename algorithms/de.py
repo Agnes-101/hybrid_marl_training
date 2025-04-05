@@ -9,7 +9,7 @@ class DEOptimization:
         # Optimization parameters
         
         self.population_size = 30
-        self.iterations = 50
+        self.iterations = 2
         self.F = 1.2  # Mutation factor
         self.CR = 0.5  # Crossover rate
         
@@ -87,7 +87,7 @@ class DEOptimization:
             self._update_visual_state(env)
             
             # Visualization handling (no duplicate logging)
-            if iteration % 2 == 0 and visualize_callback:
+            if iteration % 5 == 0 and visualize_callback:
                 print(" Logged Metrics:", kpi_logger.recent_logs()) 
                 visualize_callback({
                     "positions": self.positions.tolist(),
