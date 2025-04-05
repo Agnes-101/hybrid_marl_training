@@ -98,7 +98,8 @@ class HybridTraining:
         # Configure environment with current network state
         env_config = {
             **self.config["env_config"],
-            "current_state": self.env.get_current_state()  # Capture initial state
+            "current_state": self.env.get_current_state(),  # Capture initial state
+            "environment_instance": self.env  # Pass through env_config instead
         }
         
         # marl_config = (PPOConfig()
@@ -109,8 +110,7 @@ class HybridTraining:
         marl_config = (PPOConfig()
         .environment(
             NetworkEnvironment,
-            env_config=env_config,
-            env_task=self.env  # Pass environment instance
+            env_config=env_config,            
         )
         .training(
             model={"custom_model": initial_policy} if initial_policy else {},

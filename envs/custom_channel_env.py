@@ -6,6 +6,7 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 import torch
 import numpy as np
+from ray.rllib.env import EnvContext
 from typing import Dict, List
 from hybrid_trainer.kpi_logger import KPITracker  # Import the KPI logger
 class UE:
@@ -34,18 +35,19 @@ class BaseStation:
     def calculate_load(self):
         self.load = sum(self.allocated_resources.values()) / self.bandwidth
 
-class NetworkEnvironment:
-    def __init__(self, num_bs=3, num_ue=10, episode_length=100, log_kpis=True):
+class NetworkEnvironment(gym.Env):
+    def __init__(self, config:EnvContext, num_bs=3, num_ue=10, episode_length=100, log_kpis=True):
+        super().__init__()  # ✅ Initialize gym.Env
         self.num_bs = num_bs
         self.num_ue = num_ue
         self.episode_length = episode_length
         self.version = 0  # Internal state version
         self.current_step = 0
         self.log_kpis = log_kpis        
-        self.metaheuristic_agents = []  # Initialize empty list
+        self.metaheuristic_agents = []  # Initialize empty list        
         
-        # Initialize KPI logger if logging is enabled
-        self.kpi_logger = KPITracker() if log_kpis else None
+        # Access passed environment instance
+        self.env_instance = config.get("environment_instance")
 
         self.base_stations = [
             BaseStation(id=i, position=[np.random.uniform(0, 100), np.random.uniform(0, 100)],
@@ -59,6 +61,8 @@ class NetworkEnvironment:
             for i in range(num_ue)
         ]
         self.associations = {bs.id: [] for bs in self.base_stations}
+        # Initialize KPI logger if logging is enabled
+        self.kpi_logger = KPITracker() if log_kpis else None
         
     def reset(self):
         self.current_step = 0
