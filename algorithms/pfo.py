@@ -53,7 +53,7 @@ class PolarFoxOptimization:
 
 
     def find_nearest_cell(self, user_position, env: NetworkEnvironment):
-        cell_positions = np.vstack([env.macro_positions, env.small_positions])
+        cell_positions = np.array([bs.position for bs in env.base_stations])
         distances = np.linalg.norm(cell_positions - user_position, axis=1)
         return np.argmin(distances)
 
