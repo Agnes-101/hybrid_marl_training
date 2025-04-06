@@ -21,7 +21,7 @@ from hybrid_trainer.live_dashboard import LiveDashboard
 class HybridTraining:
     def __init__(self, config: Dict):
         self.config = config
-        self.env = NetworkEnvironment(**config["env_config"])
+        self.env = NetworkEnvironment(config["env_config"])
         self.kpi_logger = KPITracker(enabled=config["logging"]["enabled"])
         self.current_epoch = 0  # Track hybrid training epochs
         self.metaheuristic_runs = 0
