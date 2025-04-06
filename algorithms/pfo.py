@@ -1,6 +1,7 @@
 # # algorithms/pfo.py
 
 import numpy as np
+import torch
 from envs.custom_channel_env import NetworkEnvironment
 
 class PolarFoxOptimization:
@@ -52,11 +53,15 @@ class PolarFoxOptimization:
         return population
 
 
-    def find_nearest_cell(self, user_position, env: NetworkEnvironment):
-        cell_positions = np.array([bs.position for bs in env.base_stations])
-        distances = np.linalg.norm(cell_positions - user_position, axis=1)
-        return np.argmin(distances)
+    # def find_nearest_cell(self, user_position, env: NetworkEnvironment):
+    #     cell_positions = np.array([bs.position for bs in env.base_stations])
+    #     distances = np.linalg.norm(cell_positions - user_position, axis=1)
+    #     return np.argmin(distances)    
 
+    def find_nearest_cell(self, user_position, env: NetworkEnvironment):
+        cell_positions = torch.tensor([bs.position for bs in env.base_stations], dtype=user_position.dtype, device=user_position.device)
+        distances = torch.norm(cell_positions - user_position, dim=1)
+        return torch.argmin(distances).item()
     
     def _find_alternative_bs(self, user_indices, counts):
         capacities = np.array([bs.capacity for bs in self.env.base_stations])
