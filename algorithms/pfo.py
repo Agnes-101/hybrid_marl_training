@@ -28,7 +28,7 @@ class PolarFoxOptimization:
         ])
         
         # Initialize population with groups
-        self.population = self.initialize_population()
+        self.population = self.initialize_population(env)
         self.group_weights = [1000, 1000, 1000, 1000]
         self.best_solution = None
         self.best_fitness = -np.inf
