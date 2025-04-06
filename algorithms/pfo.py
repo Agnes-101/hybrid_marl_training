@@ -45,7 +45,7 @@ class PolarFoxOptimization:
         for _ in range(self.population_size):
             if np.random.rand() < 0.2:
                 # Heuristic: Assign users to nearest cell
-                fox = np.array([self.find_nearest_cell(pos, env) for pos in env.user_positions])
+                fox = np.array([self.find_nearest_cell(ue.position, env) for ue in env.ues])
             else:
                 fox = np.random.randint(0, self.num_cells, size=self.num_users)
             population.append(fox)
