@@ -106,11 +106,7 @@ class DEOptimization:
             } for pos, fit in zip(self.positions, self.fitness)]
             
             env.apply_solution(self.best_solution)
-
-            # env.apply_solution({
-            #     bs_id: np.where(self.best_solution == bs_id)[0].tolist() 
-            #     for bs_id in range(env.num_bs)
-            #         })
+            
             # Convert best_solution (a numpy array) to the expected dict format:
             actions = {
                 f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()

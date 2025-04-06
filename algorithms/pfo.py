@@ -1,22 +1,22 @@
 # # algorithms/pfo.py
 
 import numpy as np
-from envs.custom_channel_env import evaluate_detailed_solution
+from envs.custom_channel_env import NetworkEnvironment
 
 class PolarFoxOptimization:
-    def __init__(self, num_users, num_cells, env, 
-                 population_size=40, iterations=100,
-                 mutation_factor=0.2, jump_rate=0.2, follow_rate=0.3, seed=42, kpi_logger=None):
-        np.random.seed(seed)
-        self.num_users = num_users
-        self.num_cells = num_cells
-        self.env = env
-        self.population_size = population_size
-        self.iterations = iterations
-        self.mutation_factor = mutation_factor
-        self.jump_rate = jump_rate  
-        self.follow_rate = follow_rate  
-        self.seed = seed
+    def __init__(self, kpi_logger=None):
+                
+        
+        self.num_users = 200
+        self.num_cells = 3
+        # self.env = env
+        self.population_size = 40
+        self.iterations = 50
+        self.mutation_factor = 0.2
+        self.jump_rate = 0.2 
+        self.follow_rate = 0.3  
+        self.seed = 42
+        np.random.seed(self.seed)
         self.kpi_logger = kpi_logger
         
         # Group parameters [PF, LF, a, b, m]
@@ -33,7 +33,12 @@ class PolarFoxOptimization:
         self.best_solution = None
         self.best_fitness = -np.inf
         # For live updates, you can also keep track of positions and fitness history:
-        self.positions = None  # will be computed from population later        
+        # self.positions = None  # will be computed from population later        
+        self.positions = np.empty((0, 3))  # Match DE's 3D position format
+        self.fitness = np.full(self.iterations, np.nan)  # Pre-allocate fitness array
+        self.best_fitness_history = []  # Rename from historical_bests
+        self.best_metrics_history = []  # To store metrics per iteration
+        self._rng = np.random.RandomState(self.seed)  # DE-style RNG
         
     def initialize_population(self):
         """Generate initial population with 20% heuristic solutions."""
@@ -42,7 +47,7 @@ class PolarFoxOptimization:
             if np.random.rand() < 0.4: # Before 0.2
                 # Heuristic: Assign users to nearest cell
                 fox = np.array([self.find_nearest_cell(pos) 
-                              for pos in self.env.user_positions])
+                            for pos in self.env.user_positions])
             else:
                 # Random initialization
                 fox = np.random.randint(0, self.num_cells, size=self.num_users)
@@ -52,10 +57,18 @@ class PolarFoxOptimization:
     def find_nearest_cell(self, user_position):
         """Find the nearest cell for a user position."""
         cell_positions = np.vstack([self.env.macro_positions, 
-                                   self.env.small_positions])
+                                self.env.small_positions])
         distances = np.linalg.norm(cell_positions - user_position, axis=1)
         return np.argmin(distances)
-
+    
+    def _find_alternative_bs(self, user_indices, counts):
+        capacities = np.array([bs.capacity for bs in self.env.base_stations])
+        available_cells = np.where(counts < capacities)[0]
+        if len(available_cells) == 0:
+            return np.random.randint(0, self.num_cells, size=len(user_indices))
+        new_assignment = available_cells[np.argmin(counts[available_cells])]
+        return new_assignment
+    
     def calculate_group_distribution(self):
         """Distribute foxes according to initial group ratios"""
         base_dist = np.array([0.25, 0.25, 0.25, 0.25])
@@ -85,7 +98,7 @@ class PolarFoxOptimization:
         else:
             return np.random.randint(0, self.num_cells, size=self.num_users)
 
-    def fitness(self, solution):
+    def compute_fitness(self, solution):
         return evaluate_detailed_solution(self.env, solution)["fitness"]
 
     def adaptive_parameters(self, iteration):
@@ -113,18 +126,31 @@ class PolarFoxOptimization:
         new_fox[indices] = best_fox[indices]
         return new_fox
 
-    def repair(self, solution):
-        """Ensure cell capacity constraints"""
-        cell_counts = np.bincount(solution, minlength=self.num_cells)
-        overloaded = np.where(cell_counts > self.env.cell_capacity)[0]
+    # def repair(self, solution):
+    #     """Ensure cell capacity constraints"""
+    #     cell_counts = np.bincount(solution, minlength=self.num_cells)
+    #     overloaded = np.where(cell_counts > self.env.cell_capacity)[0]
         
-        for cell in overloaded:
-            users = np.where(solution == cell)[0]
-            for user in users[self.env.cell_capacity:]:
-                solution[user] = np.argmin(cell_counts)
-                cell_counts[solution[user]] += 1
+    #     for cell in overloaded:
+    #         users = np.where(solution == cell)[0]
+    #         for user in users[self.env.cell_capacity:]:
+    #             solution[user] = np.argmin(cell_counts)
+    #             cell_counts[solution[user]] += 1
+    #     return solution
+    
+    def repair(self, solution):
+        """DE-style vectorized repair"""
+        counts = np.bincount(solution, minlength=self.num_cells)
+        capacities = np.array([bs.capacity for bs in self.env.base_stations])
+        
+        overloaded = np.where(counts > capacities)[0]
+        for bs_id in overloaded:
+            excess = counts[bs_id] - capacities[bs_id]
+            users = np.where(solution == bs_id)[0][:excess]
+            solution[users] = self._find_alternative_bs(users, counts)
+        
         return solution
-
+    
     def leader_motivation(self, stagnation_count):
         """Reset underperforming foxes and adjust groups"""
         num_mutation = int(self.population_size * self.mutation_factor)
@@ -136,8 +162,25 @@ class PolarFoxOptimization:
         if self.best_solution is not None:
             best_group = self.population[np.argmax([f["group"] for f in self.population])]["group"]
             self.group_weights[best_group] += stagnation_count * 100
+            
+    def _calculate_visual_positions(self):
+        """DE-style position projection"""
+        visual_positions = []
+        for solution in self.population:
+            # Feature 1: Load balance
+            counts = np.bincount(solution, minlength=self.num_cells)
+            x = np.std(counts)
+            
+            # Feature 2: Average SINR (via temporary env state)
+            with self.env.temporary_state():
+                self.env.apply_solution(solution)
+                y = np.mean([ue.sinr for ue in self.env.users])
+            
+            visual_positions.append([x, y, self.fitness(solution)])
+        self.positions = np.array(visual_positions)    
 
-    def optimize(self, visualize_callback: callable = None) -> np.ndarray:
+    
+    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> np.ndarray:
         """Enhanced optimization loop with anti-stagnation mechanisms."""
         best_solution = self.population[0].copy()
         best_fitness = -np.inf
@@ -149,17 +192,22 @@ class PolarFoxOptimization:
         
         # Initialize population diversity tracking
         diversity_history = []
-
+        # current_metrics = env.evaluate_detailed_solution(current_solution)
+        best_iter_metrics = env.evaluate_detailed_solution(best_solution)
+        
         for iteration in range(self.iterations):
             # Adaptive parameter update
             self.adaptive_parameters(iteration)
             
             # Evaluate population
-            fitness_values = [self.fitness(fox) for fox in self.population]
+            fitness_values = [self.compute_fitness(fox) for fox in self.population]
             
             # Update best solution with elitism
             current_best_idx = np.argmax(fitness_values)
             current_best_fitness = fitness_values[current_best_idx]
+            current_best_solution = self.population[current_best_idx].copy()
+            current_best_metrics = env.evaluate_detailed_solution(current_best_solution)
+
             
             # Maintain diversity tracking
             diversity = np.std(fitness_values)
@@ -181,29 +229,34 @@ class PolarFoxOptimization:
                     episode=iteration,
                     phase="metaheuristic",
                     algorithm="pfo",
-                    metrics={"fitness": best_fitness, "diversity": diversity}
+                    metrics=current_best_metrics # Log full metrics {"fitness": best_fitness, "diversity": diversity}
                 )
                 print(f"PFO Iter {iteration}: Best Fitness = {best_fitness:.4f}, Diversity = {diversity:.2f}")
             
             historical_bests.append(best_fitness)
             
-            # Periodic live dashboard updates (every 5 iterations)
-            if visualize_callback and iteration % 5 == 0:
-                # Compute visualization positions (example: use diversity as x and best fitness as y)
-                positions = np.column_stack((
-                    np.full((self.population_size,), diversity),   # Dummy x: diversity for all
-                    np.array(fitness_values)                        # y: fitness values
-                ))
-                self.positions = positions  # Save current positions for visualization
+            # # Periodic live dashboard updates (every 5 iterations)
+            # if visualize_callback and iteration % 5 == 0:
+            #     # Compute visualization positions (example: use diversity as x and best fitness as y)
+            #     positions = np.column_stack((
+            #         np.full((self.population_size,), diversity),   # Dummy x: diversity for all
+            #         np.array(fitness_values)                        # y: fitness values
+            #     ))
+            #     self.positions = positions  # Save current positions for visualization
                 
-                visualize_callback({
-                    "positions": positions.tolist(),
-                    "fitness": historical_bests,
-                    "algorithm": "pfo",
-                    "env_state": self.env.get_current_state()
-                })
-                print(f"PFO Visual Update @ Iter {iteration}")
-            
+            #     visualize_callback({
+            #         "positions": positions.tolist(),
+            #         "fitness": self.best_fitness_history,
+            #         "algorithm": "pfo",
+            #         "env_state": self.env.get_current_state()
+            #     })
+            #     print(f"PFO Visual Update @ Iter {iteration}")
+                
+            # Update global best solution
+            if current_best_metrics["fitness"] > self.best_fitness:
+                self.best_fitness = current_best_metrics["fitness"]
+                best_solution = current_best_solution.copy()
+                
             # Enhanced stagnation detection with diversity check
             avg_diversity = np.mean(diversity_history[-3:]) if diversity_history else 0
             if (iteration > 20 and 
@@ -268,6 +321,15 @@ class PolarFoxOptimization:
                 f"Mutation = {self.mutation_factor:.2f}, "
                 f"Diversity = {diversity:.2f}")
 
-        return best_solution
-    
+        # return best_solution
+        # Return DE-style output
+        return {
+            "solution": self.best_solution,
+            "metrics": best_iter_metrics,
+            "agents": {
+                "positions": self.positions.tolist(),
+                "fitness": self.fitness.tolist(),
+                "algorithm": "pfo"
+            }
+        }
     
