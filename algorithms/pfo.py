@@ -4,12 +4,12 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class PolarFoxOptimization:
-    def __init__(self, kpi_logger=None):
+    def __init__(self, env, kpi_logger=None):
                 
         
         self.num_users = 200
         self.num_cells = 3
-        # self.env = env
+        self.env = env
         self.population_size = 40
         self.iterations = 50
         self.mutation_factor = 0.2
