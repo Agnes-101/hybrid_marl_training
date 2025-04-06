@@ -306,7 +306,7 @@ if __name__ == "__main__":
     
     config = {
         # Core configuration
-        "metaheuristic": "de",
+        "metaheuristic": "pfo",
         "comparison_mode": False,
         "metaheuristic_algorithms": ["pfo", "aco", "pso"],
         "marl_algorithm": "PPO",

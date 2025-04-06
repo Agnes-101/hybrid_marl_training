@@ -44,7 +44,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
         # "gwo": gwo(swarm_size=30, iterations=50, a_initial=2.0, a_decay=0.04),
         # "hs": hs(memory_size=30, iterations=50, HMCR=0.9, PAR=0.3),
         # "ica": ica(population_size=30, imperialist_count=5, iterations=50),
-        "pfo": pfo(population_size=40, iterations=100, mutation_factor=0.2, jump_rate=0.2, follow_rate=0.3),
+        "pfo": PolarFoxOptimization,
         # "pso": pso(swarm_size=30, iterations=50, c1=1, c2=1, w=0.5),
         # "sa": sa(iterations=100, initial_temp=100, cooling_rate=0.95),
         # "tabu": tabu(iterations=50, tabu_size=10),
