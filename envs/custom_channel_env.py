@@ -38,6 +38,7 @@ class BaseStation:
 
 class NetworkEnvironment(gym.Env):
     def __init__(self, config:EnvContext, num_bs=3, num_ue=10, episode_length=100, log_kpis=True):
+        self.config = config
         super().__init__()  # ✅ Initialize gym.Env
         self.num_bs = num_bs
         self.num_ue = num_ue
