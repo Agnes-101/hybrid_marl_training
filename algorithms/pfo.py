@@ -4,12 +4,12 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class PolarFoxOptimization:
-    def __init__(self, num_users, num_cells, env, kpi_logger=None):
+    def __init__(self, kpi_logger=None):
                 
         
         self.num_users = 200
         self.num_cells = 3
-        self.env = env
+        # self.env = env
         self.population_size = 40
         self.iterations = 50
         self.mutation_factor = 0.2
@@ -40,26 +40,23 @@ class PolarFoxOptimization:
         self.best_metrics_history = []  # To store metrics per iteration
         self._rng = np.random.RandomState(self.seed)  # DE-style RNG
         
-    def initialize_population(self):
-        """Generate initial population with 20% heuristic solutions."""
+    def initialize_population(self, env: NetworkEnvironment):
         population = []
         for _ in range(self.population_size):
-            if np.random.rand() < 0.4: # Before 0.2
+            if np.random.rand() < 0.2:
                 # Heuristic: Assign users to nearest cell
-                fox = np.array([self.find_nearest_cell(pos) 
-                            for pos in self.env.user_positions])
+                fox = np.array([self.find_nearest_cell(pos, env) for pos in env.user_positions])
             else:
-                # Random initialization
                 fox = np.random.randint(0, self.num_cells, size=self.num_users)
             population.append(fox)
         return population
 
-    def find_nearest_cell(self, user_position):
-        """Find the nearest cell for a user position."""
-        cell_positions = np.vstack([self.env.macro_positions, 
-                                self.env.small_positions])
+
+    def find_nearest_cell(self, user_position, env: NetworkEnvironment):
+        cell_positions = np.vstack([env.macro_positions, env.small_positions])
         distances = np.linalg.norm(cell_positions - user_position, axis=1)
         return np.argmin(distances)
+
     
     def _find_alternative_bs(self, user_indices, counts):
         capacities = np.array([bs.capacity for bs in self.env.base_stations])
