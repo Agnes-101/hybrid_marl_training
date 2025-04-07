@@ -270,7 +270,7 @@ class NetworkEnvironment(gym.Env):
     def apply_solution(self, solution):
         """Apply a solution (numpy array or dict) to the environment"""
         # Handle full algorithm result dict format
-        if isinstance(solution, dict) and "solutiSon" in solution:
+        if isinstance(solution, dict) and "solution" in solution:
             solution = solution["solution"]
         
         # Convert numpy array to dict format
@@ -295,7 +295,14 @@ class NetworkEnvironment(gym.Env):
                     raise ValueError(f"Invalid BS ID {bs_id} in solution")
             except ValueError:
                 raise ValueError(f"BS ID {bs_id} is not an integer")
-
+            
+        # Optional: Validate that each user index is within range.
+        num_ues = len(self.ues)
+        for bs_id, ue_ids in solution.items():
+            for ue_id in ue_ids:
+                if ue_id < 0 or ue_id >= num_ues:
+                    raise IndexError(f"UE index {ue_id} for BS ID {bs_id} is out of valid range (0 to {num_ues-1}).")
+        
         # Clear existing associations
         for bs in self.base_stations:
             bs.allocated_resources = {}
@@ -304,8 +311,10 @@ class NetworkEnvironment(gym.Env):
         # Apply new associations
         for bs_id, ue_ids in solution.items():
             bs_id_int = int(bs_id)
+            # Find the base station matching the ID.
             bs = next(bs for bs in self.base_stations if int(bs.id) == bs_id_int)
             for ue_id in ue_ids:
+                # Associate the UE with the base station.
                 self.ues[ue_id].associated_bs = bs_id_int
                 bs.allocated_resources[ue_id] = self.ues[ue_id].demand
 

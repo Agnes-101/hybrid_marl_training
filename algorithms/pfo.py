@@ -7,10 +7,10 @@ from envs.custom_channel_env import NetworkEnvironment
 class PolarFoxOptimization:
     def __init__(self, env, kpi_logger=None):
                 
-        
-        self.num_users = 200
-        self.num_cells = 3
         self.env = env
+        self.num_users = env.num_ue
+        self.num_cells = env.num_bs
+        
         self.population_size = 40
         self.iterations = 50
         self.mutation_factor = 0.2
@@ -50,6 +50,7 @@ class PolarFoxOptimization:
             else:
                 fox = np.random.randint(0, self.num_cells, size=self.num_users)
             population.append(fox)
+        print(f"Population initialized: {population}")
         return population
 
 
