@@ -67,7 +67,8 @@ class ACO:
                     algorithm="aco",
                     metrics=current_best_metrics  # Log full metrics, not just fitness
                 )
-
+                print(f"ACO Iter {iteration}: Best Fitness = {best_fitness:.4f}")
+                
             # # ✅ Visualization trigger (every 5 iterations)
             # if visualize_callback and iteration % 5 == 0:
             #     visualize_callback({
@@ -76,6 +77,7 @@ class ACO:
             #         "algorithm": "aco",
             #         "env_state": env.get_current_state()
             #     })
+            
             # Mirror DE's environment interaction
             env.apply_solution(self.best_solution)
             actions = {
@@ -83,6 +85,7 @@ class ACO:
                 for bs_id in range(env.num_bs)
             }
             env.step(actions)  # Update network state
+            
         return {
             "solution": self.best_solution,
             "metrics": env.evaluate_detailed_solution(self.best_solution),

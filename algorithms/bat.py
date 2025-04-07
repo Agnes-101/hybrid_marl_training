@@ -3,42 +3,46 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class BatOptimization:
-    def __init__(self, seed=None):
+    def __init__(self, env, kpi_logger=None):
         """Hardcoded parameters for hybrid training system with decoupled initialization."""
         # Optimization parameters
+        self.env=env
+        self.num_users = env.num_ue
+        self.num_cells = env.num_bs
         self.population_size = 30
         self.iterations = 50
         self.freq_min = 0
         self.freq_max = 2
         self.alpha = 0.9
         self.gamma = 0.9
-        self.seed = seed if seed is not None else np.random.randint(0, 10000)
-        
-        # Visualization states
-        self.positions = np.empty((0, 2))  # Bat positions in 2D space
-        self.fitness_history = []
-        
-        # Initialize the random generator
-        self.rng = np.random.RandomState(self.seed)
-        
-        # Environment will be set in run()
-        self.env = None
-
-    def run(self, env: NetworkEnvironment) -> dict:
-        """Main interface for hybrid training system."""
-        self.env = env  # Store the environment for use in visualization updates
-        num_ue = env.num_ue
-        num_bs = env.num_bs
+        self.seed = 42 #seed if seed is not None else np.random.randint(0, 10000)
         
         # Initialize population and tracking
         self.population = [
-            self.rng.randint(0, num_bs, size=num_ue)
+            self.rng.randint(0, self.num_bs, size=self.num_ue)
             for _ in range(self.population_size)
         ]
         self.loudness = np.full(self.population_size, 1.0)
         self.pulse_rate = np.full(self.population_size, 0.5)
         self.best_solution = None
+        
+        # Visualization states
+        # self.positions = np.empty((0, 2))  # Bat positions in 2D space
+        self.positions = np.empty((0, 3))  # Changed to 3D (mean, std, fitness)
+        self.fitness_history = []
+        self.kpi_logger = kpi_logger
+        # Initialize the random generator
+        self.rng = np.random.RandomState(self.seed)
+        
+        
+
+    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
+        """Main interface for hybrid training system."""
+        self.env = env  # Store the environment for use in visualization updates
+        # num_ue = env.num_ue
+        # num_bs = env.num_bs
         best_fitness = -np.inf
+        
 
         for iteration in range(self.iterations):
             # Generate new solutions for each bat in the population
@@ -60,6 +64,33 @@ class BatOptimization:
                     best_fitness = new_fitness
                     self.best_solution = new_sol.copy()
                     
+            current_metrics = env.evaluate_detailed_solution(self.best_solution)
+            self.fitness_history.append(current_metrics["fitness"])
+            
+            if self.kpi_logger:
+                self.kpi_logger.log_metrics(
+                    episode=iteration,
+                    phase="metaheuristic",
+                    algorithm="bat",
+                    metrics=current_metrics  # Log full metrics
+                )
+
+            # ✅ Environment state update (like DE/PFO)
+            env.apply_solution(self.best_solution)
+            actions = {
+                f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
+                for bs_id in range(env.num_bs)
+            }
+            env.step(actions)
+
+            # ✅ Visualization trigger (every 5 iterations)
+            if visualize_callback and iteration % 5 == 0:
+                visualize_callback({
+                    "positions": self.positions.tolist(),
+                    "fitness": self.fitness_history,
+                    "algorithm": "bat",
+                    "env_state": env.get_current_state()
+                })        
             # Update visualization states after each iteration
             self._update_visualization(iteration)
 
@@ -67,8 +98,9 @@ class BatOptimization:
             "solution": self.best_solution,
             "metrics": env.evaluate_detailed_solution(self.best_solution),
             "agents": {
-                "positions": self.positions,
-                "fitness": self.fitness_history
+                "positions": self.positions.tolist(),
+                "fitness": self.fitness_history,
+                "algorithm": "bat"
             }
         }
 
@@ -88,11 +120,13 @@ class BatOptimization:
         # Convert best solution into a 2D coordinate using mean and std as a simplified PCA
         x = np.mean(self.best_solution)
         y = np.std(self.best_solution)
-        
-        # Append current position data
-        self.positions = np.vstack([self.positions, [x, y]])
         # Record the best fitness from the current iteration using the stored environment
         current_fitness = self.env.evaluate_detailed_solution(self.best_solution)["fitness"]
+        
+        # Append current position data
+        # self.positions = np.vstack([self.positions, [x, y]])
+        self.positions = np.vstack([self.positions, [x, y, current_fitness]])
+        
         self.fitness_history.append(current_fitness)
         # Optionally, print iteration details for debugging
         print(f"Iteration {iteration}: Best Fitness = {current_fitness:.4f}, Position = ({x:.2f}, {y:.2f})")
