@@ -61,8 +61,7 @@ class PolarFoxOptimization:
     def find_nearest_cell(self, user_position, env: NetworkEnvironment):
         if not isinstance(user_position, torch.Tensor):
             user_position = torch.tensor(user_position, dtype=torch.float32)
-        cell_positions = torch.stack([bs.position for bs in env.base_stations],
-                                    dtype=torch.float32, device=user_position.device)
+        cell_positions = torch.stack([bs.position for bs in env.base_stations]).to(user_position.device)
         with torch.no_grad():
             distances = torch.norm(cell_positions - user_position, dim=1)
 
