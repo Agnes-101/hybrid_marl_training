@@ -17,11 +17,7 @@ class BatOptimization:
         self.gamma = 0.9
         self.seed = 42 #seed if seed is not None else np.random.randint(0, 10000)
         
-        # Initialize population and tracking
-        self.population = [
-            self.rng.randint(0, self.num_bs, size=self.num_ue)
-            for _ in range(self.population_size)
-        ]
+        
         self.loudness = np.full(self.population_size, 1.0)
         self.pulse_rate = np.full(self.population_size, 0.5)
         self.best_solution = None
@@ -33,7 +29,11 @@ class BatOptimization:
         self.kpi_logger = kpi_logger
         # Initialize the random generator
         self.rng = np.random.RandomState(self.seed)
-        
+        # Initialize population and tracking
+        self.population = [
+            self.rng.randint(0, self.num_bs, size=self.num_ue)
+            for _ in range(self.population_size)
+        ]
         
 
     def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
