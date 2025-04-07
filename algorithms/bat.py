@@ -38,7 +38,7 @@ class BatOptimization:
 
     def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
         """Main interface for hybrid training system."""
-        self.env = env  # Store the environment for use in visualization updates
+        # self.env = env  # Store the environment for use in visualization updates
         # num_ue = env.num_ue
         # num_bs = env.num_bs
         best_fitness = -np.inf
@@ -82,17 +82,19 @@ class BatOptimization:
                 for bs_id in range(env.num_bs)
             }
             env.step(actions)
-
-            # ✅ Visualization trigger (every 5 iterations)
-            if visualize_callback and iteration % 5 == 0:
-                visualize_callback({
-                    "positions": self.positions.tolist(),
-                    "fitness": self.fitness_history,
-                    "algorithm": "bat",
-                    "env_state": env.get_current_state()
-                })        
-            # Update visualization states after each iteration
             self._update_visualization(iteration)
+            
+            # #  Visualization trigger (every 5 iterations)
+            # if visualize_callback and iteration % 5 == 0:
+            #     print(f"BAT Visual Update @ Iter {iteration}")
+            #     visualize_callback({
+            #         "positions": self.positions.tolist(),
+            #         "fitness": self.fitness_history,
+            #         "algorithm": "bat",
+            #         "env_state": env.get_current_state()
+            #     })        
+            # Update visualization states after each iteration
+            
 
         return {
             "solution": self.best_solution,

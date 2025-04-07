@@ -12,18 +12,18 @@ from hybrid_trainer.kpi_logger import KPITracker
 # from algorithms import aco, bat, cs, de, fa, ga, gwo, hs, ica, pfo, pso, sa, tabu, woa
 from algorithms.aco import ACO
 from algorithms.bat import BatOptimization
-# from algorithms.cs import CS
+from algorithms.cs import CSOptimization
 from algorithms.de import DEOptimization
-# from algorithms.fa import FA
-# from algorithms.ga import GA
-# from algorithms.gwo import GWO
-# from algorithms.hs import HS
-# from algorithms.ica import ICA
+from algorithms.fa import FireflyOptimization
+from algorithms.ga import GAOptimization
+from algorithms.gwo import GWOOptimization
+from algorithms.hs import HarmonySearchOptimization
+from algorithms.ica import ICAOptimization
 from algorithms.pfo import PolarFoxOptimization
-# from algorithms.pso import PSO
-# from algorithms.sa import SA
-# from algorithms.tabu import TABU
-# from algorithms.woa import WOA
+from algorithms.pso import PSOOptimization
+from algorithms.sa import SAOptimization
+from algorithms.tabu import TabuSearchOptimization
+from algorithms.woa import WOAOptimization
 
 def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_logger: KPITracker,visualize_callback=None) -> dict:
     """
@@ -37,18 +37,18 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     algorithms = {
         "aco": ACO,
         "bat": BatOptimization,
-        # "cs": cs(colony_size=30, iterations=50, pa=0.25),
+        "cs": CSOptimization,
         "de": DEOptimization,
-        # "fa": fa(population_size=30, iterations=50, beta0=1, gamma=1),
-        # "ga": ga(population_size=30, generations=50, mutation_rate=0.1),
-        # "gwo": gwo(swarm_size=30, iterations=50, a_initial=2.0, a_decay=0.04),
-        # "hs": hs(memory_size=30, iterations=50, HMCR=0.9, PAR=0.3),
-        # "ica": ica(population_size=30, imperialist_count=5, iterations=50),
+        "fa": FireflyOptimization,
+        "ga": GAOptimization,
+        "gwo": GWOOptimization,
+        "hs": HarmonySearchOptimization,
+        "ica": ICAOptimization,
         "pfo": PolarFoxOptimization,
-        # "pso": pso(swarm_size=30, iterations=50, c1=1, c2=1, w=0.5),
-        # "sa": sa(iterations=100, initial_temp=100, cooling_rate=0.95),
-        # "tabu": tabu(iterations=50, tabu_size=10),
-        # "woa": woa(swarm_size=30, iterations=50),
+        "pso": PSOOptimization,
+        "sa": SAOptimization,
+        "tabu": TabuSearchOptimization,
+        "woa": WOAOptimization,
     }
 
     if algorithm not in algorithms:
