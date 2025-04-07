@@ -11,7 +11,7 @@ from envs.custom_channel_env import NetworkEnvironment
 from hybrid_trainer.kpi_logger import KPITracker
 # from algorithms import aco, bat, cs, de, fa, ga, gwo, hs, ica, pfo, pso, sa, tabu, woa
 from algorithms.aco import ACO
-# from algorithms.bat import BAT
+from algorithms.bat import BatOptimization
 # from algorithms.cs import CS
 from algorithms.de import DEOptimization
 # from algorithms.fa import FA
@@ -36,7 +36,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     """
     algorithms = {
         "aco": ACO,
-        # "bat": bat(population_size=50, num_iterations=100, frequency_range=(0, 1), loudness_decay=0.95),
+        "bat": BatOptimization,
         # "cs": cs(colony_size=30, iterations=50, pa=0.25),
         "de": DEOptimization,
         # "fa": fa(population_size=30, iterations=50, beta0=1, gamma=1),
