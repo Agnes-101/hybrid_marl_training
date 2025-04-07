@@ -206,7 +206,7 @@ class NetworkEnvironment(gym.Env):
             ],
             "associations": self.associations.copy(),
             "version": self.version,
-            "metaheuristic_agents": self.current_metaheuristic_agents  # Set by optimizer
+            # "metaheuristic_agents": self.current_metaheuristic_agents  # Set by optimizer
         }
         
     def get_state_snapshot(self) -> dict:
