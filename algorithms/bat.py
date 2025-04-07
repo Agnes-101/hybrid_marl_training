@@ -31,7 +31,7 @@ class BatOptimization:
         self.rng = np.random.RandomState(self.seed)
         # Initialize population and tracking
         self.population = [
-            self.rng.randint(0, self.num_bs, size=self.num_ue)
+            self.rng.randint(0, self.num_cells, size=self.num_users)
             for _ in range(self.population_size)
         ]
         
