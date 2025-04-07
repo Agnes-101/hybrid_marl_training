@@ -108,7 +108,7 @@ class PolarFoxOptimization:
             return np.random.randint(0, self.num_cells, size=self.num_users)
 
     def compute_fitness(self, solution):
-        return evaluate_detailed_solution(self.env, solution)["fitness"]
+        return self.env.evaluate_detailed_solution(solution)["fitness"]
 
     def adaptive_parameters(self, iteration):
         """Decay jump power (a), boost follow power (b) over time"""
