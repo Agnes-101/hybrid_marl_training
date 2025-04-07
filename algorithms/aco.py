@@ -3,7 +3,7 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class ACO:
-    def __init__(self, env=env, kpi_logger=None):
+    def __init__(self, env, kpi_logger=None):
         """Ant Colony Optimization with adaptive parameters and vectorized solution construction"""
         # Optimization parameters
         self.env=env
