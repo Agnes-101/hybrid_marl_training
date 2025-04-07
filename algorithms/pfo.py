@@ -50,7 +50,7 @@ class PolarFoxOptimization:
             else:
                 fox = np.random.randint(0, self.num_cells, size=self.num_users)
             population.append(fox)
-        print(f"Population initialized: {population}")
+        # print(f"Population initialized: {population}")
         return population
 
 
