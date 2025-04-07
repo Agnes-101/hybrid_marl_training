@@ -10,7 +10,7 @@ from typing import Dict, Any
 from envs.custom_channel_env import NetworkEnvironment
 from hybrid_trainer.kpi_logger import KPITracker
 # from algorithms import aco, bat, cs, de, fa, ga, gwo, hs, ica, pfo, pso, sa, tabu, woa
-# from algorithms.aco import ACO
+from algorithms.aco import ACO
 # from algorithms.bat import BAT
 # from algorithms.cs import CS
 from algorithms.de import DEOptimization
@@ -35,7 +35,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     :return: Dict containing 'solution', 'SINR', 'fairness', 'load_balance', and 'handover_rate'.
     """
     algorithms = {
-        # "aco": aco(num_ants=50, max_iter=100, decay=0.1, alpha=1.0, beta=2.0),
+        "aco": ACO,
         # "bat": bat(population_size=50, num_iterations=100, frequency_range=(0, 1), loudness_decay=0.95),
         # "cs": cs(colony_size=30, iterations=50, pa=0.25),
         "de": DEOptimization,
