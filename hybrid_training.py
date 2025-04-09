@@ -13,7 +13,7 @@ from ray import tune
 from typing import Dict
 from IPython.display import display
 from ray.rllib.algorithms.ppo import PPOConfig
-from analysis.comparison import AlgorithmComparator 
+# from analysis.comparison import AlgorithmComparator 
 from envs.custom_channel_env import NetworkEnvironment
 from hybrid_trainer.metaheuristic_opt import run_metaheuristic
 from hybrid_trainer.kpi_logger import KPITracker
