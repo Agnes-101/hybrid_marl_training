@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import pandas as pd
 from IPython.display import HTML
+import numpy as np
 
 class MetricAnimator:
     def __init__(self, df: pd.DataFrame, metrics: list, fps: int = 10):
