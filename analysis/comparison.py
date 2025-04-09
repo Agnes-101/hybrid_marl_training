@@ -4,3 +4,91 @@ import os
 # Configure project root
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root) if project_root not in sys.path else None
+
+# analysis/comparison.py
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import pandas as pd
+from IPython.display import HTML
+
+class MetricAnimator:
+    def __init__(self, df: pd.DataFrame, metrics: list, fps: int = 10):
+        """
+        df: Consolidated DataFrame from KPITracker.history
+        metrics: List of metrics to animate (e.g., ['fitness', 'average_sinr'])
+        fps: Frames per second for video output
+        """
+        self.df = df
+        self.metrics = metrics
+        self.fps = fps
+        self.max_iter = df['episode'].max()
+        self.algorithms = df['algorithm'].unique()
+        
+        # Style configuration
+        self.colors = plt.cm.viridis(np.linspace(0, 1, len(self.algorithms)))
+        self.markers = ['o', 's', '^', 'D', '*']  # Recycle as needed
+
+    def _setup_figure(self):
+        """Initialize subplots for all metrics"""
+        self.fig, self.axs = plt.subplots(
+            len(self.metrics), 1, 
+            figsize=(12, 5*len(self.metrics)))
+        
+        # Initialize empty plots
+        self.lines = {}
+        for idx, metric in enumerate(self.metrics):
+            ax = self.axs[idx] if len(self.metrics) > 1 else self.axs
+            ax.set_title(metric.replace('_', ' ').title())
+            ax.set_xlabel("Iteration")
+            ax.set_ylabel(metric)
+            ax.grid(True)
+            
+            # Create line for each algorithm
+            for algo, color in zip(self.algorithms, self.colors):
+                line, = ax.plot([], [], 
+                             label=algo, 
+                             color=color,
+                             marker=self.markers[idx % len(self.markers)],
+                             markevery=5)
+                self.lines[(algo, metric)] = line
+                
+            ax.legend()
+
+    def _update_frame(self, frame: int):
+        """Update all plots up to current frame (iteration)"""
+        current_data = self.df[self.df['episode'] <= frame]
+        
+        for (algo, metric), line in self.lines.items():
+            algo_data = current_data[
+                (current_data['algorithm'] == algo)
+            ].sort_values('episode')
+            
+            if not algo_data.empty:
+                line.set_data(algo_data['episode'], algo_data[metric])
+                # Auto-adjust axes
+                self.axs[0].relim()  
+                self.axs[0].autoscale_view()
+        
+        return list(self.lines.values())
+
+    def animate(self):
+        """Generate and return animation object"""
+        self._setup_figure()
+        ani = animation.FuncAnimation(
+            self.fig, self._update_frame,
+            frames=range(self.max_iter + 1),
+            interval=1000//self.fps,
+            blit=True
+        )
+        return ani
+
+    def save_video(self, path: str = "algorithm_progression.mp4"):
+        """Render animation to video file"""
+        ani = self.animate()
+        ani.save(path, writer='ffmpeg', fps=self.fps)
+        print(f"Animation saved to {path}")
+
+    def show(self):
+        """Display in Jupyter notebooks"""
+        ani = self.animate()
+        return HTML(ani.to_html5_video())
