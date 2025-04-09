@@ -4,7 +4,7 @@ from collections import deque
 from envs.custom_channel_env import NetworkEnvironment
 
 class DEOptimization:
-    def __init__(self, kpi_logger=None):
+    def __init__(self, env, kpi_logger=None):
         """Differential Evolution for 6G UE-BS Association"""
         # Optimization parameters
         
