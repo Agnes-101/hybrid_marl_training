@@ -7,9 +7,9 @@ class DEOptimization:
     def __init__(self, env, kpi_logger=None):
         """Differential Evolution for 6G UE-BS Association"""
         # Optimization parameters
-        
+        self.env=env
         self.population_size = 30
-        self.iterations = 2
+        self.iterations = 50
         self.F = 1.2  # Mutation factor
         self.CR = 0.5  # Crossover rate
         
