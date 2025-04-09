@@ -82,7 +82,7 @@ class BatOptimization:
                 for bs_id in range(env.num_bs)
             }
             env.step(actions)
-            self._update_visualization(iteration)
+            # self._update_visualization(iteration)
             
             # #  Visualization trigger (every 5 iterations)
             # if visualize_callback and iteration % 5 == 0:

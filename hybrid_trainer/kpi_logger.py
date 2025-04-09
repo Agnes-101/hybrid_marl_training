@@ -13,9 +13,10 @@ import time
 class KPITracker:
     def __init__(self, enabled=True):        
         self.enabled = enabled
-        self.history = pd.DataFrame(columns=[
-            'timestamp', 'phase', 'algorithm',
-            'reward', 'average_sinr', 'fairness', 'load_variance'
+        self.history = pd.DataFrame(columns=[            
+            'timestamp', 'episode', 'phase', 'algorithm',
+    'episode_reward_mean', 'policy_entropy', 'fitness',
+    'average_sinr', 'fairness', 'load_variance', 'diversity'
         ])
         self.logs = []  # Initialize logs storage
         self.data = []  # Initialize data storage

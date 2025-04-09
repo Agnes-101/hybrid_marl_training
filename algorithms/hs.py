@@ -70,15 +70,15 @@ class HarmonySearchOptimization:
                     for bs_id in range(self.env.num_bs)
                 })
 
-            # ✅ Visualization updates
-            self._update_visualization(iteration)
-            if visualize_callback and iteration % 5 == 0:
-                visualize_callback({
-                    "positions": self.positions.tolist(),
-                    "fitness": self.fitness_history,
-                    "algorithm": "hs",
-                    "env_state": self.env.get_current_state()
-                })
+            # # ✅ Visualization updates
+            # self._update_visualization(iteration)
+            # if visualize_callback and iteration % 5 == 0:
+            #     visualize_callback({
+            #         "positions": self.positions.tolist(),
+            #         "fitness": self.fitness_history,
+            #         "algorithm": "hs",
+            #         "env_state": self.env.get_current_state()
+            #     })
         return {
             "solution": self.best_harmony,
             "metrics": self.env.evaluate_detailed_solution( self.best_harmony),

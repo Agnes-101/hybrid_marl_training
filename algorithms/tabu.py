@@ -83,14 +83,14 @@ class TabuSearchOptimization:
             })
 
             # ✅ Visualization updates
-            self._update_visualization(iteration)
-            if visualize_callback and iteration % 5 == 0:
-                visualize_callback({
-                    "positions": self.positions.tolist(),
-                    "fitness": self.fitness_history,
-                    "algorithm": "tabu",
-                    "env_state": self.env.get_current_state()
-                })
+            # self._update_visualization(iteration)
+            # if visualize_callback and iteration % 5 == 0:
+            #     visualize_callback({
+            #         "positions": self.positions.tolist(),
+            #         "fitness": self.fitness_history,
+            #         "algorithm": "tabu",
+            #         "env_state": self.env.get_current_state()
+            #     })
 
         return {
             "solution": self.best_solution,

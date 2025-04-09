@@ -13,6 +13,7 @@ from ray import tune
 from typing import Dict
 from IPython.display import display
 from ray.rllib.algorithms.ppo import PPOConfig
+from analysis.comparison import AlgorithmComparator 
 from envs.custom_channel_env import NetworkEnvironment
 from hybrid_trainer.metaheuristic_opt import run_metaheuristic
 from hybrid_trainer.kpi_logger import KPITracker
@@ -235,7 +236,7 @@ class HybridTraining:
             algorithm_results[algo] = self._execute_metaheuristic_phase(algo)
             time.sleep(1)  # Pause for visualization clarity
             
-        self.dashboard.display_comparison_matrix(algorithm_results)
+        # self.dashboard.display_comparison_matrix(algorithm_results)
         return algorithm_results
 
     def run(self):
@@ -307,8 +308,8 @@ if __name__ == "__main__":
     config = {
         # Core configuration
         "metaheuristic": "bat",
-        "comparison_mode": False,
-        "metaheuristic_algorithms": ["pfo", "aco", "pso"],
+        "comparison_mode": True,
+        "metaheuristic_algorithms": ["aco"," bat", "cs", "de", "fa", "ga", "gwo", "hs", "ica", "pfo", "pso", "sa", "tabu", "woa"],
         "marl_algorithm": "PPO",
         
         # Environment parameters
