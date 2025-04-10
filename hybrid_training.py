@@ -140,15 +140,34 @@ class HybridTraining:
                 self.orchestrator = orchestrator
                 self.last_env_state = None
                 
-            def on_step_end(self, iteration, trials, trial, result, **info ):# **kwargs
-                # Guard against empty trials or missing results
-                if not trials or not trials[0].last_result:
-                    print("Missing results for trial!")
-                    return
-                # Capture environment state from worker
-                self.last_env_state = result.get("custom_metrics", {}).get("env_state")
+            # def on_step_end(self, iteration, trials, trial, result, **info ):# **kwargs
+            #     # Guard against empty trials or missing results
+            #     if not trials or not trials[0].last_result:
+            #         print("Missing results for trial!")
+            #         return
+            #     # Capture environment state from worker
+            #     self.last_env_state = result.get("custom_metrics", {}).get("env_state")
                 
-                # Extract metrics
+            #     # Extract metrics
+            #     metrics = {
+            #         "episode_reward_mean": result.get("episode_reward_mean", 0),
+            #         "average_sinr": result.get("custom_metrics", {}).get("sinr_mean", 0),
+            #         "fairness": result.get("custom_metrics", {}).get("fairness_index", 0),
+            #         "load_variance": result.get("custom_metrics", {}).get("load_variance", 0),
+            #         "policy_entropy": result.get("policy_entropy", 0)
+            #     }
+                
+               
+            #     print(f"MARL Metrics at iteration {iteration} : {metrics}: ")
+            #     self.orchestrator.kpi_logger.log_metrics(
+            #         episode=iteration,
+            #         phase="marl",
+            #         algorithm= "PPO",
+            #         metrics=metrics
+            #     )
+            def on_step_end(self, *, result: dict, trial: Trial, **kwargs):
+                """Fixed signature with required parameters"""
+                # Extract metrics from result dict
                 metrics = {
                     "episode_reward_mean": result.get("episode_reward_mean", 0),
                     "average_sinr": result.get("custom_metrics", {}).get("sinr_mean", 0),
@@ -156,21 +175,13 @@ class HybridTraining:
                     "load_variance": result.get("custom_metrics", {}).get("load_variance", 0),
                     "policy_entropy": result.get("policy_entropy", 0)
                 }
-                
-                # last_result = trials[0].last_result
-                # # ✅ Unified logging for MARL metrics
-                # metrics = {
-                #     "episode_reward_mean": last_result.get("episode_reward_mean",0),
-                #     "average_sinr": last_result.get("custom_metrics", {}).get("sinr_mean", 0),
-                #     "fairness": last_result.get("custom_metrics", {}).get("fairness", 0),
-                #     "load_variance": last_result.get("custom_metrics", {}).get("load_variance", 0),
-                #     "policy_entropy": last_result.get("policy_entropy", 0)
-                # }
-                print(f"MARL Metrics at iteration {iteration} : {metrics}: ")
+                # Add formatted print with iteration number
+                print(f"MARL Metrics at iteration {result['training_iteration']}: {metrics}")
+                # Log metrics through orchestrator
                 self.orchestrator.kpi_logger.log_metrics(
-                    episode=iteration,
+                    episode=result["training_iteration"],
                     phase="marl",
-                    algorithm= "PPO",
+                    algorithm="PPO",
                     metrics=metrics
                 )
                 
@@ -245,11 +256,11 @@ class HybridTraining:
         # For Jupyter
         # Save to separate files
         animator.show()
-        animator.save_videos("results/separated_metrics")
+        #animator.save_videos("results/separated_metrics")
         
 
         # For video export
-        # animator.save_video("results/training_progression.mp4")  
+        animator.save_video("results/training_progression.mp4")  
         # Save to separate files
         
         # self.dashboard.display_comparison_matrix(algorithm_results)
