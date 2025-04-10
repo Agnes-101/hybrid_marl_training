@@ -181,11 +181,10 @@ class MetricAnimator:
         #     time.sleep(1)  # Pause to let Colab process
         #     display(HTML(""))  # Add empty output to separate animations
         for idx, ani in enumerate(self.animators):
-            
+            # plt.close(ani._fig)
             # Create a unique HTML container for each animation
             display(HTML(f'<div id="animation_{idx}">'))
             display(HTML(ani.to_jshtml()))
-            plt.close(ani._fig)
             time.sleep(0.5)  # Add a small delay to force separation
 
 
