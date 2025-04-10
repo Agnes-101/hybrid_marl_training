@@ -257,11 +257,11 @@ class HybridTraining:
         # For Jupyter
         # Save to separate files
         animator.show()
-        #animator.save_videos("results/separated_metrics")
+        animator.save_videos("results/separated_metrics")
         
 
         # For video export
-        animator.save_videos("results/training_progression.mp4")  
+        # animator.save_videos("results/training_progression.mp4")  
         # Save to separate files
         
         # self.dashboard.display_comparison_matrix(algorithm_results)
