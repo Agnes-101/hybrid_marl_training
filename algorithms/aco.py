@@ -8,7 +8,7 @@ class ACO:
         # Optimization parameters
         self.env=env
         self.ants = 30
-        self.iterations = 50
+        self.iterations = 5
         self.evaporation_rate = 0.1
         self.alpha_init = 1    # initial pheromone influence
         self.beta_init = 2     # initial heuristic influence (if applicable)

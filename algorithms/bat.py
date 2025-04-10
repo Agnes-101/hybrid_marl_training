@@ -10,7 +10,7 @@ class BatOptimization:
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
         self.population_size = 30
-        self.iterations = 50
+        self.iterations = 5
         self.freq_min = 0
         self.freq_max = 2
         self.alpha = 0.9
