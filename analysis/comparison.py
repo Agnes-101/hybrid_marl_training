@@ -137,6 +137,8 @@ class MetricAnimator:
                 fig, update, frames=range(self.max_iter + 1),
                 interval=2000//self.fps, blit=True, cache_frame_data=False  # Prevent frame caching conflicts
             )
+            ani.save("metric.mp4")
+            plt.close(ani._fig)  # <-- Critical!
             self.figures.append(fig)
             self.animators.append(ani)
 
