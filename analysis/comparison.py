@@ -79,7 +79,7 @@ class MetricAnimator:
             blit=True
         )
     
-    def save(self, path: str = "metric_progression.mp4"):
+    def save_videos(self, path: str = "metric_progression.mp4"):
         """Render to video file"""
         self.ani.save(path, writer='ffmpeg', fps=self.fps)
 
