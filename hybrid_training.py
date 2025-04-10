@@ -250,7 +250,7 @@ class HybridTraining:
         # Create animator from logged history
         animator = MetricAnimator(
             df=self.kpi_logger.history,
-            metrics=['fitness', 'average_sinr'],#, 'fairness'
+            metrics=['fitness'],#, ', 'average_sinr','fairness'
             fps=8  # Lower FPS for slower progression
         )
         animator.animate()
@@ -337,8 +337,8 @@ if __name__ == "__main__":
         # Core configuration
         "metaheuristic": "bat",
         "comparison_mode": True,
-        "metaheuristic_algorithms": ["aco","bat"], # , "cs", "de", "fa", "ga", "gwo", "hs", "ica", "pfo", "pso", "sa", "tabu", "woa"
-        "marl_algorithm": "PPO",
+        "metaheuristic_algorithms": ["aco","bat", "cs", "de", "fa", "ga", "gwo", "hs", "ica", "pfo", "pso", "sa", "tabu", "woa"], #
+        "marl_algorithm": "PPO", 
         
         # Environment parameters
         "env_config": {
