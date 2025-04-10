@@ -238,7 +238,7 @@ class HybridTraining:
         # Create animator from logged history
         animator = MetricAnimator(
             df=self.kpi_logger.history,
-            metrics=['fitness'],# , 'average_sinr', 'fairness'
+            metrics=['fitness', 'average_sinr', 'fairness'],
             fps=8  # Lower FPS for slower progression
         )
         animator.animate()

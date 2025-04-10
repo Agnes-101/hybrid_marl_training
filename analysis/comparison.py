@@ -10,6 +10,7 @@ import matplotlib.animation as animation
 import pandas as pd
 from IPython.display import HTML, display
 import numpy as np
+import time
 
 # class MetricAnimator:
 #     def __init__(self, df: pd.DataFrame, metrics: list, fps: int = 5):
@@ -177,6 +178,8 @@ class MetricAnimator:
         for ani in self.animators:
             plt.close(ani._fig)  # Avoid duplicate figures
             display(HTML(ani.to_jshtml()))
+            time.sleep(1)  # Pause to let Colab process
+            display(HTML(""))  # Add empty output to separate animations
 
 
 
