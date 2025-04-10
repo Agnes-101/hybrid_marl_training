@@ -139,6 +139,8 @@ class MetricAnimator:
             )
             ani.save("metric.mp4")
             plt.close(ani._fig)  # <-- Critical!
+            # Optional: Display after saving
+            display(HTML(ani.to_jshtml()))
             self.figures.append(fig)
             self.animators.append(ani)
 
