@@ -119,6 +119,7 @@ class MetricAnimator:
             def update(frame, current_metric=metric):  # Fix here
                 print(f"Updating {current_metric} at frame {frame}")  # Debug line
                 current_data = self.df[self.df['episode'] <= frame]
+                print(current_data[["episode", "algorithm", current_metric]].dropna())
                 for algo in self.algorithms:
                     algo_data = current_data[
                         (current_data['algorithm'] == algo)
@@ -132,7 +133,7 @@ class MetricAnimator:
             
             ani = animation.FuncAnimation(
                 fig, update, frames=range(self.max_iter + 1),
-                interval=2000//self.fps, blit=True
+                interval=2000//self.fps, blit=True, cache_frame_data=False  # Prevent frame caching conflicts
             )
             self.figures.append(fig)
             self.animators.append(ani)
