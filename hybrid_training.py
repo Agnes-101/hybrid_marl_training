@@ -10,7 +10,7 @@ import time
 import numpy as np
 import pandas as pd
 from ray import tune
-from ray.tune import Trial
+from ray.tune.trial import Trial
 from typing import Dict
 from IPython.display import display
 from ray.rllib.algorithms.ppo import PPOConfig
