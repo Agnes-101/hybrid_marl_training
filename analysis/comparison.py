@@ -136,7 +136,7 @@ class MetricAnimator:
                 fig, update, frames=range(self.max_iter + 1),
                 interval=2000//self.fps, blit=True, cache_frame_data=False  # Prevent frame caching conflicts
             )
-            self.figures.append(fig)
+            # self.figures.append(fig)
             self.animators.append(ani)
 
     # def animate(self):
