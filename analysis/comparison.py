@@ -8,7 +8,7 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import pandas as pd
-from IPython.display import HTML
+from IPython.display import HTML, display
 import numpy as np
 
 # class MetricAnimator:
@@ -117,6 +117,7 @@ class MetricAnimator:
             
             # Capture the current metric in the closure
             def update(frame, current_metric=metric):  # Fix here
+                print(f"Updating {current_metric} at frame {frame}")  # Debug line
                 current_data = self.df[self.df['episode'] <= frame]
                 for algo in self.algorithms:
                     algo_data = current_data[
@@ -131,7 +132,7 @@ class MetricAnimator:
             
             ani = animation.FuncAnimation(
                 fig, update, frames=range(self.max_iter + 1),
-                interval=2000//self.fps, blit=False
+                interval=2000//self.fps, blit=True
             )
             self.figures.append(fig)
             self.animators.append(ani)
