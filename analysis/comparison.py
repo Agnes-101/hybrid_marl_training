@@ -136,7 +136,7 @@ class MetricAnimator:
                 fig, update, frames=range(self.max_iter + 1),
                 interval=2000//self.fps, blit=True, cache_frame_data=False  # Prevent frame caching conflicts
             )
-            # self.figures.append(fig)
+            self.figures.append(fig)
             self.animators.append(ani)
 
     # def animate(self):
@@ -175,11 +175,17 @@ class MetricAnimator:
         """Display all metrics in separate windows"""
         # plt.show(block=False)
         """Render all animations inline in Colab"""
-        for ani in self.animators:
-            plt.close(ani._fig)  # Avoid duplicate figures
+        # for ani in self.animators:
+        #     plt.close(ani._fig)  # Avoid duplicate figures
+        #     display(HTML(ani.to_jshtml()))
+        #     time.sleep(1)  # Pause to let Colab process
+        #     display(HTML(""))  # Add empty output to separate animations
+        for idx, ani in enumerate(self.animators):
+            plt.close(ani._fig)
+            # Create a unique HTML container for each animation
+            display(HTML(f'<div id="animation_{idx}">'))
             display(HTML(ani.to_jshtml()))
-            time.sleep(1)  # Pause to let Colab process
-            display(HTML(""))  # Add empty output to separate animations
+            time.sleep(0.5)  # Add a small delay to force separation
 
 
 
