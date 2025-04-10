@@ -245,7 +245,7 @@ class HybridTraining:
         # For Jupyter
         # Save to separate files
         animator.show()
-        # animator.save_videos("results/separated_metrics")
+        animator.save_videos("results/separated_metrics")
         
 
         # For video export

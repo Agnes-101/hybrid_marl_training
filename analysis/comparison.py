@@ -176,7 +176,7 @@ class MetricAnimator:
             ani.save(path, writer='ffmpeg', fps=self.fps)
             print(f"Saved {path}")
 
-    def show(self):
+    # def show(self):
         """Display all metrics in separate windows"""
         # plt.show(block=False)
         """Render all animations inline in Colab"""
@@ -199,35 +199,19 @@ class MetricAnimator:
         #     plt.close(ani._fig)
         #     # Display the animation HTML
         #     display(HTML(html))
-        def show(self):
-            """Render animations sequentially with output isolation"""
-            from IPython.display import display, HTML, clear_output
-            import time
-            import ipywidgets as widgets  # Required for output isolation
+    def show(self):
+        """Render animations in separate notebook cells"""
+        from IPython.display import Javascript, display
+        import uuid
 
-            # Create a parent container to hold all animations
-            main_container = widgets.Output()
-            display(main_container)
-
-            for ani in self.animators:
-                with main_container:  # Work within the container
-                    # Create a temporary output for this animation
-                    temp_output = widgets.Output()
-                    display(temp_output)
+        for ani in self.animators:
+            html = ani.to_jshtml()
+            display(Javascript(f"""
+                const cell = IPython.notebook.insert_cell_below();
+                cell.set_text(`{html}`);
+            """))
+            plt.close(ani._fig)    
                     
-                    with temp_output:
-                        # Generate and display animation HTML
-                        display(HTML(ani.to_jshtml()))
-                        plt.close(ani._fig)  # Free memory
-                        
-                    # Short delay to allow DOM registration
-                    time.sleep(1.5)  # Critical for notebook environments
-                    
-                # Clear temporary output but retain main container
-                temp_output.close()
-
-            # Optional: Prevent further output accidents
-            clear_output(wait=True)
 
 
 
