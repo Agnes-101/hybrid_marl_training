@@ -187,11 +187,18 @@ class MetricAnimator:
         #     display(HTML(f'<div id="animation_{idx}">'))
         #     display(HTML(ani.to_jshtml()))
         #     time.sleep(0.5)  # Add a small delay to force separation
+        # for ani in self.animators:
+        #     html_id = uuid.uuid4().hex
+        #     display(HTML(f'<div id="{html_id}">'))
+        #     plt.close(ani._fig)
+        #     display(HTML(ani.to_jshtml()))
         for ani in self.animators:
-            html_id = uuid.uuid4().hex
-            display(HTML(f'<div id="{html_id}">'))
+            # Generate HTML for the animation while the figure is still open
+            html = ani.to_jshtml()
+            # Close the figure to avoid duplicate displays
             plt.close(ani._fig)
-            display(HTML(ani.to_jshtml()))
+            # Display the animation HTML
+            display(HTML(html))
 
 
 
