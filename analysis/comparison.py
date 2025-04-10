@@ -11,11 +11,6 @@ import pandas as pd
 from IPython.display import HTML
 import numpy as np
 
-
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import pandas as pd
-
 # class MetricAnimator:
 #     def __init__(self, df: pd.DataFrame, metrics: list, fps: int = 5):
 #         self.df = df
@@ -114,6 +109,7 @@ class MetricAnimator:
         
         ax.legend()
         return fig, ax, lines
+    
     def animate(self):
         """Create separate animations per metric"""
         for metric in self.metrics:
@@ -135,7 +131,7 @@ class MetricAnimator:
             
             ani = animation.FuncAnimation(
                 fig, update, frames=range(self.max_iter + 1),
-                interval=2000//self.fps, blit=True
+                interval=2000//self.fps, blit=False
             )
             self.figures.append(fig)
             self.animators.append(ani)
