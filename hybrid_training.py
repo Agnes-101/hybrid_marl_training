@@ -260,7 +260,7 @@ class HybridTraining:
         
 
         # For video export
-        animator.save_video("results/training_progression.mp4")  
+        animator.save_videos("results/training_progression.mp4")  
         # Save to separate files
         
         # self.dashboard.display_comparison_matrix(algorithm_results)
