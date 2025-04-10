@@ -135,7 +135,7 @@ class MetricAnimator:
             
             ani = animation.FuncAnimation(
                 fig, update, frames=range(self.max_iter + 1),
-                interval=1000//self.fps, blit=True
+                interval=2000//self.fps, blit=True
             )
             self.figures.append(fig)
             self.animators.append(ani)
@@ -174,7 +174,11 @@ class MetricAnimator:
 
     def show(self):
         """Display all metrics in separate windows"""
-        plt.show(block=False)
+        # plt.show(block=False)
+        """Render all animations inline in Colab"""
+        for ani in self.animators:
+            plt.close(ani._fig)  # Avoid duplicate figures
+            display(HTML(ani.to_jshtml()))
 
 
 
