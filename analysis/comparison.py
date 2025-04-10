@@ -137,10 +137,10 @@ class MetricAnimator:
                 fig, update, frames=range(self.max_iter + 1),
                 interval=2000//self.fps, blit=True, cache_frame_data=False  # Prevent frame caching conflicts
             )
-            ani.save("metric.mp4")
-            plt.close(ani._fig)  # <-- Critical!
-            # Optional: Display after saving
-            display(HTML(ani.to_jshtml()))
+            # ani.save("metric.mp4")
+            # plt.close(ani._fig)  # <-- Critical!
+            # # Optional: Display after saving
+            # display(HTML(ani.to_jshtml()))
             self.figures.append(fig)
             self.animators.append(ani)
 
@@ -191,18 +191,43 @@ class MetricAnimator:
         #     display(HTML(f'<div id="animation_{idx}">'))
         #     display(HTML(ani.to_jshtml()))
         #     time.sleep(0.5)  # Add a small delay to force separation
+      
         # for ani in self.animators:
-        #     html_id = uuid.uuid4().hex
-        #     display(HTML(f'<div id="{html_id}">'))
+        #     # Generate HTML for the animation while the figure is still open
+        #     html = ani.to_jshtml()
+        #     # Close the figure to avoid duplicate displays
         #     plt.close(ani._fig)
-        #     display(HTML(ani.to_jshtml()))
-        for ani in self.animators:
-            # Generate HTML for the animation while the figure is still open
-            html = ani.to_jshtml()
-            # Close the figure to avoid duplicate displays
-            plt.close(ani._fig)
-            # Display the animation HTML
-            display(HTML(html))
+        #     # Display the animation HTML
+        #     display(HTML(html))
+        def show(self):
+            """Render animations sequentially with output isolation"""
+            from IPython.display import display, HTML, clear_output
+            import time
+            import ipywidgets as widgets  # Required for output isolation
+
+            # Create a parent container to hold all animations
+            main_container = widgets.Output()
+            display(main_container)
+
+            for ani in self.animators:
+                with main_container:  # Work within the container
+                    # Create a temporary output for this animation
+                    temp_output = widgets.Output()
+                    display(temp_output)
+                    
+                    with temp_output:
+                        # Generate and display animation HTML
+                        display(HTML(ani.to_jshtml()))
+                        plt.close(ani._fig)  # Free memory
+                        
+                    # Short delay to allow DOM registration
+                    time.sleep(1.5)  # Critical for notebook environments
+                    
+                # Clear temporary output but retain main container
+                temp_output.close()
+
+            # Optional: Prevent further output accidents
+            clear_output(wait=True)
 
 
 
