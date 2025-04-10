@@ -11,6 +11,7 @@ import pandas as pd
 from IPython.display import HTML, display
 import numpy as np
 import time
+import uuid
 
 # class MetricAnimator:
 #     def __init__(self, df: pd.DataFrame, metrics: list, fps: int = 5):
@@ -180,12 +181,18 @@ class MetricAnimator:
         #     display(HTML(ani.to_jshtml()))
         #     time.sleep(1)  # Pause to let Colab process
         #     display(HTML(""))  # Add empty output to separate animations
-        for idx, ani in enumerate(self.animators):
-            # plt.close(ani._fig)
-            # Create a unique HTML container for each animation
-            display(HTML(f'<div id="animation_{idx}">'))
+        # for idx, ani in enumerate(self.animators):
+        #     # plt.close(ani._fig)
+        #     # Create a unique HTML container for each animation
+        #     display(HTML(f'<div id="animation_{idx}">'))
+        #     display(HTML(ani.to_jshtml()))
+        #     time.sleep(0.5)  # Add a small delay to force separation
+        for ani in self.animators:
+            html_id = uuid.uuid4().hex
+            display(HTML(f'<div id="{html_id}">'))
+            plt.close(ani._fig)
             display(HTML(ani.to_jshtml()))
-            time.sleep(0.5)  # Add a small delay to force separation
+
 
 
 

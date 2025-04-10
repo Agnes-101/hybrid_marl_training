@@ -262,7 +262,7 @@ class HybridTraining:
                 algorithm_results = self._compare_algorithms()
                 best_algorithm = max(
                     algorithm_results,
-                    key=lambda x: algorithm_results[x]["metrics"]["fitness_score"]
+                    key=lambda x: algorithm_results[x]["metrics"]["fitness"]
                 )
                 print(f"\n Best algorithm selected: {best_algorithm.upper()}")
                 initial_solution = algorithm_results[best_algorithm]
