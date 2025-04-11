@@ -98,11 +98,12 @@ class PSOOptimization:
             "solution": self.gbest,
             "metrics": self.env.evaluate_detailed_solution(self.gbest),
             "agents": {
-                "positions": self.visual_positions.tolist(),
+                "positions": self.positions.tolist(),
                 "fitness": self.fitness_history,
                 "algorithm": "pso"
             }
         }
+        
     def _update_particle(self, position, pbest):
         """Core PSO update rules with discrete adaptation"""
         new_sol = position.copy()
