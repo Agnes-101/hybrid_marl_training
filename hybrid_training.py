@@ -116,7 +116,7 @@ class HybridTraining:
         )
         .training(
             model={"custom_model": initial_policy} if initial_policy else {},
-            num_epochs=5, # num_sgd_iter=5,
+            num_sgd_iter=5,# num_epochs=5, 
             train_batch_size=4000
         )
         .resources(
