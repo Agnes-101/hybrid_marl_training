@@ -116,13 +116,16 @@ class HybridTraining:
         )
         .training(
             model={"custom_model": initial_policy} if initial_policy else {},
-            num_sgd_iter=5,
+            num_epochs=5, # num_sgd_iter=5,
             train_batch_size=4000
         )
         .resources(
-            num_gpus=self.config["marl_training"]["num_gpus"],
-            num_cpus_per_worker=2
-        ))
+            num_gpus=self.config["marl_training"]["num_gpus"],            
+        )
+        .env_runners(  # Add this section for CPU resources ✅
+        num_cpus_per_env_runner=2  # Updated from num_cpus_per_worker
+            )
+        )
         
         analysis = tune.run(
             "PPO",
@@ -177,7 +180,10 @@ class HybridTraining:
                     "policy_entropy": result.get("policy_entropy", 0)
                 }
                 # Add formatted print with iteration number
-                print(f"MARL Metrics at iteration {result['training_iteration']}: {metrics}")
+                print(f"[Trial {trial.id}] Iter {result['training_iteration']} | "
+                  f"Reward: {metrics['episode_reward_mean']:.1f} | "
+                  f"SINR: {metrics['average_sinr']:.1f} dB")
+                # print(f"MARL Metrics at iteration {result['training_iteration']}: {metrics}")
                 # Log metrics through orchestrator
                 self.orchestrator.kpi_logger.log_metrics(
                     episode=result["training_iteration"],
