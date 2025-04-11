@@ -7,7 +7,7 @@ class SAOptimization:
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
         self.iterations = 20
-        self.temperature = 100
+        self.initial_temperature = 100
         self.cooling_rate = 0.95
         self.seed = 42
         self.rng = np.random.RandomState(self.seed)
@@ -26,11 +26,12 @@ class SAOptimization:
         return self.env.evaluate_detailed_solution( solution)["fitness"]
     
     def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict:        
-        temperature = self.initial_temp
-        current_fit = self.fitness(self.current_solution)
-        best_fit = current_fit
         # 🔴 Capture initial state
         original_state = self.env.get_state_snapshot()
+        temperature = self.initial_temperature
+        current_fit = self.fitness(self.current_solution)
+        best_fit = current_fit
+        
         for iteration in range(self.iterations):
             # neighbor = self.current_solution.copy()
             # idx = self.rng.randint(0, self.num_users)
