@@ -14,6 +14,7 @@ class DEOptimization:
         self.CR = 0.5  # Crossover rate
         
         # State tracking
+        
         self.positions = np.empty((0, 3))  # Proper initialization
         # self.fitness = []  # Track fitness per candidate solution
         self.fitness = np.full(self.iterations, np.nan)  # Pre-allocate with NaNs
@@ -27,13 +28,15 @@ class DEOptimization:
         self.best_solution = None
         self._rng = np.random.RandomState()
     
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict:
         """Optimized DE execution with unified logging"""
+        # 🔴 Capture initial state
+        original_state = self.env.get_state_snapshot()
         if kpi_logger is None:
             kpi_logger = self.kpi_logger
         print("Using KPI logger:", kpi_logger, flush=True)
             
-        self._initialize_population(env)
+        self._initialize_population(self.env)
         self.best_solution = self.population[0]
         # self.best_fitness_history = []
         
@@ -46,11 +49,11 @@ class DEOptimization:
             
             # Main DE loop
             for i in range(self.population_size):
-                trial = self._create_trial_vector(i, env)
-                trial = self._repair_solution(trial, env)
+                trial = self._create_trial_vector(i, self.env)
+                trial = self._repair_solution(trial, self.env)
                 
-                current_metrics = env.evaluate_detailed_solution(self.population[i])
-                trial_metrics = env.evaluate_detailed_solution(trial)
+                current_metrics = self.env.evaluate_detailed_solution(self.population[i])
+                trial_metrics = self.env.evaluate_detailed_solution(trial)
                 
                 current_fit = current_metrics["fitness"]
                 trial_fit = trial_metrics["fitness"]
@@ -84,7 +87,7 @@ class DEOptimization:
             # ✅ Print live updates
             print(f"Iteration {iteration}: Best Fitness = {best_iter_fitness}")
             self.best_fitness_history.append(best_iter_fitness)
-            self._update_visual_state(env)
+            # self._update_visual_state(self.env)
             
             # # Visualization handling (no duplicate logging)
             # if iteration % 5 == 0 and visualize_callback:
@@ -93,31 +96,33 @@ class DEOptimization:
             #         "positions": self.positions.tolist(),
             #         "fitness": self.fitness.tolist(),
             #         "algorithm": "de",
-            #         "env_state": env.get_current_state()
+            #         "env_state": self.env.get_current_state()
             #     })
                 
             #     print(f"DE Visual Update @ Iter {iteration}")
             
             # Environment agent tracking
-            env.current_metaheuristic_agents = [{
+            self.env.current_metaheuristic_agents = [{
                 "position": pos.tolist()[:2],
                 "fitness": float(fit),
                 "algorithm": "de"
             } for pos, fit in zip(self.positions, self.fitness)]
             
-            env.apply_solution(self.best_solution)
+        # 🔴 Restore environment after optimization
+        self.env.set_state_snapshot(original_state)    
+        self.env.apply_solution(self.best_solution)
             
             # Convert best_solution (a numpy array) to the expected dict format:
-            actions = {
+        actions = {
                 f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
-                for bs_id in range(env.num_bs)
+                for bs_id in range(self.env.num_bs)
             }
             # Critical: Update environment state
-            env.step(actions)  # Processes agent positions into network state
+        # self.env.step(actions)  # Processes agent positions into network state
             
         return {
             "solution": self.best_solution,
-            "metrics": env.evaluate_detailed_solution(self.best_solution),
+            "metrics": self.env.evaluate_detailed_solution(self.best_solution),
             "agents": {
                 "positions": self.positions.tolist(),
                 "fitness": self.fitness.tolist(),

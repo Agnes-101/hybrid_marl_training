@@ -3,7 +3,7 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class CSOptimization:
-    def __init__(self, env, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
         """Cuckoo Search with hardcoded parameters for 6G optimization.
         
         Decoupled Initialization: Self-configures with hardcoded parameters.
@@ -34,14 +34,15 @@ class CSOptimization:
         ]
         
 
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict:
         """Unified entry point for hybrid training system.
         
         Returns:
             dict: A dictionary containing the best solution, its metrics, 
                   and visualization data (positions and fitness history).
         """             
-        
+        # 🔴 Capture initial state
+        original_state = self.env.get_state_snapshot()
         best_solution = None
         best_fitness = -np.inf
 
@@ -49,10 +50,10 @@ class CSOptimization:
             # Generate new solutions using levy flights
             for i in range(self.colony_size):
                 new_sol = self._levy_flight_update(self.population[i], self.num_cells)
-                new_fitness = env.evaluate_detailed_solution(new_sol)["fitness"]
+                new_fitness = self.env.evaluate_detailed_solution(new_sol)["fitness"]
                 
                 # Evaluate current fitness of the solution
-                current_fitness = env.evaluate_detailed_solution(self.population[i])["fitness"]
+                current_fitness = self.env.evaluate_detailed_solution(self.population[i])["fitness"]
                 # Replace current solution if new one is better
                 if new_fitness > current_fitness:
                     self.population[i] = new_sol
@@ -62,9 +63,9 @@ class CSOptimization:
                         best_solution = new_sol.copy()
 
             # Abandon worst solutions based on the abandonment probability
-            self._abandon_worst_solutions(env, self.num_cells)
+            self._abandon_worst_solutions(self.num_cells)
             # ✅ DE/PFO-style logging
-            current_metrics = env.evaluate_detailed_solution(best_solution)
+            current_metrics = self.env.evaluate_detailed_solution(best_solution)
             self.fitness_history.append(current_metrics["fitness"])
             
             if self.kpi_logger:
@@ -76,12 +77,14 @@ class CSOptimization:
                 )
 
             # ✅ Environment state update (like DE/PFO)
-            env.apply_solution(best_solution)
-            actions = {
+        # 🔴 Restore environment after optimization
+        self.env.set_state_snapshot(original_state)
+        self.env.apply_solution(best_solution)
+        actions = {
                 f"bs_{bs_id}": np.where(best_solution == bs_id)[0].tolist()
-                for bs_id in range(env.num_bs)
+                for bs_id in range(self.env.num_bs)
             }
-            env.step(actions)
+        # self.env.step(actions)
             
             # Update visualization states for backward compatibility
             # self._update_visualization(best_solution, iteration)
@@ -91,7 +94,7 @@ class CSOptimization:
             #         "positions": self.positions.tolist(),
             #         "fitness": self.fitness_history,
             #         "algorithm": "cs",
-            #         "env_state": env.get_current_state()
+            #         "env_state": self.env.get_current_state()
             #     })
             
             
@@ -114,15 +117,15 @@ class CSOptimization:
         # Ensure the new solution is within valid base station indices
         return np.clip(new_sol % num_bs, 0, num_bs - 1)
 
-    def _abandon_worst_solutions(self, env: NetworkEnvironment, num_bs: int):
+    def _abandon_worst_solutions(self,  num_bs: int):
         """Replace a fraction of the worst solutions with random ones."""
-        fitnesses = [env.evaluate_detailed_solution(sol)["fitness"] for sol in self.population]
+        fitnesses = [self.env.evaluate_detailed_solution(sol)["fitness"] for sol in self.population]
         # Identify indices of the worst solutions (lowest fitness)
         worst_count = int(self.pa * self.colony_size)
         worst_idx = np.argsort(fitnesses)[:worst_count]
         
         for idx in worst_idx:
-            self.population[idx] = self.rng.randint(0, num_bs, size=env.num_ue)
+            self.population[idx] = self.rng.randint(0, num_bs, size=self.env.num_ue)
 
     # def _update_visualization(self, best_solution: np.ndarray, iteration: int):
     #     """Track solution diversity and fitness for visualization.
