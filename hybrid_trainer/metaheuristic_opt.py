@@ -64,7 +64,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     # solution = algo_instance.run(env)
     # Pass BOTH logger and callback to Algorithm's run()
     solution_data = algo_instance.run(
-        env=env,
+        # env=env,
         visualize_callback=visualize_callback,  # Critical
         kpi_logger=kpi_logger
     )
