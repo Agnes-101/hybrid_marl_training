@@ -119,9 +119,9 @@ class MetricAnimator:
             
             # Capture the current metric in the closure
             def update(frame, current_metric=metric):  # Fix here
-                print(f"Updating {current_metric} at frame {frame}")  # Debug line
+                # print(f"Updating {current_metric} at frame {frame}")  # Debug line
                 current_data = self.df[self.df['episode'] <= frame]
-                print(current_data[["episode", "algorithm", current_metric]].dropna())
+                # print(current_data[["episode", "algorithm", current_metric]].dropna())
                 for algo in self.algorithms:
                     algo_data = current_data[
                         (current_data['algorithm'] == algo)
