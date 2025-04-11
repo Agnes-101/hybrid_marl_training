@@ -360,12 +360,13 @@ class NetworkEnvironment(gym.Env):
         original_state = self.get_state_snapshot()
         self.apply_solution(solution)  # Ensure state is updated
                 
-        rewards = [self.calculate_reward() for _ in range(10)]  # Simulate over 10 steps
+        # rewards = [self.calculate_reward() for _ in range(10)]  # Simulate over 10 steps
         sinr_list = [ue.sinr for ue in self.ues]
         throughput_list = [torch.log2(1 + 10**(ue.sinr/10)).item() for ue in self.ues]
         bs_loads = [bs.load for bs in self.base_stations]
         
-        fitness_value = np.sum(rewards)
+        # fitness_value = np.sum(rewards)
+        fitness_value = self.calculate_reward()  # Single-step reward
         average_sinr = np.mean(sinr_list)
         average_throughput = np.mean(throughput_list)
         fairness = (np.sum(throughput_list) ** 2) / (len(throughput_list) * np.sum(np.square(throughput_list)) + 1e-6)

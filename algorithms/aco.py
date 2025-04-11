@@ -24,6 +24,8 @@ class ACO:
 
     def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict: 
         """Main interface for hybrid training system"""
+        original_state = self.env.get_state_snapshot()
+        
         num_ue = self.env.num_ue
         num_bs = self.env.num_bs
         
@@ -79,12 +81,14 @@ class ACO:
             #     })
             
             # Mirror DE's environment interaction
-            self.env.apply_solution(self.best_solution)
-            actions = {
+            # 🔴 Restore original environment state after optimization
+        self.env.set_state_snapshot(original_state)
+        self.env.apply_solution(self.best_solution)
+        actions = {
                 f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
                 for bs_id in range(self.env.num_bs)
             }
-            self.env.step(actions)  # Update network state
+        self.env.step(actions)  # Update network state
             
         return {
             "solution": self.best_solution,
