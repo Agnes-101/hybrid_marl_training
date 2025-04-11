@@ -29,7 +29,7 @@ class WOAOptimization:
     def fitness(self, solution):
         return self.env.evaluate_detailed_solution( solution)["fitness"]
     
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict:
         # 🔴 Capture initial state
         original_state = self.env.get_state_snapshot()
         best_fitness = self.fitness(self.best_solution)
@@ -68,7 +68,7 @@ class WOAOptimization:
                         best_fitness = self.fitness(new_sol)
                         
             # ✅ DE-style logging
-            current_metrics = env.evaluate_detailed_solution( self.best_solution)
+            current_metrics = self.env.evaluate_detailed_solution( self.best_solution)
             if self.kpi_logger:
                 self.kpi_logger.log_metrics(
                     episode=iteration,
