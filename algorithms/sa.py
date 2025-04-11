@@ -2,7 +2,7 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class SAOptimization:
-    def __init__(self, env, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
         self.env=env
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
@@ -25,11 +25,12 @@ class SAOptimization:
     def fitness(self, solution):
         return self.env.evaluate_detailed_solution( solution)["fitness"]
     
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:        
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict:        
         temperature = self.initial_temp
         current_fit = self.fitness(self.current_solution)
         best_fit = current_fit
-        
+        # 🔴 Capture initial state
+        original_state = self.env.get_state_snapshot()
         for iteration in range(self.iterations):
             # neighbor = self.current_solution.copy()
             # idx = self.rng.randint(0, self.num_users)
@@ -59,7 +60,7 @@ class SAOptimization:
             # Cooling schedule
             temperature *= self.cooling_rate
             # ✅ DE-style logging
-            current_metrics = env.evaluate_detailed_solution( self.best_solution)
+            current_metrics = self.env.evaluate_detailed_solution( self.best_solution)
             if self.kpi_logger:
                 self.kpi_logger.log_metrics(
                     episode=iteration,
@@ -67,14 +68,7 @@ class SAOptimization:
                     algorithm="sa",
                     metrics=current_metrics
                 )
-            
-            # ✅ Environment update
-            self.env.apply_solution(self.best_solution)
-            self.env.step({
-                f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
-                for bs_id in range(self.env.num_bs)
-            })
-
+                
             # # ✅ Visualization updates
             # self._update_visualization(iteration, temperature, current_fit, best_fit)
             # if visualize_callback and iteration % 5 == 0:
@@ -84,6 +78,16 @@ class SAOptimization:
             #         "algorithm": "sa",
             #         "env_state": self.env.get_current_state()
             #     })
+            # ✅ Environment update
+        # 🔴 Restore environment after optimization
+        self.env.set_state_snapshot(original_state)
+        self.env.apply_solution(self.best_solution)
+        # self.env.step({
+        #         f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
+        #         for bs_id in range(self.env.num_bs)
+        #     })
+
+            
 
         return {
             "solution": self.best_solution,

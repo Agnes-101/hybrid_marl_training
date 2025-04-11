@@ -40,7 +40,9 @@ class GAOptimization:
                 solution[i] = self.rng.randint(0, self.num_cells)
         return solution
     
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict:
+        # 🔴 Capture initial state
+        original_state = self.env.get_state_snapshot()
         best_solution = None
         best_fitness = -np.inf
         
@@ -78,11 +80,13 @@ class GAOptimization:
             # self.population = new_population
             self.population = new_population[:self.population_size]  # Trim excess
             # ✅ Environment update
-            self.env.apply_solution(best_solution)
-            self.env.step({
-                f"bs_{bs_id}": np.where(best_solution == bs_id)[0].tolist()
-                for bs_id in range(self.env.num_bs)
-            })
+        # 🔴 Restore environment after optimization
+        self.env.set_state_snapshot(original_state)
+        self.env.apply_solution(best_solution)
+        # self.env.step({
+        #         f"bs_{bs_id}": np.where(best_solution == bs_id)[0].tolist()
+        #         for bs_id in range(self.env.num_bs)
+        #     })
 
             # ✅ Visualization updates
             # self._update_visualization(generation)

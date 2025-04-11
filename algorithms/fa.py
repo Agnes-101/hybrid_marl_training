@@ -2,7 +2,7 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class FireflyOptimization:
-    def __init__(self, env, kpi_logger=None ):
+    def __init__(self, env: NetworkEnvironment, kpi_logger=None ):
         self.env = env
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
@@ -27,12 +27,16 @@ class FireflyOptimization:
     def distance(self, sol1, sol2):
         return np.sum(sol1 != sol2)  # Hamming distance
     
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict:
         best_fitness = -np.inf
+        # 🔴 Capture initial state
+        original_state = self.env.get_state_snapshot()
         for iteration in range(self.iterations):
             # Track iteration-best metrics
             current_best_sol = max(self.population, key=self.fitness)
-            current_best_metrics = env.evaluate_detailed_solution(current_best_sol)
+            current_best_metrics = self.env.evaluate_detailed_solution(current_best_sol)
+            
+            
             # ✅ DE-style logging
             if self.kpi_logger:
                 self.kpi_logger.log_metrics(
@@ -58,11 +62,13 @@ class FireflyOptimization:
                             
                 # Environment update
             self.best_solution = max(self.population, key=self.fitness)
-            env.apply_solution(self.best_solution)
-            env.step({
-                f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
-                for bs_id in range(env.num_bs)
-            })
+        # 🔴 Restore environment after optimization
+        self.env.set_state_snapshot(original_state)
+        self.env.apply_solution(self.best_solution)
+        # env.step({
+        #         f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
+        #         for bs_id in range(env.num_bs)
+        # })
             
             # ✅ Visualization updates
             # self._update_visualization(iteration)

@@ -3,7 +3,7 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class GWOOptimization:
-    def __init__(self,env, kpi_logger=None):
+    def __init__(self,env: NetworkEnvironment, kpi_logger=None):
         
         self.env=env
         self.num_users = env.num_ue
@@ -36,7 +36,9 @@ class GWOOptimization:
         self.beta = sorted_pop[1].copy() if len(sorted_pop) > 1 else sorted_pop[0].copy()
         self.delta = sorted_pop[2].copy() if len(sorted_pop) > 2 else sorted_pop[0].copy()
 
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
+    def run(self,  visualize_callback: callable = None, kpi_logger=None) -> dict:
+        # 🔴 Capture initial state
+        original_state = self.env.get_state_snapshot()
         for t in range(self.iterations):
             a = self.a_initial - t * self.a_decay  # Use configured parameters
             new_population = []
@@ -68,7 +70,7 @@ class GWOOptimization:
             self.population = new_population
             self.update_leaders()
             # ✅ DE-style logging
-            current_metrics = env.evaluate_detailed_solution(self.alpha)
+            current_metrics = self.env.evaluate_detailed_solution(self.alpha)
             if self.kpi_logger:
                 self.kpi_logger.log_metrics(
                     episode=t,
@@ -78,11 +80,13 @@ class GWOOptimization:
                 )
             
             # ✅ Environment update
-            self.env.apply_solution(self.alpha)
-            self.env.step({
-                f"bs_{bs_id}": np.where(self.alpha == bs_id)[0].tolist()
-                for bs_id in range(self.env.num_bs)
-            })
+            # 🔴 Restore environment after optimization
+        self.env.set_state_snapshot(original_state)
+        self.env.apply_solution(self.alpha)
+        # self.env.step({
+        #         f"bs_{bs_id}": np.where(self.alpha == bs_id)[0].tolist()
+        #         for bs_id in range(self.env.num_bs)
+        #     })
             
             # ✅ Visualization updates
             # self._update_visualization(t)

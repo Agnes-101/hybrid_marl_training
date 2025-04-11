@@ -2,7 +2,7 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class ICAOptimization:
-    def __init__(self,  env, kpi_logger=None):
+    def __init__(self,  env: NetworkEnvironment, kpi_logger=None):
         self.env=env
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
@@ -23,11 +23,13 @@ class ICAOptimization:
     def fitness(self, solution):
         return self.env.evaluate_detailed_solution(solution)["fitness"]
     
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict:
         # sorted_population = sorted(self.population, key=self.fitness, reverse=True)
         # imperialists = sorted_population[:self.imperialist_count]
         # colonies = sorted_population[self.imperialist_count:]
         # Initial empire formation
+        # 🔴 Capture initial state
+        original_state = self.env.get_state_snapshot()
         self.population.sort(key=self.fitness, reverse=True)
         self.imperialists = self.population[:self.imperialist_count]
         self.colonies = self.population[self.imperialist_count:]
@@ -61,7 +63,7 @@ class ICAOptimization:
             self.colonies = self.population[self.imperialist_count:]
             # Track best solution
             current_best = self.imperialists[0]
-            current_metrics = env.evaluate_detailed_solution( current_best)
+            current_metrics = self.env.evaluate_detailed_solution( current_best)
             
             # ✅ DE-style logging
             if self.kpi_logger:
@@ -76,12 +78,13 @@ class ICAOptimization:
             if current_metrics["fitness"] > best_fitness:
                 best_fitness = current_metrics["fitness"]
                 best_solution = current_best.copy()
-                self.env.apply_solution(best_solution)
-                self.env.step({
-                    f"bs_{bs_id}": np.where(best_solution == bs_id)[0].tolist()
-                    for bs_id in range(self.env.num_bs)
-                })
-
+        # 🔴 Restore environment after optimization
+        self.env.set_state_snapshot(original_state)        
+        self.env.apply_solution(best_solution)
+        # self.env.step({
+        #             f"bs_{bs_id}": np.where(best_solution == bs_id)[0].tolist()
+        #             for bs_id in range(self.env.num_bs)
+        #         })
             # # ✅ Visualization updates
             # self._update_visualization(iteration)
             # if visualize_callback and iteration % 5 == 0:

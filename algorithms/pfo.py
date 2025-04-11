@@ -5,7 +5,7 @@ import torch
 from envs.custom_channel_env import NetworkEnvironment
 
 class PolarFoxOptimization:
-    def __init__(self, env, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
                 
         self.env = env
         self.num_users = env.num_ue
@@ -189,8 +189,10 @@ class PolarFoxOptimization:
         self.positions = np.array(visual_positions)    
 
     
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> np.ndarray:
+    def run(self,visualize_callback: callable = None, kpi_logger=None) -> np.ndarray:
         """Enhanced optimization loop with anti-stagnation mechanisms."""
+        # 🔴 Capture initial state
+        original_state = self.env.get_state_snapshot()
         best_solution = self.population[0].copy()
         best_fitness = -np.inf
         historical_bests = []
@@ -202,7 +204,7 @@ class PolarFoxOptimization:
         # Initialize population diversity tracking
         diversity_history = []
         # current_metrics = env.evaluate_detailed_solution(current_solution)
-        best_iter_metrics = env.evaluate_detailed_solution(best_solution)
+        best_iter_metrics = self.env.evaluate_detailed_solution(best_solution)
         
         for iteration in range(self.iterations):
             # Adaptive parameter update
@@ -215,7 +217,7 @@ class PolarFoxOptimization:
             current_best_idx = np.argmax(fitness_values)
             current_best_fitness = fitness_values[current_best_idx]
             current_best_solution = self.population[current_best_idx].copy()
-            current_best_metrics = env.evaluate_detailed_solution(current_best_solution)
+            current_best_metrics = self.env.evaluate_detailed_solution(current_best_solution)
 
             
             # Maintain diversity tracking
@@ -314,21 +316,24 @@ class PolarFoxOptimization:
             # Adaptive mutation decay
             if no_improvement_streak == 0 and self.mutation_factor > mutation_reset:
                 self.mutation_factor *= 0.95  # Gradual decay on improvement
-                
+            self.best_solution = best_solution.copy()    
             # Update environment with current best solution
-            self.best_solution = best_solution.copy()
-            self.env.apply_solution(self.best_solution)
-            actions = {
-                f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
-                for bs_id in range(self.env.num_bs)
-            }
-            self.env.step(actions)  # Update environment state
             
-            # Progress tracking
-            historical_bests.append(best_fitness)
-            print(f"Iter {iteration+1}: Best = {best_fitness:.4f}, "
-                f"Mutation = {self.mutation_factor:.2f}, "
-                f"Diversity = {diversity:.2f}")
+        # 🔴 Restore environment after optimization
+        self.env.set_state_snapshot(original_state)
+        
+        self.env.apply_solution(self.best_solution)
+        # actions = {
+        #         f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
+        #         for bs_id in range(self.env.num_bs)
+        #     }
+        # self.env.step(actions)  # Update environment state
+            
+            # # Progress tracking
+            # historical_bests.append(best_fitness)
+            # print(f"Iter {iteration+1}: Best = {best_fitness:.4f}, "
+            #     f"Mutation = {self.mutation_factor:.2f}, "
+            #     f"Diversity = {diversity:.2f}")
 
         # return best_solution
         # Return DE-style output
