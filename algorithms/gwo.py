@@ -65,7 +65,7 @@ class GWOOptimization:
                     X3 = self.delta[j] - A3 * D_delta
                     
                     new_val = int(round((X1 + X2 + X3) / 3))
-                    new_solution[j] = np.clip(new_val, 0, self.env.num_cells - 1)
+                    new_solution[j] = np.clip(new_val, 0, self.num_cells - 1)
                 new_population.append(new_solution)
             self.population = new_population
             self.update_leaders()
