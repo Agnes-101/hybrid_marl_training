@@ -8,7 +8,7 @@ class FireflyOptimization:
         self.num_cells = env.num_bs
         
         self.population_size = 30
-        self.iterations = 50
+        self.iterations = 20
         self.beta0 = 1
         self.gamma = 1
         self.seed = 42

@@ -6,7 +6,7 @@ class SAOptimization:
         self.env=env
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
-        self.iterations = 50
+        self.iterations = 20
         self.temperature = 100
         self.cooling_rate = 0.95
         self.seed = 42

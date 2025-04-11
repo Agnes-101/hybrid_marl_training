@@ -8,7 +8,7 @@ class HarmonySearchOptimization:
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
         self.memory_size = 30
-        self.iterations = 50
+        self.iterations = 20
         self.HMCR = 0.9
         self.PAR = 0.3
         self.seed = 42

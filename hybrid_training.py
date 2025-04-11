@@ -248,16 +248,30 @@ class HybridTraining:
             algorithm_results[algo] = self._execute_metaheuristic_phase(algo)
             time.sleep(1)  # Pause for visualization clarity
         # Create animator from logged history
-        animator = MetricAnimator(
-            df=self.kpi_logger.history,
-            metrics=['fitness'],#, ', 'average_sinr','fairness'
-            fps=8  # Lower FPS for slower progression
-        )
-        animator.animate()
-        # For Jupyter
-        # Save to separate files
-        animator.show()
-        animator.save_videos("results/separated_metrics")
+        # List the metrics you want to animate
+        metrics = ['fitness', 'average_sinr', 'fairness']
+
+        # Loop over each metric to create, show, and save its animation separately
+        for metric in metrics:
+            # Create a MetricAnimator instance for the current metric
+            animator = MetricAnimator(
+                df=self.kpi_logger.history,
+                metrics=[metric],  # Only process one metric at a time
+                fps=8  # Lower FPS for slower progression
+            )
+            animator.animate()           # Build the animation for this metric
+            animator.show()              # Render it inline in Jupyter/Colab
+            animator.save_videos("results/separated_metrics")
+        # animator = MetricAnimator(
+        #     df=self.kpi_logger.history,
+        #     metrics=['fitness'],#, ', 'average_sinr','fairness'
+        #     fps=8  # Lower FPS for slower progression
+        # )
+        # animator.animate()
+        # # For Jupyter
+        # # Save to separate files
+        # animator.show()
+        # animator.save_videos("results/separated_metrics")
         
 
         # For video export

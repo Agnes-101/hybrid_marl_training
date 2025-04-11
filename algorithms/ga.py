@@ -7,7 +7,7 @@ class GAOptimization:
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
         self.population_size = 30
-        self.generations = 50
+        self.generations = 20
         self.mutation_rate = 0.1
         self.seed = 42
         self.rng = np.random.RandomState(self.seed)

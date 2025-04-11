@@ -12,7 +12,7 @@ class PolarFoxOptimization:
         self.num_cells = env.num_bs
         
         self.population_size = 40
-        self.iterations = 50
+        self.iterations = 20
         self.mutation_factor = 0.2
         self.jump_rate = 0.2 
         self.follow_rate = 0.3  

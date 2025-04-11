@@ -6,7 +6,7 @@ class TabuSearchOptimization:
         self.env=env
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
-        self.iterations = 50
+        self.iterations = 20
         self.tabu_size = 10
         self.seed = 42
         self.kpi_logger = kpi_logger

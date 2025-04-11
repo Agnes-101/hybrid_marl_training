@@ -13,7 +13,7 @@ class CSOptimization:
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
         self.colony_size = 30
-        self.iterations = 50
+        self.iterations = 20
         self.pa = 0.25  # Abandonment probability
         self.levy_scale = 1.0  # Scale factor for levy flights
         self.seed = 42 # seed if seed is not None else np.random.randint(0, 10000)

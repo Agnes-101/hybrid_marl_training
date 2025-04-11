@@ -8,7 +8,7 @@ class ICAOptimization:
         self.num_cells = env.num_bs
         self.population_size = 30
         self.imperialist_count = 5
-        self.iterations = 50
+        self.iterations = 20
         self.seed = 42
         self.rng = np.random.RandomState(self.seed)
         # Initialize population using the seeded RNG

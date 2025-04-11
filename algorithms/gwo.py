@@ -9,7 +9,7 @@ class GWOOptimization:
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
         self.swarm_size = 30
-        self.iterations = 50
+        self.iterations = 20
         self.a_initial = 2.0
         self.a_decay = 0.04
         self.seed=42

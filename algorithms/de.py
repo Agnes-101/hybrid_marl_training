@@ -9,7 +9,7 @@ class DEOptimization:
         # Optimization parameters
         self.env=env
         self.population_size = 30
-        self.iterations = 50
+        self.iterations = 20
         self.F = 1.2  # Mutation factor
         self.CR = 0.5  # Crossover rate
         
