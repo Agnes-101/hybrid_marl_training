@@ -37,42 +37,83 @@ class BaseStation:
         self.load = sum(self.allocated_resources.values()) / self.bandwidth
 
 class NetworkEnvironment(gym.Env):
-    def __init__(self, config:EnvContext, num_bs=20, num_ue=200, episode_length=100, log_kpis=True):
-        self.config = config
+    def __init__(self, config:EnvContext, log_kpis=True):        
         super().__init__()  # ✅ Initialize gym.Env
-        self.num_bs = num_bs
-        self.num_ue = num_ue
-        self.episode_length = episode_length
+        self.config = config
+        # Define observation space first
+        # Access passed environment instance
+        self.num_bs = config.get("num_bs", 20)
+        self.num_ue = config.get("num_ue", 200)
+        self.episode_length = config.get("episode_length", 100)
+        self.env_instance = config.get("environment_instance")
+        
         self.version = 0  # Internal state version
         self.current_step = 0
         self.log_kpis = log_kpis        
         self.metaheuristic_agents = []  # Initialize empty list        
         
-        # Access passed environment instance
-        self.env_instance = config.get("environment_instance")
+        
+        
 
         self.base_stations = [
             BaseStation(id=i, position=[np.random.uniform(0, 100), np.random.uniform(0, 100)],
                         frequency=100.0, bandwidth=1000.0)
-            for i in range(num_bs)
+            for i in range(self.num_bs)
         ]
         self.ues = [
             UE(id=i, position=[np.random.uniform(0, 100), np.random.uniform(0, 100)],
                velocity=[np.random.uniform(-1, 1), np.random.uniform(-1, 1)],
                demand=np.random.randint(50, 200))
-            for i in range(num_ue)
+            for i in range(self.num_ue)
         ]
         self.associations = {bs.id: [] for bs in self.base_stations}
         # Initialize KPI logger if logging is enabled
         self.kpi_logger = KPITracker() if log_kpis else None
-        
-    def reset(self):
-        self.current_step = 0
-        self.version += 1  # Increment on state change
-        for ue in self.ues:
-            ue.position = torch.tensor([np.random.uniform(0, 100), np.random.uniform(0, 100)])
-            ue.associated_bs = None
-        return self._get_obs()
+        # Define observation space with explicit float32 dtype
+        # Observation space for each BS agent (4 features + 2*num_ue positions)
+        self.observation_space = gym.spaces.Dict({
+            f"bs_{i}": gym.spaces.Box(
+                low=-np.inf, 
+                high=np.inf,
+                shape=(4 + 2*self.num_ue,),
+                dtype=np.float32
+            ) for i in range(self.num_bs)
+        })
+                # Define action space with proper bounds
+        # Action space for each BS agent (UE selection mask)
+        self.action_space = gym.spaces.Dict({
+            f"bs_{i}": gym.spaces.MultiBinary(self.num_ue)
+            for i in range(self.num_bs)
+        })
+    # def reset(self):
+    #     self.current_step = 0
+    #     self.version += 1  # Increment on state change
+    #     for ue in self.ues:
+    #         ue.position = torch.tensor([np.random.uniform(0, 100), np.random.uniform(0, 100)])
+    #         ue.associated_bs = None
+    #     return self._get_obs()
+    
+        def reset(self, seed=None, options=None):
+            # Called automatically by RLlib at episode start
+            self.current_step = 0
+            self.version += 1
+            
+            # Reset UE positions and associations
+            for ue in self.ues:
+                ue.position = torch.tensor(
+                    [np.random.uniform(0, 100), np.random.uniform(0, 100)],
+                    dtype=torch.float32  # Match observation dtype
+                )
+                ue.associated_bs = None
+            
+            # Generate initial observations
+            obs = self._get_obs()
+            
+            # Convert all values to float32 explicitly
+            return {
+                agent_id: obs[agent_id].astype(np.float32)
+                for agent_id in obs
+            }, {}
 
     def calculate_sinr(self, ue, bs):
         distance = torch.norm(ue.position - bs.position)
@@ -179,11 +220,32 @@ class NetworkEnvironment(gym.Env):
         
         return self._get_obs(), reward, done, {}
     
-    def _get_obs(self):
+    # def _get_obs(self):
         
-        return {  # Explicitly cast to float32
-            f"BS_{bs.id}": {"load": np.float32(bs.load)} for bs in self.base_stations
-            }
+    #     return {  # Explicitly cast to float32
+    #         f"BS_{bs.id}": {"load": np.float32(bs.load)} for bs in self.base_stations
+    #         }
+    
+    def _get_obs(self):
+        """Structure observations per agent"""
+        return {
+            f"bs_{bs.id}": np.concatenate([
+                [bs.load],
+                bs.position.numpy(),
+                [ue.position.numpy() for ue in self.ues]
+            ]).astype(np.float32)  # Explicit casting
+            for bs in self.base_stations
+        }
+
+    def _get_normalized_ue_positions(self, bs):
+        """Normalize positions to [-1,1] range"""
+        positions = []
+        for ue in self.ues:
+            rel_pos = (ue.position - bs.position).numpy()
+            # Normalize based on environment bounds (0-100 in your case)
+            norm_pos = rel_pos / 50.0 - 1.0  # Scales to [-1,1]
+            positions.append(norm_pos.astype(np.float32))  # ✅ Cast
+        return np.array(positions).flatten()
     
     # In NetworkEnvironment.get_current_state() for visualization
     def get_current_state(self):

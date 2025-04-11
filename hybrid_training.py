@@ -166,7 +166,7 @@ class HybridTraining:
             #         algorithm= "PPO",
             #         metrics=metrics
             #     )
-            def on_step_end(self, *, result: dict, trial, **kwargs):
+            def on_step_end(self, *, result, trial, **kwargs):
                 """Fixed signature with required parameters"""
                 # Extract metrics from result dict
                 metrics = {
