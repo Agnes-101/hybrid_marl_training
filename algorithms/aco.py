@@ -88,7 +88,7 @@ class ACO:
                 f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
                 for bs_id in range(self.env.num_bs)
             }
-        self.env.step(actions)  # Update network state
+        # self.env.step(actions)  # Update network state
             
         return {
             "solution": self.best_solution,

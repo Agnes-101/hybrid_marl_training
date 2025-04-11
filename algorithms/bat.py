@@ -41,6 +41,8 @@ class BatOptimization:
         # self.env = env  # Store the environment for use in visualization updates
         # num_ue = env.num_ue
         # num_bs = env.num_bs
+        # 🔴 Capture initial state
+        original_state = self.env.get_state_snapshot()
         best_fitness = -np.inf
         
 
@@ -76,12 +78,14 @@ class BatOptimization:
                 )
 
             # ✅ Environment state update (like DE/PFO)
-            self.env.apply_solution(self.best_solution)
-            actions = {
+        # 🔴 Restore environment after optimization
+        self.env.set_state_snapshot(original_state)
+        self.env.apply_solution(self.best_solution)
+        actions = {
                 f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
                 for bs_id in range(self.env.num_bs)
-            }
-            self.env.step(actions)
+                }
+        # self.env.step(actions)
             # self._update_visualization(iteration)
             
             # #  Visualization trigger (every 5 iterations)
