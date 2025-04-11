@@ -3,7 +3,7 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class BatOptimization:
-    def __init__(self, env, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
         """Hardcoded parameters for hybrid training system with decoupled initialization."""
         # Optimization parameters
         self.env=env
@@ -36,7 +36,7 @@ class BatOptimization:
         ]
         
 
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict:
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict:
         """Main interface for hybrid training system."""
         # self.env = env  # Store the environment for use in visualization updates
         # num_ue = env.num_ue
@@ -49,10 +49,10 @@ class BatOptimization:
             for i in range(self.population_size):
                 freq = self.freq_min + (self.freq_max - self.freq_min) * self.rng.rand()
                 new_sol = self._modify_solution(self.population[i], freq)
-                new_fitness = env.evaluate_detailed_solution(new_sol)["fitness"]
+                new_fitness = self.env.evaluate_detailed_solution(new_sol)["fitness"]
                 
                 # Evaluate current fitness
-                current_fitness = env.evaluate_detailed_solution(self.population[i])["fitness"]
+                current_fitness = self.env.evaluate_detailed_solution(self.population[i])["fitness"]
                 # Update if the new solution is better and passes the pulse rate check
                 if new_fitness > current_fitness and self.rng.rand() < self.loudness[i]:
                     self.population[i] = new_sol
@@ -64,7 +64,7 @@ class BatOptimization:
                     best_fitness = new_fitness
                     self.best_solution = new_sol.copy()
                     
-            current_metrics = env.evaluate_detailed_solution(self.best_solution)
+            current_metrics = self.env.evaluate_detailed_solution(self.best_solution)
             self.fitness_history.append(current_metrics["fitness"])
             
             if self.kpi_logger:
@@ -76,12 +76,12 @@ class BatOptimization:
                 )
 
             # ✅ Environment state update (like DE/PFO)
-            env.apply_solution(self.best_solution)
+            self.env.apply_solution(self.best_solution)
             actions = {
                 f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
-                for bs_id in range(env.num_bs)
+                for bs_id in range(self.env.num_bs)
             }
-            env.step(actions)
+            self.env.step(actions)
             # self._update_visualization(iteration)
             
             # #  Visualization trigger (every 5 iterations)
@@ -91,14 +91,14 @@ class BatOptimization:
             #         "positions": self.positions.tolist(),
             #         "fitness": self.fitness_history,
             #         "algorithm": "bat",
-            #         "env_state": env.get_current_state()
+            #         "env_state": self.env.get_current_state()
             #     })        
             # Update visualization states after each iteration
             
 
         return {
             "solution": self.best_solution,
-            "metrics": env.evaluate_detailed_solution(self.best_solution),
+            "metrics": self.env.evaluate_detailed_solution(self.best_solution),
             "agents": {
                 "positions": self.positions.tolist(),
                 "fitness": self.fitness_history,
@@ -123,7 +123,7 @@ class BatOptimization:
         x = np.mean(self.best_solution)
         y = np.std(self.best_solution)
         # Record the best fitness from the current iteration using the stored environment
-        current_fitness = self.env.evaluate_detailed_solution(self.best_solution)["fitness"]
+        current_fitness = self.self.env.evaluate_detailed_solution(self.best_solution)["fitness"]
         
         # Append current position data
         # self.positions = np.vstack([self.positions, [x, y]])
@@ -139,11 +139,11 @@ class BatOptimization:
 # from envs.custom_channel_env import evaluate_detailed_solution
 
 # class BatOptimization:
-#     def __init__(self, num_users, num_cells, env, population_size=30, iterations=50, 
+#     def __init__(self, num_users, num_cells, self.env, population_size=30, iterations=50, 
 #                 freq_min=0, freq_max=2, alpha=0.9, gamma=0.9, seed=None):
 #         self.num_users = num_users
 #         self.num_cells = num_cells
-#         self.env = env
+#         self.self.env = self.env
 #         self.population_size = population_size
 #         self.iterations = iterations
 #         self.freq_min = freq_min
@@ -159,7 +159,7 @@ class BatOptimization:
 #         self.best = max(self.population, key=self.fitness)
     
 #     def fitness(self, solution):
-#         return evaluate_detailed_solution(self.env, solution)["fitness"]
+#         return evaluate_detailed_solution(self.self.env, solution)["fitness"]
     
 #     def optimize(self):
 #         for t in range(self.iterations):

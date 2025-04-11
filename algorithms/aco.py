@@ -3,7 +3,7 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class ACO:
-    def __init__(self, env, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
         """Ant Colony Optimization with adaptive parameters and vectorized solution construction"""
         # Optimization parameters
         self.env=env
@@ -22,10 +22,10 @@ class ACO:
         # Initialize the random generator for reproducibility
         self.rng = np.random.RandomState(self.seed)
 
-    def run(self, env: NetworkEnvironment, visualize_callback: callable = None, kpi_logger=None) -> dict: 
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> dict: 
         """Main interface for hybrid training system"""
-        num_ue = env.num_ue
-        num_bs = env.num_bs
+        num_ue = self.env.num_ue
+        num_bs = self.env.num_bs
         
         # Initialize pheromones with a base value and a bit of noise
         self.pheromones = np.ones((num_ue, num_bs)) * 0.1
@@ -43,7 +43,7 @@ class ACO:
             solutions = self._construct_solution_vectorized(num_bs, alpha, beta)
             
             # Evaluate each solution's fitness
-            fitness_values = np.array([env.evaluate_detailed_solution(sol)["fitness"] for sol in solutions])
+            fitness_values = np.array([self.env.evaluate_detailed_solution(sol)["fitness"] for sol in solutions])
             current_best_idx = np.argmax(fitness_values)
             
             # Update the best solution if a better one is found
@@ -53,10 +53,10 @@ class ACO:
 
             # Update pheromones using normalized fitness contributions
             self._update_pheromones(solutions, fitness_values)
-            self._update_visualization(env, iteration)
+            self._update_visualization(self.env, iteration)
             
             # After evaluating fitness_values:
-            current_best_metrics = env.evaluate_detailed_solution(solutions[current_best_idx])
+            current_best_metrics = self.env.evaluate_detailed_solution(solutions[current_best_idx])
             self.fitness_history.append(current_best_metrics["fitness"])
 
             # ✅ DE/PFO-style logging
@@ -75,20 +75,20 @@ class ACO:
             #         "positions": self.positions.tolist(),
             #         "fitness": self.fitness_history,
             #         "algorithm": "aco",
-            #         "env_state": env.get_current_state()
+            #         "env_state": self.env.get_current_state()
             #     })
             
             # Mirror DE's environment interaction
-            env.apply_solution(self.best_solution)
+            self.env.apply_solution(self.best_solution)
             actions = {
                 f"bs_{bs_id}": np.where(self.best_solution == bs_id)[0].tolist()
-                for bs_id in range(env.num_bs)
+                for bs_id in range(self.env.num_bs)
             }
-            env.step(actions)  # Update network state
+            self.env.step(actions)  # Update network state
             
         return {
             "solution": self.best_solution,
-            "metrics": env.evaluate_detailed_solution(self.best_solution),
+            "metrics": self.env.evaluate_detailed_solution(self.best_solution),
             "agents": {
                 "positions": self.positions.tolist(),
                 "fitness": self.fitness_history,

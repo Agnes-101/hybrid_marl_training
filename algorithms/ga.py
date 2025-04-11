@@ -50,7 +50,12 @@ class GAOptimization:
             current_best_idx = np.argmax(fitness_values)
             current_best_sol = self.population[current_best_idx]
             current_metrics = self.env.evaluate_detailed_solution(current_best_sol)
+            current_best_fitness = fitness_values[current_best_idx]
             
+            # Update global best
+            if current_best_fitness > best_fitness:
+                best_fitness = current_best_fitness
+                best_solution = current_best_sol.copy()
             # ✅ DE-style logging
             if self.kpi_logger:
                 self.kpi_logger.log_metrics(
@@ -59,8 +64,9 @@ class GAOptimization:
                     algorithm="ga",
                     metrics=current_metrics
                 )
+                print("Recent KPI Logs:", kpi_logger.recent_logs())
                 
-            new_population = []
+            new_population = [current_best_sol.copy()]
             while len(new_population) < self.population_size:
                 parent1 = self.tournament_selection()
                 parent2 = self.tournament_selection()
