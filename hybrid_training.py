@@ -6,8 +6,9 @@ import os
 # sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 # Go up TWO levels if file is outside hybrid_trainer
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)if project_root not in sys.path else None
+print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
 
 # ENVIRONMENT REGISTRATION MUST be outside class definition
 from ray.tune.registry import register_env
