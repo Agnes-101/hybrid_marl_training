@@ -1,11 +1,7 @@
 import sys
 import os
 
-# # Configure project root
-# project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-# sys.path.insert(0, project_root) if project_root not in sys.path else None
 
-# Go up TWO levels if file is outside hybrid_trainer
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)if project_root not in sys.path else None
 print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
@@ -47,21 +43,18 @@ class HybridTraining:
         ray.init(
             runtime_env={
                 "env_vars": {"PYTHONPATH": project_root},
-                "working_dir": project_root,
-                # "py_modules": [
-                #     # Use full paths to SPECIFIC FILES
-                #     os.path.join(project_root, "envs", "custom_channel_env.py"),
-                #     os.path.join(project_root, "hybrid_trainer", "hybrid_training.py")
-                # ],
+                "working_dir":"/Agnes-101/hybrid_marl_training", # project_root,                
                 # Block problematic paths
-                "excludes": [
-                    "**/sys/**",
-                    "**/proc/**",
-                    "**/dev/**",
-                    "*.pyc",
-                    "__pycache__/",
-                    ".*"
+                "includes": [  # Explicitly include critical paths
+                    "envs/",
+                    "hybrid_trainer/",
+                    "config/*.yaml"
                 ],
+                "excludes": [
+                    "**/sys/**", 
+                    "**/results/**",  # Exclude large outputs
+                    "**/notebooks/**"  # Exclude Colab/IPYNB files
+                ]
             },
             **config["ray_resources"]
         )
