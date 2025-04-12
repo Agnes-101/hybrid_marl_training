@@ -117,14 +117,22 @@ class HybridTraining:
         .training(
             model={"custom_model": initial_policy} if initial_policy else {},
             num_sgd_iter=5,# num_epochs=5, 
-            train_batch_size=4000
+            train_batch_size=4000,
+            # Prevent infinite training loops
+            min_time_s_per_iteration=10,
+            min_sample_timesteps_per_iteration=1000
         )
         .resources(
             num_gpus=self.config["marl_training"]["num_gpus"],            
         )
         .env_runners(  # Add this section for CPU resources ✅
-        num_cpus_per_env_runner=2  # Updated from num_cpus_per_worker
-            )
+        num_cpus_per_env_runner=1 # Updated from num_cpus_per_worker
+        )
+        .debugging(
+        # Enable detailed logging
+        log_level="DEBUG",
+        logger_config={"type": "ray.tune.logger.TBXLogger"}
+        )
         )
         
         analysis = tune.run(
@@ -378,10 +386,10 @@ if __name__ == "__main__":
         # Resource management
         "ray_resources": {
             "num_cpus": 8,
-            "num_gpus": 1,
+            "num_gpus": 0,
             },
         "marl_training": {
-        "num_gpus": 0.5  #  GPUs allocated to MARL
+        "num_gpus": 0  #  GPUs allocated to MARL
         },
         # Visualization parameters
         "visualization": {

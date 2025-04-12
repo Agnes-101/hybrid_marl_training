@@ -93,24 +93,24 @@ class NetworkEnvironment(gym.Env):
     #         ue.associated_bs = None
     #     return self._get_obs()
     
-        def reset(self, seed=None, options=None):
+    def reset(self, seed=None, options=None):
             # Called automatically by RLlib at episode start
-            self.current_step = 0
-            self.version += 1
+        self.current_step = 0
+        self.version += 1
             
             # Reset UE positions and associations
-            for ue in self.ues:
-                ue.position = torch.tensor(
+        for ue in self.ues:
+            ue.position = torch.tensor(
                     [np.random.uniform(0, 100), np.random.uniform(0, 100)],
                     dtype=torch.float32  # Match observation dtype
                 )
-                ue.associated_bs = None
+            ue.associated_bs = None
             
             # Generate initial observations
-            obs = self._get_obs()
+        obs = self._get_obs()
             
             # Convert all values to float32 explicitly
-            return {
+        return {
                 agent_id: obs[agent_id].astype(np.float32)
                 for agent_id in obs
             }, {}
