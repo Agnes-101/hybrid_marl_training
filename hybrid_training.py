@@ -5,17 +5,30 @@ import os
 # sys.path.insert(0, project_root)if project_root not in sys.path else None
 # print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
 
-# Calculate path to hybrid_marl_training subfolder
+# Get the directory of THIS file
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_file_dir, "..", ".."))  # Go up 2 levels from current file
-hybrid_marl_dir = os.path.join(project_root, "hybrid_marl_training")  # Target subfolder
 
-print(f"Verified Project Root: {project_root}")  # Should be /Agnes-101
-print(f"Hybrid MARL Directory: {hybrid_marl_dir}")  # Should be /Agnes-101/hybrid_marl_training
+# Navigate to hybrid_marl_training directory
+hybrid_marl_dir = os.path.abspath(os.path.join(
+    current_file_dir, 
+    ".."  # Go up one level from current file's dir
+))
 
-# Add BOTH to Python path
-sys.path.insert(0, project_root)
-sys.path.insert(0, hybrid_marl_dir)
+print(f"Hybrid MARL Path: {hybrid_marl_dir}")
+
+# # Calculate path to hybrid_marl_training subfolder
+# current_file_dir = os.path.dirname(os.path.abspath(__file__))
+# project_root = os.path.abspath(os.path.join(current_file_dir, "..", ".."))  # Go up 2 levels from current file
+# hybrid_marl_dir = os.path.join(project_root, "hybrid_marl_training")  # Target subfolder
+
+# print(f"Verified Project Root: {project_root}")  # Should be /Agnes-101
+# print(f"Hybrid MARL Directory: {hybrid_marl_dir}")  # Should be /Agnes-101/hybrid_marl_training
+
+# # Add BOTH to Python path
+# sys.path.insert(0, project_root)
+# sys.path.insert(0, hybrid_marl_dir)
+
+
 
 # ENVIRONMENT REGISTRATION MUST be outside class definition
 from ray.tune.registry import register_env
@@ -54,7 +67,7 @@ class HybridTraining:
         # )
         ray.init(
             runtime_env={
-                "env_vars": {"PYTHONPATH": f"{hybrid_marl_dir}:{project_root}" },
+                "env_vars": {"PYTHONPATH": hybrid_marl_dir},
                 "working_dir":hybrid_marl_dir, # project_root,                
                 # Block problematic paths
                 "includes": [  # Explicitly include critical paths
