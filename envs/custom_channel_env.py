@@ -107,7 +107,7 @@ class NetworkEnvironment(gym.Env):
             ue.associated_bs = None
             
             # Generate initial observations
-        obs = self._get_obs()
+            obs = self._get_obs()
             
             # Convert all values to float32 explicitly
         return {
@@ -227,13 +227,13 @@ class NetworkEnvironment(gym.Env):
     #         }
     
     def _get_obs(self):
-        """Structure observations per agent"""
+        """Structure observations per agent with dimension consistency"""
         return {
             f"bs_{bs.id}": np.concatenate([
-                [bs.load],
-                bs.position.numpy(),
-                [ue.position.numpy() for ue in self.ues]
-            ]).astype(np.float32)  # Explicit casting
+                np.array([bs.load], dtype=np.float32).flatten(),  # 1D array
+                bs.position.numpy().flatten().astype(np.float32),  # 1D array
+                np.concatenate([ue.position.numpy() for ue in self.ues])  # Flattened 1D
+            ])
             for bs in self.base_stations
         }
 
