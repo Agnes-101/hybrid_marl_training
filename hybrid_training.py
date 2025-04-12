@@ -117,10 +117,8 @@ class HybridTraining:
         .training(
             model={"custom_model": initial_policy} if initial_policy else {},
             num_sgd_iter=5,# num_epochs=5, 
-            train_batch_size=4000,
-            # Prevent infinite training loops
-            min_time_s_per_iteration=10,
-            min_sample_timesteps_per_iteration=1000
+            train_batch_size=4000
+            
         )
         .resources(
             num_gpus=self.config["marl_training"]["num_gpus"],            
