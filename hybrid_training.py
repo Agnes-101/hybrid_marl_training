@@ -7,12 +7,14 @@ import os
 
 # Get the directory of THIS file
 # current_file_dir = os.path.dirname(os.path.abspath(__file__))
+# Explicit path to EXACT directory containing envs/ and hybrid_trainer/
+hybrid_marl_dir = "/Agnes-101/hybrid_marl_training"  # Hardcoded absolute path
+# Verify directory exists
+if not os.path.exists(hybrid_marl_dir):
+    raise FileNotFoundError(f"Directory {hybrid_marl_dir} not found!")
 
-# Get the EXACT path containing envs/ and hybrid_trainer/
-hybrid_marl_dir = os.path.abspath(os.path.join(
-    os.path.dirname(__file__),  # Current file's directory
-    ".."  # Go up one level to parent dir containing envs/
-))
+# Add to Python path
+sys.path.insert(0, hybrid_marl_dir)
 
 print(f"Hybrid MARL Path: {hybrid_marl_dir}")
 
@@ -67,7 +69,7 @@ class HybridTraining:
         # )
         ray.init(
             runtime_env={
-                "env_vars": {"PYTHONPATH": f"{hybrid_marl_dir}:{os.path.dirname(hybrid_marl_dir)}"},
+                "env_vars": {"PYTHONPATH": hybrid_marl_dir},
                 "working_dir":hybrid_marl_dir, # project_root,                
                 # Block problematic paths
                 "includes": [  # Explicitly include critical paths
