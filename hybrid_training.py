@@ -1,9 +1,22 @@
 import sys
 import os
 
-# Configure project root
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, project_root) if project_root not in sys.path else None
+# # Configure project root
+# project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# sys.path.insert(0, project_root) if project_root not in sys.path else None
+
+# Go up TWO levels if file is outside hybrid_trainer
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, project_root)if project_root not in sys.path else None
+
+# ENVIRONMENT REGISTRATION MUST be outside class definition
+from ray.tune.registry import register_env
+from envs.custom_channel_env import NetworkEnvironment
+
+def env_creator(env_config):
+    return NetworkEnvironment(env_config)
+
+register_env("NetworkEnv", env_creator)
 
 import ray
 import time
@@ -15,13 +28,29 @@ from typing import Dict
 from IPython.display import display
 from ray.rllib.algorithms.ppo import PPOConfig
 from analysis.comparison import MetricAnimator 
-from envs.custom_channel_env import NetworkEnvironment
+# from envs.custom_channel_env import NetworkEnvironment
 from hybrid_trainer.metaheuristic_opt import run_metaheuristic
 from hybrid_trainer.kpi_logger import KPITracker
 from hybrid_trainer.live_dashboard import LiveDashboard
 
 class HybridTraining:
     def __init__(self, config: Dict):
+        # Initialize Ray AFTER path modification        
+        # ray.init(
+        #     runtime_env={
+        #         "env_vars": {"PYTHONPATH": project_root},
+        #         "working_dir": project_root
+        #     },
+        #     **config["ray_resources"]
+        # )
+        ray.init(
+            runtime_env={
+                "env_vars": {"PYTHONPATH": project_root},
+                "working_dir": project_root,
+                "excludes": ["*.pyc", "__pycache__/"]
+            },
+            **config["ray_resources"]
+        )
         self.config = config
         self.env = NetworkEnvironment(config["env_config"])
         self.kpi_logger = KPITracker(enabled=config["logging"]["enabled"])
@@ -36,12 +65,12 @@ class HybridTraining:
         )
         # display.display(self.dashboard.fig)
         
-        ray.init(**config["ray_resources"])
+        # ray.init(**config["ray_resources"])
         # Create log directory if needed
         if config["logging"]["enabled"]:
             os.makedirs(config["logging"]["log_dir"], exist_ok=True)
             
-            
+    
     def _init_algorithm_colors(self) -> Dict:
         """Map algorithms to visualization colors"""
         return {
@@ -111,7 +140,7 @@ class HybridTraining:
         
         marl_config = (PPOConfig()
         .environment(
-            NetworkEnvironment,
+            "NetworkEnv", # NetworkEnvironment,
             env_config=env_config,            
         )
         .training(
