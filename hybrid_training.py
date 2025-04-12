@@ -6,12 +6,12 @@ import os
 # print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
 
 # Get the directory of THIS file
-current_file_dir = os.path.dirname(os.path.abspath(__file__))
+# current_file_dir = os.path.dirname(os.path.abspath(__file__))
 
-# Navigate to hybrid_marl_training directory
+# Get the EXACT path containing envs/ and hybrid_trainer/
 hybrid_marl_dir = os.path.abspath(os.path.join(
-    current_file_dir, 
-    ".."  # Go up one level from current file's dir
+    os.path.dirname(__file__),  # Current file's directory
+    ".."  # Go up one level to parent dir containing envs/
 ))
 
 print(f"Hybrid MARL Path: {hybrid_marl_dir}")
@@ -67,7 +67,7 @@ class HybridTraining:
         # )
         ray.init(
             runtime_env={
-                "env_vars": {"PYTHONPATH": hybrid_marl_dir},
+                "env_vars": {"PYTHONPATH": f"{hybrid_marl_dir}:{os.path.dirname(hybrid_marl_dir)}"},
                 "working_dir":hybrid_marl_dir, # project_root,                
                 # Block problematic paths
                 "includes": [  # Explicitly include critical paths
