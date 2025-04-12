@@ -1,10 +1,21 @@
 import sys
 import os
 
+# project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# sys.path.insert(0, project_root)if project_root not in sys.path else None
+# print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, project_root)if project_root not in sys.path else None
-print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
+# Calculate path to hybrid_marl_training subfolder
+current_file_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_file_dir, "..", ".."))  # Go up 2 levels from current file
+hybrid_marl_dir = os.path.join(project_root, "hybrid_marl_training")  # Target subfolder
+
+print(f"Verified Project Root: {project_root}")  # Should be /Agnes-101
+print(f"Hybrid MARL Directory: {hybrid_marl_dir}")  # Should be /Agnes-101/hybrid_marl_training
+
+# Add BOTH to Python path
+sys.path.insert(0, project_root)
+sys.path.insert(0, hybrid_marl_dir)
 
 # ENVIRONMENT REGISTRATION MUST be outside class definition
 from ray.tune.registry import register_env
@@ -14,6 +25,7 @@ def env_creator(env_config):
     return NetworkEnvironment(env_config)
 
 register_env("NetworkEnv", env_creator)
+
 
 import ray
 import time
@@ -42,8 +54,8 @@ class HybridTraining:
         # )
         ray.init(
             runtime_env={
-                "env_vars": {"PYTHONPATH": project_root},
-                "working_dir":"/Agnes-101/hybrid_marl_training", # project_root,                
+                "env_vars": {"PYTHONPATH": f"{hybrid_marl_dir}:{project_root}" },
+                "working_dir":hybrid_marl_dir, # project_root,                
                 # Block problematic paths
                 "includes": [  # Explicitly include critical paths
                     "envs/",
@@ -53,11 +65,24 @@ class HybridTraining:
                 "excludes": [
                     "**/sys/**", 
                     "**/results/**",  # Exclude large outputs
-                    "**/notebooks/**"  # Exclude Colab/IPYNB files
+                    "**/notebooks/**",  # Exclude Colab/IPYNB files
+                    "*.pyc",
+                    "__pycache__/",
+                    ".*"
                 ]
             },
             **config["ray_resources"]
         )
+        @ray.remote
+        def verify_package():
+            try:
+                from envs.custom_channel_env import NetworkEnvironment
+                from hybrid_training import HybridTraining
+                return True
+            except ImportError as e:
+                print(f"Import failed: {e}")
+                return False
+        assert ray.get(verify_package.remote()), "Package verification failed!"
         self.config = config
         self.env = NetworkEnvironment(config["env_config"])
         self.kpi_logger = KPITracker(enabled=config["logging"]["enabled"])
