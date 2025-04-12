@@ -46,11 +46,12 @@ class HybridTraining:
         ray.init(
             runtime_env={
                 "env_vars": {"PYTHONPATH": project_root},
-                # "working_dir": project_root,
-                "py_modules": [
-                    os.path.join(project_root, "envs"),
-                    os.path.join(project_root, "hybrid_trainer")
-                ],
+                "working_dir": project_root,
+                # "py_modules": [
+                #     # Use full paths to SPECIFIC FILES
+                #     os.path.join(project_root, "envs", "custom_channel_env.py"),
+                #     os.path.join(project_root, "hybrid_trainer", "hybrid_training.py")
+                # ],
                 # Block problematic paths
                 "excludes": [
                     "**/sys/**",
