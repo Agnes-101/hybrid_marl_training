@@ -43,6 +43,7 @@ import time
 import numpy as np
 import pandas as pd
 from ray import tune
+from ray.rllib.models import ModelCatalog
 # from ray.tune.trial import Trial
 from typing import Dict
 from IPython.display import display
@@ -174,8 +175,11 @@ class HybridTraining:
         # Configure environment with current network state
         env_config = {
             **self.config["env_config"],
-            "current_state": self.env.get_current_state(),  # Capture initial state
-            "environment_instance": self.env  # Pass through env_config instead
+            # "current_state": self.env.get_current_state(),  # Capture initial state
+            # "environment_instance": self.env  # Pass through env_config instead
+            # Add serializable equivalents:
+            "initial_state_hash": hash(self.env.get_current_state()),
+            "env_id": id(self.env)
         }
         
         # marl_config = (PPOConfig()
@@ -189,9 +193,17 @@ class HybridTraining:
             env_config=env_config,            
         )
         .training(
-            model={"custom_model": initial_policy} if initial_policy else {},
-            num_sgd_iter=5,# num_epochs=5, 
-            train_batch_size=4000
+            # model={"custom_model": initial_policy} if initial_policy else {},
+            # num_sgd_iter=5,# num_epochs=5, 
+            # train_batch_size=4000
+            model={"custom_model": "meta_policy"} if initial_policy else {},
+            gamma=0.99,
+            lr=0.0001,
+            kl_coeff=0.3,
+            num_sgd_iter=3,
+            sgd_minibatch_size=128,
+            train_batch_size=1000,
+            entropy_coeff=0.01
             
         )
         .resources(
@@ -206,7 +218,10 @@ class HybridTraining:
         logger_config={"type": "ray.tune.logger.TBXLogger"}
         )
         )
-        
+        # Before tune.run()
+        if initial_policy:
+            ModelCatalog.register_custom_model("meta_policy", type(initial_policy))
+            
         analysis = tune.run(
             "PPO",
             config=marl_config.to_dict(),
@@ -214,8 +229,10 @@ class HybridTraining:
             checkpoint_at_end=True,
             callbacks=[self._create_marl_callback()]
         )
-        
+        print("Trial errors:", analysis.errors)
         return analysis
+        # Add this after tune.run()
+        
 
     def _create_marl_callback(self):
         """Generate callback for real-time MARL visualization"""
