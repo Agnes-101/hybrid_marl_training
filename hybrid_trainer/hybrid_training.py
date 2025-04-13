@@ -218,8 +218,8 @@ class HybridTraining:
             # "environment_instance": self.env  # Pass through env_config instead
             # Add serializable equivalents:
             # "initial_state_hash": hash(self.env.get_current_state()),
-            "initial_state_hash": hash(tuple(sorted(self.env.get_current_state().items()))),
-            "env_id": id(self.env)
+            # "initial_state_hash": hash(tuple(sorted(self.env.get_current_state().items()))),
+            # "env_id": id(self.env)
         }
         
         # marl_config = (PPOConfig()
