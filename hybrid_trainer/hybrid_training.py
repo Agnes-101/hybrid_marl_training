@@ -248,8 +248,9 @@ class HybridTraining:
             gamma=0.99,
             lr=0.0001,
             kl_coeff=0.3,
-            num_sgd_iter=3,
-            sgd_minibatch_size=128,
+            num_learner_steps=3,# num_sgd_iter=3,
+            # sgd_minibatch_size=128,
+            mini_batch_size_per_learner=128,
             train_batch_size=1000,
             entropy_coeff=0.01
             
