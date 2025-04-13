@@ -1,18 +1,18 @@
 import sys
 import os
 
-# project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-# sys.path.insert(0, project_root)if project_root not in sys.path else None
-# print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, project_root)if project_root not in sys.path else None
+print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
 
-# Get the directory of THIS file
-# Replace the hardcoded path with dynamic calculation
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, ".."))  # Adjust based on actual structure
-hybrid_marl_dir = os.path.join(project_root, "hybrid_marl_training")
+# # Get the directory of THIS file
+# # Replace the hardcoded path with dynamic calculation
+# current_dir = os.path.dirname(os.path.abspath(__file__))
+# project_root = os.path.abspath(os.path.join(current_dir, ".."))  # Adjust based on actual structure
+# hybrid_marl_dir = os.path.join(project_root, "hybrid_marl_training")
 
-print(f"Project Root: {project_root}")
-print(f"Hybrid MARL Dir: {hybrid_marl_dir}")
+# print(f"Project Root: {project_root}")
+# print(f"Hybrid MARL Dir: {hybrid_marl_dir}")
 
 # # Calculate path to hybrid_marl_training subfolder
 # current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -95,6 +95,7 @@ class HybridTraining:
                 print(f"Import failed: {e}")
                 return False
         assert ray.get(verify_package.remote()), "Package verification failed!"
+        
         self.config = config
         self.env = NetworkEnvironment(config["env_config"])
         self.kpi_logger = KPITracker(enabled=config["logging"]["enabled"])

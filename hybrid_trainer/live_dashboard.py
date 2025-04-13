@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import plotly.subplots as sp
 import numpy as np
 from google.colab import output
-output.enable_custom_widget_manager()  # Enable Colab's widget manager
+# output.enable_custom_widget_manager()  # Enable Colab's widget manager
 from IPython.display import display, clear_output  # Required to render widgets
 #from IPython import display  # Required to render widgets
 
