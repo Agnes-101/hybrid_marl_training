@@ -1,19 +1,18 @@
 import sys
 import os
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, project_root)if project_root not in sys.path else None
-print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
+# project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# sys.path.insert(0, project_root)if project_root not in sys.path else None
+# print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
 
 # Get the directory of THIS file
 # Replace the hardcoded path with dynamic calculation
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, ".."))  # Adjust based on actual structure
+hybrid_marl_dir = os.path.join(project_root, "hybrid_marl_training")
 
-# current_dir = os.path.dirname(os.path.abspath(__file__))
-# project_root = os.path.abspath(os.path.join(current_dir, ".."))  # Adjust based on actual structure
-# hybrid_marl_dir = os.path.join(project_root, "hybrid_marl_training")
-
-# print(f"Project Root: {project_root}")
-# print(f"Hybrid MARL Dir: {hybrid_marl_dir}")
+print(f"Project Root: {project_root}")
+print(f"Hybrid MARL Dir: {hybrid_marl_dir}")
 
 # # Calculate path to hybrid_marl_training subfolder
 # current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -64,28 +63,28 @@ class HybridTraining:
         #     },
         #     **config["ray_resources"]
         # )
-        ray.init(
-            runtime_env={
-                "env_vars": {"PYTHONPATH":f"{project_root}:{os.environ.get('PYTHONPATH', '')}"},
-                                        # {"PYTHONPATH": hybrid_marl_dir},
-                "working_dir":project_root,# hybrid_marl_dir,                 
-                # Block problematic paths
-                "includes": [  # Explicitly include critical paths
-                    "envs/",
-                    "hybrid_trainer/",
-                    "config/*.yaml"
-                ],
-                "excludes": [
-                    "**/sys/**", 
-                    "**/results/**",  # Exclude large outputs
-                    "**/notebooks/**",  # Exclude Colab/IPYNB files
-                    "*.pyc",
-                    "__pycache__/",
-                    ".*"
-                ]
-            },
-            **config["ray_resources"]
-        )
+        # ray.init(
+        #     runtime_env={
+        #         "env_vars": {"PYTHONPATH":f"{project_root}:{os.environ.get('PYTHONPATH', '')}"},
+        #                                 # {"PYTHONPATH": hybrid_marl_dir},
+        #         "working_dir":project_root,# hybrid_marl_dir,                 
+        #         # Block problematic paths
+        #         "includes": [  # Explicitly include critical paths
+        #             "envs/",
+        #             "hybrid_trainer/",
+        #             "config/*.yaml"
+        #         ],
+        #         "excludes": [
+        #             "**/sys/**", 
+        #             "**/results/**",  # Exclude large outputs
+        #             "**/notebooks/**",  # Exclude Colab/IPYNB files
+        #             "*.pyc",
+        #             "__pycache__/",
+        #             ".*"
+        #         ]
+        #     },
+        #     **config["ray_resources"]
+        # )
         @ray.remote
         def verify_package():
             try:
