@@ -92,7 +92,7 @@ class MetaPolicyRLModule(RLModule):
         )
 # After MetaPolicy definition
 ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
-ModelCatalog.register_custom_rl_module("meta_policy_module", MetaPolicyRLModule)    
+# ModelCatalog.register_custom_rl_module("meta_policy_module", MetaPolicyRLModule)    
 class HybridTraining:
     def __init__(self, config: Dict):
         # Initialize Ray AFTER path modification        
