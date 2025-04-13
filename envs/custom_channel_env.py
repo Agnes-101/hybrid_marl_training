@@ -75,7 +75,7 @@ class NetworkEnvironment(gym.Env):
             f"bs_{i}": gym.spaces.Box(
                 low=-np.inf, 
                 high=np.inf,
-                shape=(4 + 2*self.num_ue,),
+                shape=(3 + 2*self.num_ue,), 
                 dtype=np.float32
             ) for i in range(self.num_bs)
         })
@@ -236,6 +236,7 @@ class NetworkEnvironment(gym.Env):
             ])
             for bs in self.base_stations
         }
+        
 
     def _get_normalized_ue_positions(self, bs):
         """Normalize positions to [-1,1] range"""

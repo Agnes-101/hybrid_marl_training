@@ -1,31 +1,10 @@
+#hybrid_training.py
 import sys
 import os
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)if project_root not in sys.path else None
 print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
-
-# # Get the directory of THIS file
-# # Replace the hardcoded path with dynamic calculation
-# current_dir = os.path.dirname(os.path.abspath(__file__))
-# project_root = os.path.abspath(os.path.join(current_dir, ".."))  # Adjust based on actual structure
-# hybrid_marl_dir = os.path.join(project_root, "hybrid_marl_training")
-
-# print(f"Project Root: {project_root}")
-# print(f"Hybrid MARL Dir: {hybrid_marl_dir}")
-
-# # Calculate path to hybrid_marl_training subfolder
-# current_file_dir = os.path.dirname(os.path.abspath(__file__))
-# project_root = os.path.abspath(os.path.join(current_file_dir, "..", ".."))  # Go up 2 levels from current file
-# hybrid_marl_dir = os.path.join(project_root, "hybrid_marl_training")  # Target subfolder
-
-# print(f"Verified Project Root: {project_root}")  # Should be /Agnes-101
-# print(f"Hybrid MARL Directory: {hybrid_marl_dir}")  # Should be /Agnes-101/hybrid_marl_training
-
-# # Add BOTH to Python path
-# sys.path.insert(0, project_root)
-# sys.path.insert(0, hybrid_marl_dir)
-
 
 
 # ENVIRONMENT REGISTRATION MUST be outside class definition
@@ -40,6 +19,7 @@ register_env("NetworkEnv", env_creator)
 
 import ray
 import time
+import torch
 import numpy as np
 import pandas as pd
 from ray import tune
@@ -53,7 +33,66 @@ from analysis.comparison import MetricAnimator
 from hybrid_trainer.metaheuristic_opt import run_metaheuristic
 from hybrid_trainer.kpi_logger import KPITracker
 from hybrid_trainer.live_dashboard import LiveDashboard
+from ray.rllib.core.rl_module.rl_module import RLModule
+from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 
+from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
+import gymnasium as gym
+
+class MetaPolicy(TorchModelV2):
+    def __init__(
+        self,
+        obs_space: gym.Space,
+        action_space: gym.Space,
+        num_outputs: int,
+        model_config: dict,
+        **kwargs
+    ):
+        # Get environment params
+        self.num_bs = model_config["custom_model_config"].get("num_bs", 20)
+        self.num_ue = model_config["custom_model_config"].get("num_ue", 200)
+        
+        # Calculate input size
+        # features_per_bs = 42  # From your observation structure
+        features_per_bs = (
+                3  # Base station features (ID, position_x, position_y, bandwidth)
+                + 2 * self.num_ue  # 2 features per UE (position_x, position_y)
+            )
+
+        input_size = self.num_bs * features_per_bs
+        
+        super().__init__(obs_space, action_space, num_outputs, model_config, **kwargs)
+        
+        self.base_model = torch.nn.Sequential(
+            torch.nn.Linear(input_size, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, num_outputs))
+        
+        self.value_branch = torch.nn.Linear(256, 1)
+        
+        # Load weights if provided
+        if "initial_weights" in model_config:
+            self.load_state_dict(model_config["initial_weights"])
+
+    def forward(self, input_dict, state, seq_lens):
+        features = self.base_model(input_dict["obs"])
+        self._value_out = self.value_branch(features)
+        return features, state
+
+    def value_function(self):
+        return self._value_out.flatten()
+    
+class MetaPolicyRLModule(RLModule):
+    def __init__(self, observation_space, action_space, model_config):
+        super().__init__(observation_space, action_space, model_config)
+        self.torch_model = MetaPolicy(
+            observation_space,
+            action_space,
+            model_config["custom_model_config"]
+        )
+# After MetaPolicy definition
+ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
+ModelCatalog.register_custom_rl_module("meta_policy_module", MetaPolicyRLModule)    
 class HybridTraining:
     def __init__(self, config: Dict):
         # Initialize Ray AFTER path modification        
@@ -196,7 +235,15 @@ class HybridTraining:
             # model={"custom_model": initial_policy} if initial_policy else {},
             # num_sgd_iter=5,# num_epochs=5, 
             # train_batch_size=4000
-            model={"custom_model": "meta_policy"} if initial_policy else {},
+            #  h model={"custom_model": "meta_policy"} if initial_policy else {},
+            model={
+            "custom_model": "meta_policy",
+            "custom_model_config": {
+                "initial_weights": initial_policy,
+                "num_bs": self.config["env_config"]["num_bs"],
+                "num_ue": self.config["env_config"]["num_ue"]
+            } if initial_policy else {}
+            },
             gamma=0.99,
             lr=0.0001,
             kl_coeff=0.3,
@@ -220,7 +267,8 @@ class HybridTraining:
         )
         # Before tune.run()
         if initial_policy:
-            ModelCatalog.register_custom_model("meta_policy", type(initial_policy))
+            # ModelCatalog.register_custom_model("meta_policy", type(initial_policy))
+            ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
             
         analysis = tune.run(
             "PPO",
