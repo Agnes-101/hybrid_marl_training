@@ -8,7 +8,7 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import pandas as pd
-from IPython.display import HTML, display
+# from IPython.display import HTML, display
 import numpy as np
 import time
 import uuid

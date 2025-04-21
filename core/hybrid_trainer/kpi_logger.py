@@ -9,6 +9,12 @@ sys.path.insert(0, project_root) if project_root not in sys.path else None
 import pandas as pd
 import numpy as np
 import time
+# hybrid_trainer/kpi_logger.py
+import json
+from celery import current_task
+from typing import Optional
+import torch
+
 
 class KPITracker:
     def __init__(self, enabled=True):        
@@ -54,26 +60,7 @@ class KPITracker:
         #         "load_variance": load_variance
         #     })
     
-    # def log_metrics(self, timestamp: float, phase: str, 
-    #             algorithm: str, metrics: dict):
-    #     """Log metrics for a single timestep"""
-    #     if not self.enabled:
-    #         return
-            
-    #     new_row = {
-    #         'timestamp': timestamp,
-    #         'phase': phase,
-    #         'algorithm': algorithm,
-    #         'reward': metrics.get('reward', 0),
-    #         'average_sinr': metrics.get('average_sinr', 0),
-    #         'fairness': metrics.get('fairness', 0),
-    #         'load_variance': metrics.get('load_variance', 0)
-    #     }
-        
-    #     self.history = pd.concat([
-    #         self.history,
-    #         pd.DataFrame([new_row])
-    #     ], ignore_index=True)
+    
     
     def recent_logs(self, n=5):
         """Retrieve the last n log entries for debugging."""
@@ -145,7 +132,72 @@ class KPITracker:
         """Save logs and plots (minimal example)"""
         df = pd.DataFrame(self.algorithm_logs)
         df.to_csv("results/algorithm_performance.csv", index=False)
+        
+        
+class WebKPILogger(KPITracker):
+    """Web-enabled version that pushes updates to Celery task state"""
+    def __init__(self, celery_task: Optional[object] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.celery_task = celery_task  # Reference to Celery task
+        # self.last_update = 0
+        # self.update_interval = 1.0 # update_interval  # Min seconds between updates
+    
+    def log_metrics(self, episode: int, phase: str, algorithm: str, metrics: dict):
+        # 1. Original logging behavior
+        super().log_metrics(episode, phase, algorithm, metrics)
+        
+        if self.celery_task and self.enabled:
+            def _convert(value):
+                
+                # Base case for tensors/arrays
+                if isinstance(value, torch.Tensor):
+                    return value.detach().cpu().numpy().tolist()
+                if isinstance(value, np.ndarray):
+                    return value.tolist()
+                
+                # Recursive cases
+                if isinstance(value, dict):
+                    return {k: _convert(v) for k, v in value.items()}
+                if isinstance(value, list):
+                    return [_convert(v) for v in value]
+                
+                # Filter out non-data types
+                if callable(value) or hasattr(value, '__call__'):
+                    return "<<METHOD>>"  # Placeholder for debugging
+                
+                # Final fallback
+                try:
+                    return float(value)
+                except:
+                    return str(value)
 
+
+            web_metrics = {
+                'episode': int(episode),
+                'phase': str(phase),
+                'algorithm': str(algorithm),
+                **{k: _convert(v) for k, v in metrics.items()}
+            }
+            # print(f"Current web Metrics : {web_metrics}")
+            # web_metrics = {
+            #     'episode': int(episode),
+            #     'phase': str(phase),
+            #     'algorithm': str(algorithm),
+            #     **{k: float(v) for k,v in metrics.items() if isinstance(v, (int, float, np.generic))}
+            #                 }
+            
+            
+            # Update task state for real-time frontend consumption
+            self.celery_task.update_state(
+                state='PROGRESS',
+                meta={
+                    'type': 'KPI_UPDATE',
+                    'data': web_metrics
+                }
+            )
+            
+            
+            
 
 # import sys
 # import os

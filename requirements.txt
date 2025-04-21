@@ -1,12 +1,24 @@
-ray[rllib]
-ray[tune]
-numpy
-matplotlib
-pandas
-networkx
-scipy
-gymnasium  # Replaces gym if using newer RLlib versions
-torch>=1.10
-tensorboard
-seaborn  # (Optional) for better visualization
-pandas>=1.5.0 
+# ray[rllib]
+# ray[tune]
+# Core dependencies
+ray[rllib]==2.30.0
+ray[tune]==2.30.0
+numpy==1.26.4
+pandas>=1.5.0
+networkx>=3.0
+scipy>=1.10.0
+gymnasium
+torch>=2.0.0
+tensorboard>=2.12.0
+plotly>=5.18.0
+
+# Web/API dependencies
+fastapi>=0.68.0
+uvicorn>=0.15.0
+celery>=5.0.0
+redis>=4.5.5
+python-dotenv>=1.0.0
+
+# Optional/Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.2

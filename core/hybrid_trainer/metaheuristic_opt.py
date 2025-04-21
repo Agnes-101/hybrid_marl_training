@@ -2,28 +2,54 @@ import sys
 import os
 
 # Add project root to Python's path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))# ".."
 sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 import numpy as np
 from typing import Dict, Any
-from envs.custom_channel_env import NetworkEnvironment
-from hybrid_trainer.kpi_logger import KPITracker
+from core.envs.custom_channel_env import NetworkEnvironment
+from core.hybrid_trainer.kpi_logger import KPITracker
 # from algorithms import aco, bat, cs, de, fa, ga, gwo, hs, ica, pfo, pso, sa, tabu, woa
-from algorithms.aco import ACO
-from algorithms.bat import BatOptimization
-from algorithms.cs import CSOptimization
-from algorithms.de import DEOptimization
-from algorithms.fa import FireflyOptimization
-from algorithms.ga import GAOptimization
-from algorithms.gwo import GWOOptimization
-from algorithms.hs import HarmonySearchOptimization
-from algorithms.ica import ICAOptimization
-from algorithms.pfo import PolarFoxOptimization
-from algorithms.pso import PSOOptimization
-from algorithms.sa import SAOptimization
-from algorithms.tabu import TabuSearchOptimization
-from algorithms.woa import WOAOptimization
+from core.algorithms.aco import ACO
+from core.algorithms.bat import BatOptimization
+from core.algorithms.cs import CSOptimization
+from core.algorithms.de import DEOptimization
+from core.algorithms.fa import FireflyOptimization
+from core.algorithms.ga import GAOptimization
+from core.algorithms.gwo import GWOOptimization
+from core.algorithms.hs import HarmonySearchOptimization
+from core.algorithms.ica import ICAOptimization
+from core.algorithms.pfo import PolarFoxOptimization
+from core.algorithms.pso import PSOOptimization
+from core.algorithms.sa import SAOptimization
+from core.algorithms.tabu import TabuSearchOptimization
+from core.algorithms.woa import WOAOptimization
+from functools import partial
+import json  # For serialize_result (add this)
+# In your run_metaheuristic_task function
+# from webapp.backend.tasks import web_visualize
+
+
+
+    
+def serialize_result(result: dict) -> dict:
+    """Recursively convert Tensors/NumPy to JSON-safe types"""
+    def _convert(obj):
+        import torch
+        if isinstance(obj, torch.Tensor):
+            return obj.cpu().numpy().tolist()
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (np.generic, int, float)):
+            return obj.item()
+        elif isinstance(obj, dict):
+            return {k: _convert(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [_convert(v) for v in obj]
+        elif callable(obj):
+            return f"Method: {obj.__name__}"  # Convert methods to strings for debugging
+        return obj
+    return _convert(result)
 
 def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_logger: KPITracker,visualize_callback=None) -> dict:
     """
@@ -65,7 +91,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     # Pass BOTH logger and callback to Algorithm's run()
     solution_data = algo_instance.run(
         # env=env,
-        visualize_callback=visualize_callback,  # Critical
+        visualize_callback=  visualize_callback, #  web_visualize, ## Critical
         kpi_logger=kpi_logger
     )
     solution= solution_data.get('solution')
@@ -92,32 +118,53 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     
     return {
         "solution": solution,
-        "metrics": metrics,
-        "agents": get_agent_states(algo_instance)  # For visualization
-        # "agents": get_agent_states(algorithm)  # For visualization
+        "metrics": metrics
+        # "agents": get_agent_states(algo_instance)  # For visualization
+        # "agents": {
+        #     "positions": algo_instance.positions.tolist(),  # Explicit conversion
+        #    #  "fitness": algo_instance.fitness
+        # }
+    
     }
+    # In return statement:
+    # return {
+    #     "solution": solution.tolist() if isinstance(solution, np.ndarray) else solution,
+    #     "metrics": {
+    #         k: v.tolist() if isinstance(v, np.ndarray) else v 
+    #         for k, v in metrics.items()
+    #     },
+    #     "agents": {
+    #         "positions": algo_instance.positions.tolist(),  # Explicit conversion
+    #         "fitness": algo_instance.best_fitness
+    #     }
+    # }
 
 
-def get_agent_states(algorithm_instance: Any) -> Dict:
+def get_agent_states(algo_instance: Any) -> Dict:
     """Universal agent state extractor for all algorithms"""
     # Try common attribute patterns
     positions = _get_possible_attribute(
-        algorithm_instance, 
+        algo_instance, 
         ["positions", "population", "swarm", "spatial_positions"]
     )
     
     fitness = _get_possible_attribute(
-        algorithm_instance,
+        algo_instance,
         ["fitness", "fitness_history", "best_fitnesses"]
     )
     
     # Special cases (e.g., ACO pheromones)
-    trails = getattr(algorithm_instance, "pheromone_trails", None)
+    trails = getattr(algo_instance, "pheromone_trails", None)
     
+    # return {
+    #     "positions": _normalize_positions(positions),
+    #     "fitness": _normalize_fitness(fitness),
+    #     "trails": trails
+    # }
     return {
-        "positions": _normalize_positions(positions),
-        "fitness": _normalize_fitness(fitness),
-        "trails": trails
+        "positions": algo_instance.positions.tolist(),
+        "fitness": float(algo_instance.best_fitness),  # Ensure scalar
+        "iteration": int(algo_instance.curr_iteration)
     }
 
 def _get_possible_attribute(obj, attr_names):

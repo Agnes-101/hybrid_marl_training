@@ -2,14 +2,14 @@
 import sys
 import os
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))# ".."
 sys.path.insert(0, project_root)if project_root not in sys.path else None
 print(f"Verified Project Root: {project_root}")  # Should NOT be "/"
 
 
 # ENVIRONMENT REGISTRATION MUST be outside class definition
 from ray.tune.registry import register_env
-from envs.custom_channel_env import NetworkEnvironment
+from core.envs.custom_channel_env import NetworkEnvironment
 
 def env_creator(env_config):
     return NetworkEnvironment(env_config)
@@ -26,61 +26,60 @@ from ray import tune
 from ray.rllib.models import ModelCatalog
 # from ray.tune.trial import Trial
 from typing import Dict
-from IPython.display import display
 from ray.rllib.algorithms.ppo import PPOConfig
-from analysis.comparison import MetricAnimator 
+from core.analysis.comparison import MetricAnimator 
 # from envs.custom_channel_env import NetworkEnvironment
-from hybrid_trainer.metaheuristic_opt import run_metaheuristic
-from hybrid_trainer.kpi_logger import KPITracker
-from hybrid_trainer.live_dashboard import LiveDashboard
+from core.hybrid_trainer.metaheuristic_opt import run_metaheuristic
+from core.hybrid_trainer.kpi_logger import KPITracker
+from core.hybrid_trainer.live_dashboard import LiveDashboard
 from ray.rllib.core.rl_module.rl_module import RLModule
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
-
-from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
+import torch.nn as nn
 import gymnasium as gym
 
+
+# class MetaPolicy(nn.Module, TorchModelV2):  # Order matters!
+#     def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+#         nn.Module.__init__(self)
+#         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
+        
+#         # Network layers
+#         self.fcnet = nn.Sequential(
+#             nn.Linear(obs_space.shape[0], 256),
+#             nn.ReLU(),
+#             nn.Linear(256, 256),
+#             nn.ReLU(),
+#             nn.Linear(256, num_outputs))
+            
+#         # Value branch
+#         self.value_branch = nn.Linear(256, 1)
+
+#     def forward(self, input_dict, state, seq_lens):
+#         features = self.fcnet(input_dict["obs"])
+#         self._value = self.value_branch(features)
+#         return features, state
+
+#     def value_function(self):
+#         return self._value.squeeze(-1)
+        
 class MetaPolicy(TorchModelV2):
-    def __init__(
-        self,
-        obs_space: gym.Space,
-        action_space: gym.Space,
-        num_outputs: int,
-        model_config: dict,
-        **kwargs
-    ):
-        # Get environment params
-        self.num_bs = model_config["custom_model_config"].get("num_bs", 20)
-        self.num_ue = model_config["custom_model_config"].get("num_ue", 200)
+    def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+        super().__init__(obs_space, action_space, num_outputs, model_config, name)
         
-        # Calculate input size
-        # features_per_bs = 42  # From your observation structure
-        features_per_bs = (
-                3  # Base station features (ID, position_x, position_y, bandwidth)
-                + 2 * self.num_ue  # 2 features per UE (position_x, position_y)
-            )
+        # Initialize layers using metaheuristic weights
+        initial_weights = model_config["custom_model_config"].get("initial_weights", [])
+        if initial_weights:
+            self.load_metaheuristic_weights(initial_weights)
 
-        input_size = self.num_bs * features_per_bs
-        
-        super().__init__(obs_space, action_space, num_outputs, model_config, **kwargs)
-        
-        self.base_model = torch.nn.Sequential(
-            torch.nn.Linear(input_size, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, num_outputs))
-        
-        self.value_branch = torch.nn.Linear(256, 1)
-        
-        # Load weights if provided
-        if "initial_weights" in model_config:
-            self.load_state_dict(model_config["initial_weights"])
-
-    def forward(self, input_dict, state, seq_lens):
-        features = self.base_model(input_dict["obs"])
-        self._value_out = self.value_branch(features)
-        return features, state
-
-    def value_function(self):
-        return self._value_out.flatten()
+    def load_metaheuristic_weights(self, weights):
+        """Map metaheuristic solution to policy weights"""
+        # Example: Create bias toward GA's BS choices
+        with torch.no_grad():
+            for param in self.parameters():
+                if param.dim() == 2:  # Weight matrices
+                    torch.nn.init.eye_(param)
+                elif param.dim() == 1:  # Biases
+                    param.data += torch.tensor(weights, dtype=torch.float32)
     
 class MetaPolicyRLModule(RLModule):
     def __init__(self, observation_space, action_space, model_config):
@@ -91,18 +90,19 @@ class MetaPolicyRLModule(RLModule):
             model_config["custom_model_config"]
         )
 # After MetaPolicy definition
-ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
-# ModelCatalog.register_custom_rl_module("meta_policy_module", MetaPolicyRLModule)    
+# ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
+
+# RAY_DEDUP_LOGS=0
 class HybridTraining:
     def __init__(self, config: Dict):
         # Initialize Ray AFTER path modification        
-        # ray.init(
-        #     runtime_env={
-        #         "env_vars": {"PYTHONPATH": project_root},
-        #         "working_dir": project_root
-        #     },
-        #     **config["ray_resources"]
-        # )
+        ray.init(
+            runtime_env={
+                "env_vars": {"PYTHONPATH": project_root},
+                "working_dir": project_root
+            },
+            **config["ray_resources"]
+        )
         # ray.init(
         #     runtime_env={
         #         "env_vars": {"PYTHONPATH":f"{project_root}:{os.environ.get('PYTHONPATH', '')}"},
@@ -128,8 +128,8 @@ class HybridTraining:
         @ray.remote
         def verify_package():
             try:
-                from envs.custom_channel_env import NetworkEnvironment
-                from hybrid_trainer.hybrid_training import HybridTraining
+                from core.envs.custom_channel_env import NetworkEnvironment
+                from core.hybrid_trainer.hybrid_training import HybridTraining
                 return True
             except ImportError as e:
                 print(f"Import failed: {e}")
@@ -143,11 +143,11 @@ class HybridTraining:
         self.metaheuristic_runs = 0
         
         self.max_metaheuristic_runs = 1  
-        self.dashboard = LiveDashboard(
-            network_bounds=(0, 100)
-            # algorithm_colors=self._init_algorithm_colors(),
-            # update_interval=config["visualization"]["update_interval_ms"]
-        )
+        # self.dashboard = LiveDashboard(
+        #     network_bounds=(0, 100)
+        #     # algorithm_colors=self._init_algorithm_colors(),
+        #     # update_interval=config["visualization"]["update_interval_ms"]
+        # )
         # display.display(self.dashboard.fig)
         
         # ray.init(**config["ray_resources"])
@@ -187,7 +187,7 @@ class HybridTraining:
                         }
                     )           
             # # Force Colab DOM update
-            display(self.dashboard.fig)
+            # display(self.dashboard.fig)
             time.sleep(0.1)
         # solution = run_metaheuristic(self.env, algorithm)
         # Pass the visualization hook to the metaheuristic
@@ -212,44 +212,32 @@ class HybridTraining:
         # print(f"\n Starting {self.config['marl_algorithm'].upper()} training...")
         print(f"\n Starting {self.config.get('marl_algorithm', 'PPO').upper()} training...")
         # Configure environment with current network state
+        # Convert NumPy arrays to lists
+        if initial_policy and "solution" in initial_policy:
+            initial_policy["solution"] = initial_policy["solution"].tolist()
+            
         env_config = {
-            **self.config["env_config"],
-            # "current_state": self.env.get_current_state(),  # Capture initial state
-            # "environment_instance": self.env  # Pass through env_config instead
-            # Add serializable equivalents:
-            # "initial_state_hash": hash(self.env.get_current_state()),
-            # "initial_state_hash": hash(tuple(sorted(self.env.get_current_state().items()))),
-            # "env_id": id(self.env)
+            **self.config["env_config"]            
         }
         
-        # marl_config = (PPOConfig()
-        #     .environment(NetworkEnvironment, env_config=self.config["env_config"])
-        #     .training(model={"custom_model": initial_policy} if initial_policy else {})
-        #     .resources(num_gpus=self.config["marl_training"]["num_gpus"]))
         
         marl_config = (PPOConfig()
         .environment(
             "NetworkEnv", # NetworkEnvironment,
             env_config=env_config,            
         )
-        .training(
-            # model={"custom_model": initial_policy} if initial_policy else {},
-            # num_sgd_iter=5,# num_epochs=5, 
-            # train_batch_size=4000
-            #  h model={"custom_model": "meta_policy"} if initial_policy else {},
+        .training(            
             model={
             "custom_model": "meta_policy",
             "custom_model_config": {
-                "initial_weights": initial_policy,
+                "initial_weights": initial_policy["solution"] if initial_policy else [],
                 "num_bs": self.config["env_config"]["num_bs"],
                 "num_ue": self.config["env_config"]["num_ue"]
             } if initial_policy else {}
             },
             gamma=0.99,
             lr=0.0001,
-            kl_coeff=0.3,
-            num_learner_steps=3,# num_sgd_iter=3,
-            # sgd_minibatch_size=128,
+            kl_coeff=0.3,            
             mini_batch_size_per_learner=128,
             train_batch_size=1000,
             entropy_coeff=0.01
@@ -258,13 +246,26 @@ class HybridTraining:
         .resources(
             num_gpus=self.config["marl_training"]["num_gpus"],            
         )
-        .env_runners(  # Add this section for CPU resources ✅
-        num_cpus_per_env_runner=1 # Updated from num_cpus_per_worker
+        .env_runners(
+        num_cpus_per_env_runner=1,
+        num_gpus_per_env_runner=0  # Set to 0 unless using GPUs for environment workers
+        )
+        .learners(
+            num_learners=1,  # Replaces num_learner_workers
+            num_cpus_per_learner=1,  # Replaces num_cpus_per_learner_worker
+            num_gpus_per_learner=0  # Replaces num_gpus_per_learner_worker
         )
         .debugging(
         # Enable detailed logging
         log_level="DEBUG",
         logger_config={"type": "ray.tune.logger.TBXLogger"}
+        )
+        .multi_agent(
+            policies={
+                f"bs_{i}": (None, self.obs_space, self.act_space, {})
+                for i in range(self.config["env_config"]["num_bs"])
+            },
+            policy_mapping_fn=lambda agent_id: agent_id
         )
         )
         # Before tune.run()
@@ -272,7 +273,7 @@ class HybridTraining:
             # ModelCatalog.register_custom_model("meta_policy", type(initial_policy))
             ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
             
-        analysis = tune.run(
+        analysis = ray.tune.run(
             "PPO",
             config=marl_config.to_dict(),
             stop={"training_iteration": self.config["marl_steps_per_phase"]},
@@ -455,7 +456,7 @@ class HybridTraining:
                         self.config["metaheuristic"]
                     )
                     self.metaheuristic_runs += 1
-
+                print(f"Initial Solution is : {initial_solution}")
             # Hybrid training loop
             current_phase = "marl"
             print(f"\n Current phase: {current_phase}")
@@ -466,11 +467,12 @@ class HybridTraining:
                     initial_solution = self._execute_metaheuristic_phase(
                         self.config["metaheuristic"]
                     )
+                    print(f"Initial Solution is : {initial_solution}")
                     current_phase = "marl"
                 
                 # Execute MARL phase
                 analysis = self._execute_marl_phase(
-                    initial_policy=initial_solution.get("policy")
+                    initial_policy=initial_solution.get("solution")
                 )
                 
                 # Log hybrid performance
@@ -502,15 +504,15 @@ if __name__ == "__main__":
     
     config = {
         # Core configuration
-        "metaheuristic": "bat",
-        "comparison_mode": True,
+        "metaheuristic": "sa",
+        "comparison_mode": False,
         "metaheuristic_algorithms": ["aco","bat", "cs", "de", "fa", "ga", "gwo", "hs", "ica", "pfo", "pso", "sa", "tabu", "woa"], #
         "marl_algorithm": "PPO", 
         
         # Environment parameters
         "env_config": {
-            "num_bs": 20,
-            "num_ue": 200,
+            "num_bs": 5,
+            "num_ue": 20,
             "episode_length": 1000,
             "log_kpis": True
         },

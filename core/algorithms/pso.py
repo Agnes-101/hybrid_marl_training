@@ -75,6 +75,16 @@ class PSOOptimization:
                     algorithm="pso",
                     metrics=current_metrics
                 )
+                
+            # ✅ Visualization updates
+            self._update_visualization(iteration)
+            if visualize_callback and iteration % 5 == 0:
+                visualize_callback({
+                    "positions": self.visual_positions.tolist(),
+                    "fitness": self.fitness_history,
+                    "algorithm": "pso",
+                    "env_state": self.env.get_current_state()
+                })
             
             # ✅ Environment update
         # 🔴 Restore environment after optimization
@@ -85,15 +95,7 @@ class PSOOptimization:
         #         for bs_id in range(self.env.num_bs)
         #     })
 
-            # # ✅ Visualization updates
-            # self._update_visualization(iteration)
-            # if visualize_callback and iteration % 5 == 0:
-            #     visualize_callback({
-            #         "positions": self.visual_positions.tolist(),
-            #         "fitness": self.fitness_history,
-            #         "algorithm": "pso",
-            #         "env_state": self.env.get_current_state()
-            #     })
+           
         return {
             "solution": self.gbest,
             "metrics": self.env.evaluate_detailed_solution(self.gbest),
