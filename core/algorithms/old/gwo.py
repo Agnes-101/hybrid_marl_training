@@ -70,15 +70,24 @@ class GWOOptimization:
             self.population = new_population
             self.update_leaders()
             # ✅ DE-style logging
-            current_metrics = self.env.evaluate_detailed_solution(self.alpha)
+            current_best_metrics = self.env.evaluate_detailed_solution(self.alpha)
             if self.kpi_logger:
                 self.kpi_logger.log_metrics(
                     episode=t,
                     phase="metaheuristic",
                     algorithm="gwo",
-                    metrics=current_metrics
+                    metrics=current_best_metrics
                 )
-            
+            # prepare the simple metrics dict for plotting
+            viz_metrics = {
+                "fitness":        current_best_metrics["fitness"],
+                "average_sinr":   current_best_metrics["average_sinr"],
+                "fairness":       current_best_metrics["fairness"]
+            }
+
+            # call the Streamlit callback (if any), passing metrics and the best solution
+            if visualize_callback:
+                visualize_callback(viz_metrics, self.best_solution) 
             # ✅ Environment update
             # 🔴 Restore environment after optimization
         self.env.set_state_snapshot(original_state)

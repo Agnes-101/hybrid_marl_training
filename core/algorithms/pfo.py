@@ -245,7 +245,8 @@ class PolarFoxOptimization:
                 print(f"PFO Iter {iteration}: Best Fitness = {best_fitness:.4f}, Diversity = {diversity:.2f}")
             
             historical_bests.append(best_fitness)
-            
+            # prepare the simple metrics dict for plotting
+             
             # # Periodic live dashboard updates (every 5 iterations)
             # if visualize_callback and iteration % 5 == 0:
             #     # Compute visualization positions (example: use diversity as x and best fitness as y)
@@ -316,9 +317,18 @@ class PolarFoxOptimization:
             # Adaptive mutation decay
             if no_improvement_streak == 0 and self.mutation_factor > mutation_reset:
                 self.mutation_factor *= 0.95  # Gradual decay on improvement
+                
             self.best_solution = best_solution.copy()    
             # Update environment with current best solution
-            
+            viz_metrics = {
+                "fitness":        current_best_metrics["fitness"],
+                "average_sinr":   current_best_metrics["average_sinr"],
+                "fairness":       current_best_metrics["fairness"]
+            }
+
+            # call the Streamlit callback (if any), passing metrics and the best solution
+            if visualize_callback:
+                visualize_callback(viz_metrics, self.best_solution)
         # 🔴 Restore environment after optimization
         self.env.set_state_snapshot(original_state)
         

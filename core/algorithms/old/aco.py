@@ -2,7 +2,7 @@
 import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
-class ACO:
+class ACOOptimization:
     def __init__(self, env: NetworkEnvironment, kpi_logger=None):
         """Ant Colony Optimization with adaptive parameters and vectorized solution construction"""
         # Optimization parameters
@@ -70,7 +70,16 @@ class ACO:
                     metrics=current_best_metrics  # Log full metrics, not just fitness
                 )
                 print(f"ACO Iter {iteration}: Best Fitness = {best_fitness:.4f}")
-                
+            # prepare the simple metrics dict for plotting
+            viz_metrics = {
+                "fitness":        current_best_metrics["fitness"],
+                "average_sinr":   current_best_metrics["average_sinr"],
+                "fairness":       current_best_metrics["fairness"]
+            }
+
+            # call the Streamlit callback (if any), passing metrics and the best solution
+            if visualize_callback:
+                visualize_callback(viz_metrics, self.best_solution)    
             # # ✅ Visualization trigger (every 5 iterations)
             # if visualize_callback and iteration % 5 == 0:
             #     visualize_callback({

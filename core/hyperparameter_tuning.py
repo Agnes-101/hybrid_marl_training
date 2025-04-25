@@ -10,20 +10,20 @@ import optuna
 from typing import Dict, Type, Callable
 from functools import partial
 from envs.custom_channel_env import NetworkEnvironment
-from algorithms.aco import ACO
-from algorithms.bat import BatOptimization
-from algorithms.cs import CSOptimization
-from algorithms.de import DEOptimization
-from algorithms.fa import FireflyOptimization
-from algorithms.ga import GAOptimization
-from algorithms.gwo import GWOOptimization
-from algorithms.hs import HarmonySearchOptimization
-from algorithms.ica import ICAOptimization
+from core.algorithms.old.aco import ACO
+from core.algorithms.old.bat import BatOptimization
+from core.algorithms.old.cs import CSOptimization
+from core.algorithms.old.de import DEOptimization
+from core.algorithms.old.fa import FireflyOptimization
+from core.algorithms.old.ga import GAOptimization
+from core.algorithms.old.gwo import GWOOptimization
+from core.algorithms.old.hs import HarmonySearchOptimization
+from core.algorithms.old.ica import ICAOptimization
 from algorithms.pfo import PolarFoxOptimization
-from algorithms.pso import PSOOptimization
-from algorithms.sa import SAOptimization
-from algorithms.tabu import TabuSearchOptimization
-from algorithms.woa import WOAOptimization
+from core.algorithms.old.pso import PSOOptimization
+from core.algorithms.old.sa import SAOptimization
+from core.algorithms.old.tabu import TabuSearchOptimization
+from core.algorithms.old.woa import WOAOptimization
 
 class MetaheuristicTuner:
     def __init__(self, env: NetworkEnvironment, num_trials=100):

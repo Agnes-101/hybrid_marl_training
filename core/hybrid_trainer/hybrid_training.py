@@ -27,8 +27,7 @@ from ray.rllib.models import ModelCatalog
 # from ray.tune.trial import Trial
 from typing import Dict
 from ray.rllib.algorithms.ppo import PPOConfig
-from core.analysis.comparison import MetricAnimator 
-# from envs.custom_channel_env import NetworkEnvironment
+from core.analysis.comparison import MetricAnimator
 from core.hybrid_trainer.metaheuristic_opt import run_metaheuristic
 from core.hybrid_trainer.kpi_logger import KPITracker
 from core.hybrid_trainer.live_dashboard import LiveDashboard
@@ -36,50 +35,193 @@ from ray.rllib.core.rl_module.rl_module import RLModule
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 import torch.nn as nn
 import gymnasium as gym
+from collections import OrderedDict
 
 
-# class MetaPolicy(nn.Module, TorchModelV2):  # Order matters!
-#     def __init__(self, obs_space, action_space, num_outputs, model_config, name):
-#         nn.Module.__init__(self)
-#         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
+class MetaPolicy(TorchModelV2, nn.Module):
+    # def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
+    #     # super().__init__(obs_space, action_space, num_outputs, model_config, name)
+    #     nn.Module.__init__(self)  # Initialize nn.Module first
+    #     TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
+    #     print("Model Config:", model_config["custom_model_config"])  # Debug line
+    #     # Extract metaheuristic solution from config
+    #     self.initial_weights = model_config["custom_model_config"].get("initial_weights", [])
+    #     self.num_bs = model_config["custom_model_config"]["num_bs"]
+    #     self.num_ue = model_config["custom_model_config"]["num_ue"]
         
-#         # Network layers
-#         self.fcnet = nn.Sequential(
-#             nn.Linear(obs_space.shape[0], 256),
-#             nn.ReLU(),
-#             nn.Linear(256, 256),
-#             nn.ReLU(),
-#             nn.Linear(256, num_outputs))
+    #     # Define neural network layers
+    #     self.fc = torch.nn.Linear(obs_space.shape[0], self.num_bs)
+        
+    #     # Initialize weights using metaheuristic solution
+    #     if self.initial_weights:
+    #         self._apply_initial_weights()
+    def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
+        print("Starting MetaPolicy initialization")
+        
+        # Initialize in correct order
+        nn.Module.__init__(self)
+        TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
+        
+        # Print detailed info about inputs
+        print(f"obs_space: {obs_space} (type: {type(obs_space)})")
+        print(f"action_space: {action_space} (type: {type(action_space)})")
+        print(f"num_outputs: {num_outputs}")
+        print(f"model_config keys: {list(model_config.keys())}")
+        
+        # Get custom config safely
+        custom_config = model_config.get("custom_model_config", {})
+        print(f"custom_model_config: {custom_config}")
+        
+        # Extract parameters
+        self.initial_weights = custom_config.get("initial_weights", [])
+        self.num_bs = custom_config.get("num_bs", 5)
+        self.num_ue = custom_config.get("num_ue", 20)
+        
+        print(f"Extracted values: initial_weights={len(self.initial_weights)} items, num_bs={self.num_bs}, num_ue={self.num_ue}")
+        
+        # Determine input size from observation space
+        try:
+            if isinstance(obs_space, gym.spaces.Dict):
+                print(f"Dict observation space with keys: {list(obs_space.spaces.keys())}")
+                input_size = sum(np.prod(space.shape) for space in obs_space.spaces.values())
+            else:
+                input_size = np.prod(obs_space.shape)
+            print(f"Calculated input_size: {input_size}")
+        except Exception as e:
+            print(f"Error determining input size: {e}")
+            # Fallback
+            input_size = 20  # Default value, adjust based on your actual observation size
+            print(f"Using fallback input_size: {input_size}")
+        
+        # Network layers
+        try:
+            self.fc = torch.nn.Linear(input_size, self.num_bs)
+            print("Successfully created neural network layers")
+        except Exception as e:
+            print(f"Error creating network layers: {e}")
             
-#         # Value branch
-#         self.value_branch = nn.Linear(256, 1)
-
-#     def forward(self, input_dict, state, seq_lens):
-#         features = self.fcnet(input_dict["obs"])
-#         self._value = self.value_branch(features)
-#         return features, state
-
-#     def value_function(self):
-#         return self._value.squeeze(-1)
+        # Initialize weights
+        if self.initial_weights:
+            try:
+                self._apply_initial_weights()
+                print("Successfully applied initial weights")
+            except Exception as e:
+                print(f"Error applying initial weights: {e}")
+                
+        print("Completed MetaPolicy initialization")
         
-class MetaPolicy(TorchModelV2):
-    def __init__(self, obs_space, action_space, num_outputs, model_config, name):
-        super().__init__(obs_space, action_space, num_outputs, model_config, name)
+    # def _apply_initial_weights(self):
+    #     """Bias policy to favor initial solution's BS choices"""
+    #     # Convert initial solution to one-hot encoded tensor
+    #     # Example: initial_weights = [1, 3, 0, ...] → UE 0 → BS 1, UE 1 → BS 3, etc.
+    #     print(f"Initial solution shape: {len(self.initial_weights)} UEs")  
         
-        # Initialize layers using metaheuristic weights
-        initial_weights = model_config["custom_model_config"].get("initial_weights", [])
-        if initial_weights:
-            self.load_metaheuristic_weights(initial_weights)
-
-    def load_metaheuristic_weights(self, weights):
-        """Map metaheuristic solution to policy weights"""
-        # Example: Create bias toward GA's BS choices
+    #     one_hot_weights = torch.eye(self.num_bs)[self.initial_weights]  # Shape: [num_ue, num_bs]
+    #     print(f"One-hot weights shape: {one_hot_weights.shape} (UEs x BSs)")
+    #     print("Sample weights for UE 0:", one_hot_weights[0])  # Should be one-hot
+        
+    #     # Set linear layer weights to favor initial solution
+    #     with torch.no_grad():
+    #         self.fc.weight.data = one_hot_weights.float()
+    #         self.fc.bias.data.zero_()
+    def _apply_initial_weights(self):
+        """Bias policy to favor initial solution's BS choices"""
+        # Create one-hot encoded weights
+        one_hot_weights = torch.eye(self.num_bs)[self.initial_weights]  # Shape: [num_ue, num_bs]
+        
+        # Linear layer weight shape needs to be [output_size, input_size]
+        # But we need to map from input_size (220) to num_bs (5)
         with torch.no_grad():
-            for param in self.parameters():
-                if param.dim() == 2:  # Weight matrices
-                    torch.nn.init.eye_(param)
-                elif param.dim() == 1:  # Biases
-                    param.data += torch.tensor(weights, dtype=torch.float32)
+            # Reshape the weights to properly initialize the linear layer
+            # Initialize most weights to near-zero
+            self.fc.weight.data.fill_(0.01)
+            
+            # For each UE, strengthen connections from its section of the input
+            # to the BS it was assigned in the initial solution
+            input_per_ue = self.fc.weight.data.shape[1] // self.num_ue
+            
+            for ue_idx, bs_idx in enumerate(self.initial_weights):
+                # Each UE gets a section of the input
+                start_idx = ue_idx * input_per_ue
+                end_idx = (ue_idx + 1) * input_per_ue
+                
+                # Set those weights higher for the assigned BS
+                self.fc.weight.data[bs_idx, start_idx:end_idx] = 1.0
+            
+            # Initialize bias
+            self.fc.bias.data.zero_()
+            
+            print(f"Weight matrix shape: {self.fc.weight.data.shape}")
+    
+    def forward(self, input_dict, state, seq_lens):
+        # Get observation
+        obs = input_dict["obs"]
+        
+        # Handle different observation types
+        if isinstance(obs, dict) or isinstance(obs, OrderedDict):
+            # For dictionary observations
+            print(f"Dict observation with keys: {list(obs.keys())}")
+            # Convert dict values to tensor
+            x = torch.cat([v.float() for v in obs.values()], dim=-1)
+        else:
+            # For tensor observations
+            print(f"Tensor observation with shape: {obs.shape}")
+            x = obs
+            
+        # Forward pass through network
+        logits = self.fc(x)
+        return logits, state
+    # def forward(self, input_dict, state, seq_lens):
+    #     # Handle input that could be a dictionary or tensor
+    #     print(f"Forward called with input_dict keys: {list(input_dict.keys())}")
+    #     print(f"Observation shape: {input_dict['obs'].shape}")  # Debug line
+        
+    #     x = input_dict["obs"]
+        
+    #     # Debug the input type
+    #     print(f"Input type: {type(x)}")
+        
+    #     # # If observation is a dictionary, extract the relevant part
+    #     # if isinstance(x, dict) or isinstance(x, OrderedDict):
+    #     #     # Choose the appropriate part of the observation
+    #     #     # You may need to adjust this based on your actual observation structure
+    #     #     x = next(iter(x.values()))  # Get first value in dict
+    #     #     print(f"Using first value from dict with shape: {x.shape}")
+    #     # Get observation
+    #     obs = input_dict["obs"]
+        
+    #     # Handle dict observation
+    #     if isinstance(obs, dict) or isinstance(obs, OrderedDict):
+    #         # Convert dict to tensor
+    #         obs_values = list(obs.values())
+    #         if obs_values:
+    #             x = torch.cat([v.float() for v in obs_values if hasattr(v, 'float')], dim=-1)
+    #         else:
+    #             raise ValueError("Empty observation dictionary")
+    #     else:
+    #         # Already a tensor
+    #         x = obs
+    #     # Now process the tensor
+    #     logits = self.fc(x)
+    #     return logits, state
+# class MetaPolicy(TorchModelV2):
+#     def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+#         super().__init__(obs_space, action_space, num_outputs, model_config, name)
+        
+#         # Initialize layers using metaheuristic weights
+#         initial_weights = model_config["custom_model_config"].get("initial_weights", [])
+#         if initial_weights:
+#             self.load_metaheuristic_weights(initial_weights)
+
+#     def load_metaheuristic_weights(self, weights):
+#         """Map metaheuristic solution to policy weights"""
+#         # Example: Create bias toward GA's BS choices
+#         with torch.no_grad():
+#             for param in self.parameters():
+#                 if param.dim() == 2:  # Weight matrices
+#                     torch.nn.init.eye_(param)
+#                 elif param.dim() == 1:  # Biases
+#                     param.data += torch.tensor(weights, dtype=torch.float32)
     
 class MetaPolicyRLModule(RLModule):
     def __init__(self, observation_space, action_space, model_config):
@@ -90,7 +232,7 @@ class MetaPolicyRLModule(RLModule):
             model_config["custom_model_config"]
         )
 # After MetaPolicy definition
-# ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
+ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
 
 # RAY_DEDUP_LOGS=0
 class HybridTraining:
@@ -135,9 +277,12 @@ class HybridTraining:
                 print(f"Import failed: {e}")
                 return False
         assert ray.get(verify_package.remote()), "Package verification failed!"
+        # ✅ Define observation/action spaces from the environment
         
         self.config = config
         self.env = NetworkEnvironment(config["env_config"])
+        self.obs_space = self.env.observation_space
+        self.act_space = self.env.action_space
         self.kpi_logger = KPITracker(enabled=config["logging"]["enabled"])
         self.current_epoch = 0  # Track hybrid training epochs
         self.metaheuristic_runs = 0
@@ -196,7 +341,7 @@ class HybridTraining:
             algorithm,
             self.current_epoch,
             kpi_logger=self.kpi_logger,
-            visualize_callback= de_visualize_callback  # Proper data flow
+            visualize_callback= None # Proper data flow
         )
         
         print("Final KPI History after metaheuristic phase:")
@@ -212,66 +357,53 @@ class HybridTraining:
         # print(f"\n Starting {self.config['marl_algorithm'].upper()} training...")
         print(f"\n Starting {self.config.get('marl_algorithm', 'PPO').upper()} training...")
         # Configure environment with current network state
-        # Convert NumPy arrays to lists
-        if initial_policy and "solution" in initial_policy:
-            initial_policy["solution"] = initial_policy["solution"].tolist()
+        # Extract initial solution safely
+        initial_weights = []
+        if initial_policy is not None:
+            initial_weights = initial_policy.tolist()  # ✅ Correct extraction
+            assert len(initial_weights) == self.config["env_config"]["num_ue"]
             
         env_config = {
             **self.config["env_config"]            
         }
         
         
-        marl_config = (PPOConfig()
-        .environment(
-            "NetworkEnv", # NetworkEnvironment,
-            env_config=env_config,            
-        )
-        .training(            
-            model={
-            "custom_model": "meta_policy",
-            "custom_model_config": {
-                "initial_weights": initial_policy["solution"] if initial_policy else [],
-                "num_bs": self.config["env_config"]["num_bs"],
-                "num_ue": self.config["env_config"]["num_ue"]
-            } if initial_policy else {}
-            },
-            gamma=0.99,
-            lr=0.0001,
-            kl_coeff=0.3,            
-            mini_batch_size_per_learner=128,
-            train_batch_size=1000,
-            entropy_coeff=0.01
-            
-        )
-        .resources(
-            num_gpus=self.config["marl_training"]["num_gpus"],            
-        )
-        .env_runners(
-        num_cpus_per_env_runner=1,
-        num_gpus_per_env_runner=0  # Set to 0 unless using GPUs for environment workers
-        )
-        .learners(
-            num_learners=1,  # Replaces num_learner_workers
-            num_cpus_per_learner=1,  # Replaces num_cpus_per_learner_worker
-            num_gpus_per_learner=0  # Replaces num_gpus_per_learner_worker
-        )
-        .debugging(
-        # Enable detailed logging
-        log_level="DEBUG",
-        logger_config={"type": "ray.tune.logger.TBXLogger"}
-        )
-        .multi_agent(
-            policies={
-                f"bs_{i}": (None, self.obs_space, self.act_space, {})
-                for i in range(self.config["env_config"]["num_bs"])
-            },
-            policy_mapping_fn=lambda agent_id: agent_id
-        )
+        # MARL configuration
+        marl_config = (
+            PPOConfig()
+            .environment(
+                "NetworkEnv",
+                env_config=env_config
+            )
+            .training(
+                model={
+                    "custom_model": "meta_policy",
+                    "custom_model_config": {
+                        "initial_weights": initial_weights,
+                        "num_bs": self.config["env_config"]["num_bs"],
+                        "num_ue": self.config["env_config"]["num_ue"]
+                    }
+                },
+                gamma=0.99,
+                lr=0.0001,
+                kl_coeff=0.3,
+                train_batch_size=1000
+            )
+            .multi_agent(
+                policies={
+                    f"ue_{i}": (None, self.obs_space, self.act_space, {})
+                    for i in range(self.config["env_config"]["num_ue"])
+                },
+                # policy_mapping_fn=lambda agent_id: agent_id
+                policy_mapping_fn=lambda agent_id: (
+                    print(f"Mapping agent: {agent_id}") or agent_id  # Debug line
+            )            
+            )
         )
         # Before tune.run()
-        if initial_policy:
-            # ModelCatalog.register_custom_model("meta_policy", type(initial_policy))
-            ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
+        # if initial_policy:
+        #     # ModelCatalog.register_custom_model("meta_policy", type(initial_policy))
+        #     ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
             
         analysis = ray.tune.run(
             "PPO",

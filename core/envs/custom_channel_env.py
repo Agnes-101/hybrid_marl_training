@@ -52,12 +52,43 @@ class NetworkEnvironment(MultiAgentEnv):
         self.current_step = 0
         self.log_kpis = log_kpis        
         self.metaheuristic_agents = []  # Initialize empty list         
+        # Calculate grid dimensions for base stations
+        num_bs = self.num_bs
+        a = int(np.floor(np.sqrt(num_bs)))
+        rows, cols = 1, num_bs  # Default to 1 row if no factors found
+        while a > 0:
+            if num_bs % a == 0:
+                rows = a
+                cols = num_bs // a
+                break
+            a -= 1
+        
+        # Calculate spacing to avoid edges
+        x_spacing = 100.0 / (cols + 1)
+        y_spacing = 100.0 / (rows + 1)
+        
+        # Generate grid positions
+        positions = []
+        for i in range(rows):
+            for j in range(cols):
+                x = (j + 1) * x_spacing
+                y = (i + 1) * y_spacing
+                positions.append([x, y])
+                if len(positions) == num_bs:
+                    break  # Exit early if we've reached the desired number
+            if len(positions) == num_bs:
+                break
         
         self.base_stations = [
-            BaseStation(id=i, position=[np.random.uniform(0, 100), np.random.uniform(0, 100)],
+            BaseStation(id=i, position=positions[i],
                         frequency=100.0, bandwidth=1000.0)
             for i in range(self.num_bs)
         ]
+        # self.base_stations = [
+        #     BaseStation(id=i, position=[np.random.uniform(0, 100), np.random.uniform(0, 100)],
+        #                 frequency=100.0, bandwidth=1000.0)
+        #     for i in range(self.num_bs)
+        # ]
         self.ues = [
             UE(id=i, position=[np.random.uniform(0, 100), np.random.uniform(0, 100)],
             velocity=[np.random.uniform(-1, 1), np.random.uniform(-1, 1)],
@@ -92,8 +123,8 @@ class NetworkEnvironment(MultiAgentEnv):
             f"ue_{i}": gym.spaces.Box(
                 low=-np.inf, 
                 high=np.inf, 
-                shape=(2 * self.num_bs + 1,),  # SINRs + BS loads + own demand
-                dtype=np.float32
+                shape=(2 * self.num_bs + 1,)  # SINRs + BS loads + own demand
+                # dtype=np.float32
             ) for i in range(self.num_ue)
         })
 

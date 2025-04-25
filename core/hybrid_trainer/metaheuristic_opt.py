@@ -10,20 +10,20 @@ from typing import Dict, Any
 from core.envs.custom_channel_env import NetworkEnvironment
 from core.hybrid_trainer.kpi_logger import KPITracker
 # from algorithms import aco, bat, cs, de, fa, ga, gwo, hs, ica, pfo, pso, sa, tabu, woa
-from core.algorithms.aco import ACO
-from core.algorithms.bat import BatOptimization
-from core.algorithms.cs import CSOptimization
-from core.algorithms.de import DEOptimization
-from core.algorithms.fa import FireflyOptimization
-from core.algorithms.ga import GAOptimization
-from core.algorithms.gwo import GWOOptimization
-from core.algorithms.hs import HarmonySearchOptimization
-from core.algorithms.ica import ICAOptimization
+from core.algorithms.old.aco import ACOOptimization
+from core.algorithms.old.bat import BatOptimization
+from core.algorithms.old.cs import CSOptimization
+from core.algorithms.old.de import DEOptimization
+from core.algorithms.old.fa import FireflyOptimization
+from core.algorithms.old.ga import GAOptimization
+from core.algorithms.old.gwo import GWOOptimization
+from core.algorithms.old.hs import HarmonySearchOptimization
+from core.algorithms.old.ica import ICAOptimization
 from core.algorithms.pfo import PolarFoxOptimization
-from core.algorithms.pso import PSOOptimization
-from core.algorithms.sa import SAOptimization
-from core.algorithms.tabu import TabuSearchOptimization
-from core.algorithms.woa import WOAOptimization
+from core.algorithms.old.pso import PSOOptimization
+from core.algorithms.old.sa import SAOptimization
+from core.algorithms.old.tabu import TabuSearchOptimization
+from core.algorithms.old.woa import WOAOptimization
 from functools import partial
 import json  # For serialize_result (add this)
 # In your run_metaheuristic_task function
@@ -61,7 +61,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     :return: Dict containing 'solution', 'SINR', 'fairness', 'load_balance', and 'handover_rate'.
     """
     algorithms = {
-        "aco": ACO,
+        "aco": ACOOptimization,
         "bat": BatOptimization,
         "cs": CSOptimization,
         "de": DEOptimization,
@@ -88,12 +88,18 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
 
     print(f"\n Algorithm Instance, {algo_instance}")
     # solution = algo_instance.run(env)
-    # Pass BOTH logger and callback to Algorithm's run()
+    
+    
     solution_data = algo_instance.run(
-        # env=env,
-        visualize_callback=  visualize_callback, #  web_visualize, ## Critical
+        visualize_callback=visualize_callback,
         kpi_logger=kpi_logger
     )
+
+    # solution_data = algo_instance.run(
+    #     # env=env,
+    #     visualize_callback=  visualize_callback, #  web_visualize, ## Critical
+    #     kpi_logger=kpi_logger
+    # )
     solution= solution_data.get('solution')
     print(f"\n Algorithm Solution, {solution}")
     
