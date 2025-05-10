@@ -10,20 +10,39 @@ from typing import Dict, Any
 from core.envs.custom_channel_env import NetworkEnvironment
 from core.hybrid_trainer.kpi_logger import KPITracker
 # from algorithms import aco, bat, cs, de, fa, ga, gwo, hs, ica, pfo, pso, sa, tabu, woa
-from core.algorithms.old.aco import ACOOptimization
-from core.algorithms.old.bat import BatOptimization
-from core.algorithms.old.cs import CSOptimization
-from core.algorithms.old.de import DEOptimization
-from core.algorithms.old.fa import FireflyOptimization
-from core.algorithms.old.ga import GAOptimization
-from core.algorithms.old.gwo import GWOOptimization
-from core.algorithms.old.hs import HarmonySearchOptimization
-from core.algorithms.old.ica import ICAOptimization
+
+# Core Metaheuristic Algorithms
+
+from core.algorithms.coa import COAOptimization
+from core.algorithms.co import CheetahOptimization
+from core.algorithms.do import DandelionOptimization
+from core.algorithms.gto import GTOOptimization
+from core.algorithms.hba import HBAOptimization
+from core.algorithms.rsa import RSAOptimization
+from core.algorithms.sto import STOOptimization
+from core.algorithms.poa import PelicanOptimization
+from core.algorithms.hoa import HippoOptimization
+from core.algorithms.fla import FLAOptimization
+from core.algorithms.rime import RIMEOptimization
+from core.algorithms.avoa import AVOAOptimization
 from core.algorithms.pfo import PolarFoxOptimization
-from core.algorithms.old.pso import PSOOptimization
-from core.algorithms.old.sa import SAOptimization
-from core.algorithms.old.tabu import TabuSearchOptimization
-from core.algorithms.old.woa import WOAOptimization
+from core.algorithms.roa import RainbowOptimization
+
+# from core.algorithms.old.aco import ACOOptimization
+# from core.algorithms.old.bat import BatOptimization
+# from core.algorithms.old.cs import CSOptimization
+# from core.algorithms.old.de import DEOptimization
+# from core.algorithms.old.fa import FireflyOptimization
+# from core.algorithms.old.ga import GAOptimization
+# from core.algorithms.old.gwo import GWOOptimization
+# from core.algorithms.old.hs import HarmonySearchOptimization
+# from core.algorithms.old.ica import ICAOptimization
+# from core.algorithms.pfo import PolarFoxOptimization
+# from core.algorithms.old.pso import PSOOptimization
+# from core.algorithms.old.sa import SAOptimization
+# from core.algorithms.old.tabu import TabuSearchOptimization
+# from core.algorithms.old.woa import WOAOptimization
+
 from functools import partial
 import json  # For serialize_result (add this)
 # In your run_metaheuristic_task function
@@ -60,23 +79,46 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     :param num_ue: (int) Number of users.
     :return: Dict containing 'solution', 'SINR', 'fairness', 'load_balance', and 'handover_rate'.
     """
+    # algorithms = {
+    #     "aco": ACOOptimization,
+    #     "bat": BatOptimization,
+    #     "cs": CSOptimization,
+    #     "de": DEOptimization,
+    #     "fa": FireflyOptimization,
+    #     "ga": GAOptimization,
+    #     "gwo": GWOOptimization,
+    #     "hs": HarmonySearchOptimization,
+    #     "ica": ICAOptimization,
+    #     "pfo": PolarFoxOptimization,
+    #     "pso": PSOOptimization,
+    #     "sa": SAOptimization,
+    #     "tabu": TabuSearchOptimization,
+    #     "woa": WOAOptimization,
+    # }
     algorithms = {
-        "aco": ACOOptimization,
-        "bat": BatOptimization,
-        "cs": CSOptimization,
-        "de": DEOptimization,
-        "fa": FireflyOptimization,
-        "ga": GAOptimization,
-        "gwo": GWOOptimization,
-        "hs": HarmonySearchOptimization,
-        "ica": ICAOptimization,
+                
+        # Bio-inspired Algorithms
+        "coa": COAOptimization,       # Coati Optimization Algorithm
+        "do": DandelionOptimization,         # Dandelion Optimizer
+        "gto": GTOOptimization,       # Gorilla Troops Optimizer
+        "hba": HBAOptimization,       # Honey Badger Algorithm
+        "rsa": RSAOptimization,       # Reptile Search Algorithm
+        "sto": STOOptimization,       # Siberian Tiger Optimization
+        "poa": PelicanOptimization,       # Pelican Optimization Algorithm
         "pfo": PolarFoxOptimization,
-        "pso": PSOOptimization,
-        "sa": SAOptimization,
-        "tabu": TabuSearchOptimization,
-        "woa": WOAOptimization,
+        "hoa": HippoOptimization,       # Hippopotamus Optimization Algorithm
+        
+        # Physics/Chemistry-inspired
+        "fla": FLAOptimization,       # Fick's Law Algorithm
+        "rime": RIMEOptimization,     # RIME Algorithm
+        
+        # Specialized Metaheuristics
+        "avoa": AVOAOptimization,     # African Vultures Optimization Algorithm
+        "co": CheetahOptimization, # Cheetah Optimizer
+        "roa": RainbowOptimization, # Rainbow Optimization Algorithm
+        
+        # Add other algorithms as needed...
     }
-
     if algorithm not in algorithms:
         raise ValueError(f"Invalid metaheuristic algorithm '{algorithm}'. Choose from: {list(algorithms.keys())}")
 

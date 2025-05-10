@@ -46,7 +46,7 @@ class PolarFoxOptimization:
         for _ in range(self.population_size):
             if np.random.rand() < 0.2:
                 # Heuristic: Assign users to nearest cell
-                fox = np.array([self.find_nearest_cell(ue.position, env) for ue in env.ues])
+                fox = np.array([self.find_nearest_cell(ue.position) for ue in env.ues])
             else:
                 fox = np.random.randint(0, self.num_cells, size=self.num_users)
             population.append(fox)
@@ -54,20 +54,22 @@ class PolarFoxOptimization:
         return population
 
 
-    # def find_nearest_cell(self, user_position, env: NetworkEnvironment):
-    #     cell_positions = np.array([bs.position for bs in env.base_stations])
-    #     distances = np.linalg.norm(cell_positions - user_position, axis=1)
-    #     return np.argmin(distances)    
-
-    def find_nearest_cell(self, user_position, env: NetworkEnvironment):
+    def find_nearest_cell(self, user_position):
         if not isinstance(user_position, torch.Tensor):
             user_position = torch.tensor(user_position, dtype=torch.float32)
-        cell_positions = torch.stack([bs.position for bs in env.base_stations]).to(user_position.device)
+        cell_positions = torch.stack([bs.position for bs in self.env.base_stations]).to(user_position.device)
         with torch.no_grad():
             distances = torch.norm(cell_positions - user_position, dim=1)
 
         # distances = torch.norm(cell_positions - user_position, dim=1)
-        return torch.argmin(distances).item()
+        return torch.argmin(distances).item()   
+
+    # def find_nearest_cell(self, user_position):
+    #     # use numpy instead of torch
+    #     pos = np.array(user_position, dtype=np.float32)
+    #     cell_positions = np.stack([bs.position for bs in self.env.base_stations])
+    #     dists = np.linalg.norm(cell_positions - pos, axis=1)
+    #     return int(np.argmin(dists))
 
     
     def _find_alternative_bs(self, user_indices, counts):

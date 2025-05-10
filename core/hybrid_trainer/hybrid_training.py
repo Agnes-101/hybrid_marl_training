@@ -19,6 +19,7 @@ register_env("NetworkEnv", env_creator)
 
 import ray
 import time
+import logging
 import torch
 import numpy as np
 import pandas as pd
@@ -27,6 +28,7 @@ from ray.rllib.models import ModelCatalog
 # from ray.tune.trial import Trial
 from typing import Dict
 from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.algorithms.ppo import PPO
 from core.analysis.comparison import MetricAnimator
 from core.hybrid_trainer.metaheuristic_opt import run_metaheuristic
 from core.hybrid_trainer.kpi_logger import KPITracker
@@ -36,247 +38,249 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 import torch.nn as nn
 import gymnasium as gym
 from collections import OrderedDict
-
-
+       
 class MetaPolicy(TorchModelV2, nn.Module):
-    # def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
-    #     # super().__init__(obs_space, action_space, num_outputs, model_config, name)
-    #     nn.Module.__init__(self)  # Initialize nn.Module first
-    #     TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
-    #     print("Model Config:", model_config["custom_model_config"])  # Debug line
-    #     # Extract metaheuristic solution from config
-    #     self.initial_weights = model_config["custom_model_config"].get("initial_weights", [])
-    #     self.num_bs = model_config["custom_model_config"]["num_bs"]
-    #     self.num_ue = model_config["custom_model_config"]["num_ue"]
-        
-    #     # Define neural network layers
-    #     self.fc = torch.nn.Linear(obs_space.shape[0], self.num_bs)
-        
-    #     # Initialize weights using metaheuristic solution
-    #     if self.initial_weights:
-    #         self._apply_initial_weights()
     def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
-        print("Starting MetaPolicy initialization")
-        
-        # Initialize in correct order
         nn.Module.__init__(self)
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
         
-        # Print detailed info about inputs
-        print(f"obs_space: {obs_space} (type: {type(obs_space)})")
-        print(f"action_space: {action_space} (type: {type(action_space)})")
-        print(f"num_outputs: {num_outputs}")
-        print(f"model_config keys: {list(model_config.keys())}")
-        
-        # Get custom config safely
+        # Extract config parameters
         custom_config = model_config.get("custom_model_config", {})
-        print(f"custom_model_config: {custom_config}")
-        
-        # Extract parameters
         self.initial_weights = custom_config.get("initial_weights", [])
         self.num_bs = custom_config.get("num_bs", 5)
         self.num_ue = custom_config.get("num_ue", 20)
         
-        print(f"Extracted values: initial_weights={len(self.initial_weights)} items, num_bs={self.num_bs}, num_ue={self.num_ue}")
-        
-        # Determine input size from observation space
-        try:
-            if isinstance(obs_space, gym.spaces.Dict):
-                print(f"Dict observation space with keys: {list(obs_space.spaces.keys())}")
-                input_size = sum(np.prod(space.shape) for space in obs_space.spaces.values())
-            else:
-                input_size = np.prod(obs_space.shape)
-            print(f"Calculated input_size: {input_size}")
-        except Exception as e:
-            print(f"Error determining input size: {e}")
-            # Fallback
-            input_size = 20  # Default value, adjust based on your actual observation size
-            print(f"Using fallback input_size: {input_size}")
-        
-        # Network layers
-        try:
-            self.fc = torch.nn.Linear(input_size, self.num_bs)
-            print("Successfully created neural network layers")
-        except Exception as e:
-            print(f"Error creating network layers: {e}")
+        # Calculate input size - one UE's observation size
+        if isinstance(obs_space, gym.spaces.Dict):
+            # For Dict space, we need the size of a single agent's observation
+            # This should be 2*num_bs+1
+            input_size = 3 * self.num_bs + 1
+        else:
+            input_size = np.prod(obs_space.shape)
             
-        # Initialize weights
+        # print(f"Calculated input size: {input_size}")
+        
+        # Enhanced network architecture for better performance
+        hidden_size = 64  # Add a hidden layer for more expressive policy
+        
+        # Policy network for actions - each UE chooses from num_bs actions
+        self.policy_network = nn.Sequential(
+            nn.Linear(input_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, self.num_bs)  # Output should match number of BS options
+        )
+        
+        # Value network (critic) - also with a hidden layer
+        self.value_network = nn.Sequential(
+            nn.Linear(input_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1)
+        )
+        
+        # Store current value function output
+        self._cur_value = None
+        
+        # Initialize weights using metaheuristic solution if available
         if self.initial_weights:
-            try:
-                self._apply_initial_weights()
-                print("Successfully applied initial weights")
-            except Exception as e:
-                print(f"Error applying initial weights: {e}")
-                
-        print("Completed MetaPolicy initialization")
+            self._apply_initial_weights()
+            
+        # Print network shapes for debugging
+        # print(f"Policy network: {self.policy_network}")
+        # print(f"Value network: {self.value_network}")
         
-    # def _apply_initial_weights(self):
-    #     """Bias policy to favor initial solution's BS choices"""
-    #     # Convert initial solution to one-hot encoded tensor
-    #     # Example: initial_weights = [1, 3, 0, ...] → UE 0 → BS 1, UE 1 → BS 3, etc.
-    #     print(f"Initial solution shape: {len(self.initial_weights)} UEs")  
-        
-    #     one_hot_weights = torch.eye(self.num_bs)[self.initial_weights]  # Shape: [num_ue, num_bs]
-    #     print(f"One-hot weights shape: {one_hot_weights.shape} (UEs x BSs)")
-    #     print("Sample weights for UE 0:", one_hot_weights[0])  # Should be one-hot
-        
-    #     # Set linear layer weights to favor initial solution
-    #     with torch.no_grad():
-    #         self.fc.weight.data = one_hot_weights.float()
-    #         self.fc.bias.data.zero_()
     def _apply_initial_weights(self):
-        """Bias policy to favor initial solution's BS choices"""
-        # Create one-hot encoded weights
-        one_hot_weights = torch.eye(self.num_bs)[self.initial_weights]  # Shape: [num_ue, num_bs]
-        
-        # Linear layer weight shape needs to be [output_size, input_size]
-        # But we need to map from input_size (220) to num_bs (5)
+        """Apply initial weights to bias the policy"""
+        # Each UE should have its own policy preferences
         with torch.no_grad():
-            # Reshape the weights to properly initialize the linear layer
-            # Initialize most weights to near-zero
-            self.fc.weight.data.fill_(0.01)
+            # Get the last layer of the policy network
+            policy_output_layer = self.policy_network[-1]
             
-            # For each UE, strengthen connections from its section of the input
-            # to the BS it was assigned in the initial solution
-            input_per_ue = self.fc.weight.data.shape[1] // self.num_ue
+            # Initialize with small random weights for exploration
+            policy_output_layer.weight.data.normal_(0.0, 0.01)
+            policy_output_layer.bias.data.fill_(0.0)
             
-            for ue_idx, bs_idx in enumerate(self.initial_weights):
-                # Each UE gets a section of the input
-                start_idx = ue_idx * input_per_ue
-                end_idx = (ue_idx + 1) * input_per_ue
+            # If we have initial weights from metaheuristic
+            if isinstance(self.initial_weights, list) and len(self.initial_weights) > 0:
+                # Determine which UE this policy is for based on available context
+                # In MARL with parameter sharing, we can't know for sure,
+                # so we use a more general approach
                 
-                # Set those weights higher for the assigned BS
-                self.fc.weight.data[bs_idx, start_idx:end_idx] = 1.0
-            
-            # Initialize bias
-            self.fc.bias.data.zero_()
-            
-            print(f"Weight matrix shape: {self.fc.weight.data.shape}")
-    
+                # Count the frequency of each BS in the solution
+                bs_counts = np.zeros(self.num_bs)
+                for bs_idx in self.initial_weights:
+                    if 0 <= bs_idx < self.num_bs:
+                        bs_counts[bs_idx] += 1
+                
+                # Bias toward less congested BSs
+                total_ues = sum(bs_counts)
+                if total_ues > 0:
+                    for bs_idx in range(self.num_bs):
+                        # Lower allocation ratio = higher bias
+                        congestion_factor = 1.0 - (bs_counts[bs_idx] / total_ues)
+                        policy_output_layer.bias.data[bs_idx] = congestion_factor * 1.0 # Stronger bias toward less congested BSs
+                
+                print(f"Applied metaheuristic bias based on BS congestion")
+                
     def forward(self, input_dict, state, seq_lens):
-        # Get observation
+        # Get observation from input dict
         obs = input_dict["obs"]
         
-        # Handle different observation types
+        # Debug: Check observation shape and values
+        # print(f"Forward input shape: {obs.shape if hasattr(obs, 'shape') else 'dict'}")
+        # if isinstance(obs, torch.Tensor) and obs.numel() > 0:
+            # print(f"Forward input stats: min={obs.min().item():.4f}, max={obs.max().item():.4f}, "
+            #     f"mean={obs.mean().item():.4f}, has_nan={torch.isnan(obs).any().item()}")
+        
+        # Handle different input types
         if isinstance(obs, dict) or isinstance(obs, OrderedDict):
-            # For dictionary observations
-            print(f"Dict observation with keys: {list(obs.keys())}")
-            # Convert dict values to tensor
-            x = torch.cat([v.float() for v in obs.values()], dim=-1)
+            # Debug: Print dict keys and their shapes
+            # print(f"Forward dict keys: {list(obs.keys())}")
+            for k, v in obs.items():
+                if hasattr(v, 'shape'):
+                    print(f"  {k} shape: {v.shape}")
+                    
+            # In MARL, each agent should only receive its own observation
+            # Convert all values to tensors and flatten if needed
+            x = torch.cat([torch.tensor(v).flatten() for v in obs.values()])
         else:
-            # For tensor observations
-            print(f"Tensor observation with shape: {obs.shape}")
-            x = obs
+            # Already a tensor
+            x = obs.float() if isinstance(obs, torch.Tensor) else torch.FloatTensor(obs)
             
-        # Forward pass through network
-        logits = self.fc(x)
+        # Ensure batch dimension
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+        
+        # Debug: Check processed input tensor
+        # print(f"Processed input shape: {x.shape}")
+                
+        # Forward passes
+        logits = self.policy_network(x)
+        self._cur_value = self.value_network(x).squeeze(-1)
+        
+        # # Debug: Check outputs
+        # print(f"Logits shape: {logits.shape}, values shape: {self._cur_value.shape}")
+        # print(f"Logits stats: min={logits.min().item():.4f}, max={logits.max().item():.4f}, "
+        #     f"mean={logits.mean().item():.4f}, has_nan={torch.isnan(logits).any().item()}")
+        
         return logits, state
+
+    def value_function(self):
+        """Return value function output for current observation"""
+        # This is required for PPO training
+        assert self._cur_value is not None, "value function not calculated"
+        
+        # Debug: Check value function output
+        if isinstance(self._cur_value, torch.Tensor) and self._cur_value.numel() > 0:
+            print(f"Value function stats: min={self._cur_value.min().item():.4f}, "
+                f"max={self._cur_value.max().item():.4f}, mean={self._cur_value.mean().item():.4f}, "
+                f"has_nan={torch.isnan(self._cur_value).any().item()}")
+        
+        return self._cur_value        
     # def forward(self, input_dict, state, seq_lens):
-    #     # Handle input that could be a dictionary or tensor
-    #     print(f"Forward called with input_dict keys: {list(input_dict.keys())}")
-    #     print(f"Observation shape: {input_dict['obs'].shape}")  # Debug line
-        
-    #     x = input_dict["obs"]
-        
-    #     # Debug the input type
-    #     print(f"Input type: {type(x)}")
-        
-    #     # # If observation is a dictionary, extract the relevant part
-    #     # if isinstance(x, dict) or isinstance(x, OrderedDict):
-    #     #     # Choose the appropriate part of the observation
-    #     #     # You may need to adjust this based on your actual observation structure
-    #     #     x = next(iter(x.values()))  # Get first value in dict
-    #     #     print(f"Using first value from dict with shape: {x.shape}")
-    #     # Get observation
+    #     # Get observation from input dict
     #     obs = input_dict["obs"]
         
-    #     # Handle dict observation
+    #     # Handle different input types
     #     if isinstance(obs, dict) or isinstance(obs, OrderedDict):
-    #         # Convert dict to tensor
-    #         obs_values = list(obs.values())
-    #         if obs_values:
-    #             x = torch.cat([v.float() for v in obs_values if hasattr(v, 'float')], dim=-1)
-    #         else:
-    #             raise ValueError("Empty observation dictionary")
+    #         # In MARL, each agent should only receive its own observation
+    #         # Convert all values to tensors and flatten if needed
+    #         x = torch.cat([torch.tensor(v).flatten() for v in obs.values()])
     #     else:
     #         # Already a tensor
-    #         x = obs
-    #     # Now process the tensor
-    #     logits = self.fc(x)
-    #     return logits, state
-# class MetaPolicy(TorchModelV2):
-#     def __init__(self, obs_space, action_space, num_outputs, model_config, name):
-#         super().__init__(obs_space, action_space, num_outputs, model_config, name)
+    #         x = obs.float() if isinstance(obs, torch.Tensor) else torch.FloatTensor(obs)
+            
+    #     # Ensure batch dimension
+    #     if x.dim() == 1:
+    #         x = x.unsqueeze(0)
+            
+    #     # Forward passes
+    #     logits = self.policy_network(x)
+    #     self._cur_value = self.value_network(x).squeeze(-1)
         
-#         # Initialize layers using metaheuristic weights
-#         initial_weights = model_config["custom_model_config"].get("initial_weights", [])
-#         if initial_weights:
-#             self.load_metaheuristic_weights(initial_weights)
-
-#     def load_metaheuristic_weights(self, weights):
-#         """Map metaheuristic solution to policy weights"""
-#         # Example: Create bias toward GA's BS choices
-#         with torch.no_grad():
-#             for param in self.parameters():
-#                 if param.dim() == 2:  # Weight matrices
-#                     torch.nn.init.eye_(param)
-#                 elif param.dim() == 1:  # Biases
-#                     param.data += torch.tensor(weights, dtype=torch.float32)
+    #     return logits, state
     
-class MetaPolicyRLModule(RLModule):
-    def __init__(self, observation_space, action_space, model_config):
-        super().__init__(observation_space, action_space, model_config)
-        self.torch_model = MetaPolicy(
-            observation_space,
-            action_space,
-            model_config["custom_model_config"]
-        )
+    # def value_function(self):
+    #     """Return value function output for current observation"""
+    #     # This is required for PPO training
+    #     assert self._cur_value is not None, "value function not calculated"
+    #     return self._cur_value
+
 # After MetaPolicy definition
 ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
 
 # RAY_DEDUP_LOGS=0
 class HybridTraining:
     def __init__(self, config: Dict):
-        # Initialize Ray AFTER path modification        
-        ray.init(
-            runtime_env={
-                "env_vars": {"PYTHONPATH": project_root},
-                "working_dir": project_root
-            },
-            **config["ray_resources"]
-        )
-        # ray.init(
-        #     runtime_env={
-        #         "env_vars": {"PYTHONPATH":f"{project_root}:{os.environ.get('PYTHONPATH', '')}"},
-        #                                 # {"PYTHONPATH": hybrid_marl_dir},
-        #         "working_dir":project_root,# hybrid_marl_dir,                 
-        #         # Block problematic paths
-        #         "includes": [  # Explicitly include critical paths
-        #             "envs/",
-        #             "hybrid_trainer/",
-        #             "config/*.yaml"
-        #         ],
-        #         "excludes": [
-        #             "**/sys/**", 
-        #             "**/results/**",  # Exclude large outputs
-        #             "**/notebooks/**",  # Exclude Colab/IPYNB files
-        #             "*.pyc",
-        #             "__pycache__/",
-        #             ".*"
-        #         ]
-        #     },
-        #     **config["ray_resources"]
-        # )
-        @ray.remote
-        def verify_package():
+        # Initialize Ray AFTER path modification 
+        # Initialize Ray with robust error handling
+        try:
+            if not ray.is_initialized():
+                ray.init(
+                    runtime_env={
+                        "env_vars": {"PYTHONPATH": project_root},
+                        "working_dir": project_root
+                    },
+                    logging_level=logging.INFO,
+                    log_to_driver=True,
+                    ignore_reinit_error=True,
+                    **config.get("ray_resources", {})
+                )
+            
+            # Try to verify packages are accessible but don't fail if they aren't
             try:
-                from core.envs.custom_channel_env import NetworkEnvironment
-                from core.hybrid_trainer.hybrid_training import HybridTraining
-                return True
-            except ImportError as e:
-                print(f"Import failed: {e}")
-                return False
-        assert ray.get(verify_package.remote()), "Package verification failed!"
+                @ray.remote
+                def verify_package():
+                    try:
+                        # Print working directory and Python path for debugging
+                        import os, sys
+                        print(f"Current working directory: {os.getcwd()}")
+                        print(f"Python path: {sys.path}")
+                        
+                        # Import required modules
+                        from core.envs.custom_channel_env import NetworkEnvironment
+                        print("✅ Successfully imported NetworkEnvironment")
+                        return True
+                    except ImportError as e:
+                        print(f"❌ Import failed: {e}")
+                        return False
+                
+                package_check = ray.get(verify_package.remote())
+                if not package_check:
+                    print("WARNING: Package verification failed, but continuing anyway...")
+                
+            except Exception as e:
+                print(f"WARNING: Package verification error, but continuing: {e}")
+        
+        except Exception as e:
+            print(f"Ray initialization error: {e}")
+            ray.init(
+                ignore_reinit_error=True,
+                num_cpus=2  # Minimal fallback configuration
+            )
+        
+        # Import NetworkEnvironment - handle both direct import and delayed import
+        try:
+            from core.envs.custom_channel_env import NetworkEnvironment
+            self.env = NetworkEnvironment(config["env_config"])
+        except ImportError:
+            # Dynamic import as fallback
+            import importlib
+            try:
+                module = importlib.import_module("core.envs.custom_channel_env")
+                NetworkEnvironment = getattr(module, "NetworkEnvironment")
+                self.env = NetworkEnvironment(config["env_config"])
+            except Exception as e:
+                raise ImportError(f"Failed to import NetworkEnvironment: {e}")    
+        # @ray.remote
+        # def verify_package():
+        #     try:
+        #         from core.envs.custom_channel_env import NetworkEnvironment
+        #         from core.hybrid_trainer.hybrid_training import HybridTraining
+        #         return True
+        #     except ImportError as e:
+        #         print(f"Import failed: {e}")
+        #         return False
+        # assert ray.get(verify_package.remote()), "Package verification failed!"
         # ✅ Define observation/action spaces from the environment
         
         self.config = config
@@ -351,7 +355,77 @@ class HybridTraining:
         # self.dashboard.update_algorithm_metrics(algorithm=algorithm,metrics=solution["metrics"] )
         
         return solution
+    
+    def _execute_marl_phase_direct(self, initial_policy: np.ndarray = None):
+        """
+        A direct‐API PPO loop that after each train() does one env.step()
+        so that your step() stores last_info, and then yields the solution.
+        """
+        print("Running the marl phase using direct-API PPO loop....")
+        initial_weights = []
+        if initial_policy is not None:
+            initial_weights = initial_policy.tolist()  # ✅ Correct extraction
+            assert len(initial_weights) == self.config["env_config"]["num_ue"]
+            
+        env_config = {
+            **self.config["env_config"]            
+        }
+        # 1) build the algorithm once
+        marl_config = (
+            PPOConfig()
+            .environment(
+                "NetworkEnv",
+                env_config=env_config
+            )
+            .training(
+                model={
+                    "custom_model": "meta_policy",
+                    "custom_model_config": {
+                        "initial_weights": initial_weights,
+                        "num_bs": self.config["env_config"]["num_bs"],
+                        "num_ue": self.config["env_config"]["num_ue"]
+                    }
+                },
+                
+                gamma=0.99,
+                lr=0.0005,  # Slightly higher learning rate
+                lr_schedule=[(0, 0.00005), (1000, 0.0001), (10000, 0.0005)],  # Gradual lr increase
+                entropy_coeff=0.01,  # Add exploration
+                kl_coeff=0.2,
+                train_batch_size=4000,
+                sgd_minibatch_size=128,
+                num_sgd_iter=10,
+                clip_param=0.2,
+            ).env_runners(
+            sample_timeout_s=3600, # 600,  # Increase from default (180s) to 10 minutes
+            rollout_fragment_length=25 # 50  # Decrease from default (200) to collect samples faster
+                )
+            .multi_agent(
+                policies={
+                    f"ue_{i}": (None, self.obs_space[f"ue_{i}"], self.act_space[f"ue_{i}"], {})
+                    for i in range(self.config["env_config"]["num_ue"])
+                },
+                policy_mapping_fn=lambda agent_id, episode=None, worker=None, **kwargs: agent_id
+            )
+        )
+        algo = marl_config.build()
+        # 2) (optionally) restore from a checkpoint
+        #    if you wanted to warm-start from a Tune checkpoint:
+        # if self.config.get("checkpoint_dir"):
+        #     algo.restore(self.config["checkpoint_dir"])
 
+        # 3) run exactly marl_steps_per_phase training iterations
+        results = []
+        for it in range(self.config["marl_steps_per_phase"]):
+            result = algo.train()
+            results.append(result)
+            # call your callback so that Streamlit sees the metrics
+            for cb in self._callbacks:
+                cb.on_result(None, None, None, result)
+
+        # 4) return the trained algo so that your wrapper can extract solution
+        return algo, results
+            
     def _execute_marl_phase(self, initial_policy: Dict = None):
         """Execute MARL training phase"""
         # print(f"\n Starting {self.config['marl_algorithm'].upper()} training...")
@@ -369,6 +443,7 @@ class HybridTraining:
         
         
         # MARL configuration
+        # MARL configuration
         marl_config = (
             PPOConfig()
             .environment(
@@ -384,27 +459,29 @@ class HybridTraining:
                         "num_ue": self.config["env_config"]["num_ue"]
                     }
                 },
+                
                 gamma=0.99,
-                lr=0.0001,
-                kl_coeff=0.3,
-                train_batch_size=1000
-            )
+                lr=0.0005,  # Slightly higher learning rate
+                lr_schedule=[(0, 0.00005), (1000, 0.0001), (10000, 0.0005)],  # Gradual lr increase
+                entropy_coeff=0.01,  # Add exploration
+                kl_coeff=0.2,
+                train_batch_size=4000,
+                sgd_minibatch_size=128,
+                num_sgd_iter=10,
+                clip_param=0.2,
+            ).env_runners(
+            sample_timeout_s=3600, # 600,  # Increase from default (180s) to 10 minutes
+            rollout_fragment_length=25 # 50  # Decrease from default (200) to collect samples faster
+                )
             .multi_agent(
                 policies={
-                    f"ue_{i}": (None, self.obs_space, self.act_space, {})
+                    f"ue_{i}": (None, self.obs_space[f"ue_{i}"], self.act_space[f"ue_{i}"], {})
                     for i in range(self.config["env_config"]["num_ue"])
                 },
-                # policy_mapping_fn=lambda agent_id: agent_id
-                policy_mapping_fn=lambda agent_id: (
-                    print(f"Mapping agent: {agent_id}") or agent_id  # Debug line
-            )            
+                policy_mapping_fn=lambda agent_id, episode=None, worker=None, **kwargs: agent_id
             )
         )
-        # Before tune.run()
-        # if initial_policy:
-        #     # ModelCatalog.register_custom_model("meta_policy", type(initial_policy))
-        #     ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
-            
+        
         analysis = ray.tune.run(
             "PPO",
             config=marl_config.to_dict(),
@@ -418,104 +495,42 @@ class HybridTraining:
         
 
     def _create_marl_callback(self):
-        """Generate callback for real-time MARL visualization"""
-        class MarlVisualizationCallback(tune.Callback):
-            def __init__(self, orchestrator):
-                self.orchestrator = orchestrator
-                self.last_env_state = None
+        """Create a Ray Tune callback for tracking training progress"""
+        
+        class MALRCallback(ray.tune.Callback):
+            def __init__(self, parent):
+                self.parent = parent
                 
-            # def on_step_end(self, iteration, trials, trial, result, **info ):# **kwargs
-            #     # Guard against empty trials or missing results
-            #     if not trials or not trials[0].last_result:
-            #         print("Missing results for trial!")
-            #         return
-            #     # Capture environment state from worker
-            #     self.last_env_state = result.get("custom_metrics", {}).get("env_state")
+            def on_trial_result(self, iteration, trials, trial, result, **info):
+                # Get the actual reward values from result dictionary
+                reward_mean = result.get("env_runners/episode_return_mean", 0)
+                reward_min = result.get("env_runners/episode_return_min", 0)
+                reward_max = result.get("env_runners/episode_return_max", 0)
+                episode_len = result.get("env_runners/episode_len_mean", 0)
+
+                print(f"[Trial {trial.trial_id}] Iter {result['training_iteration']} | "
+                    f"Reward: {reward_mean:.3f} | "  # Use the correctly retrieved value
+                    f"Length: {episode_len:.1f}")
                 
-            #     # Extract metrics
-            #     metrics = {
-            #         "episode_reward_mean": result.get("episode_reward_mean", 0),
-            #         "average_sinr": result.get("custom_metrics", {}).get("sinr_mean", 0),
-            #         "fairness": result.get("custom_metrics", {}).get("fairness_index", 0),
-            #         "load_variance": result.get("custom_metrics", {}).get("load_variance", 0),
-            #         "policy_entropy": result.get("policy_entropy", 0)
-            #     }
-                
-               
-            #     print(f"MARL Metrics at iteration {iteration} : {metrics}: ")
-            #     self.orchestrator.kpi_logger.log_metrics(
-            #         episode=iteration,
-            #         phase="marl",
-            #         algorithm= "PPO",
-            #         metrics=metrics
-            #     )
-            def on_trial_result(self, *, trial,result, **kwargs):
-                """Fixed signature with required parameters"""
-                # Extract metrics from result dict
-                metrics = {
-                    "episode_reward_mean": result.get("episode_reward_mean", 0),
-                    "average_sinr": result.get("custom_metrics", {}).get("sinr_mean", 0),
-                    "fairness": result.get("custom_metrics", {}).get("fairness_index", 0),
-                    "load_variance": result.get("custom_metrics", {}).get("load_variance", 0),
-                    "policy_entropy": result.get("policy_entropy", 0)
-                }
-                # Add formatted print with iteration number
-                print(f"[Trial {trial.id}] Iter {result['training_iteration']} | "
-                  f"Reward: {metrics['episode_reward_mean']:.1f} | "
-                  f"SINR: {metrics['average_sinr']:.1f} dB")
-                # print(f"MARL Metrics at iteration {result['training_iteration']}: {metrics}")
-                # Log metrics through orchestrator
-                self.orchestrator.kpi_logger.log_metrics(
-                    episode=result["training_iteration"],
-                    phase="marl",
-                    algorithm="PPO",
-                    metrics=metrics
-                )
-                
-                #  Pull data from consolidated history
-                
-                # self.orchestrator.dashboard.update(
-                #     phase="marl",
-                #     data={
-                #         "env_state": self.orchestrator.env.get_current_state(),  # Associations/users/BS
-                #         # "metrics" : recent_metrics
-                #         "metrics": {
-                #         "episode_rewards_mean": metrics["episode_reward_mean"],
-                #         "policy_entropy": metrics["policy_entropy"],
-                #         "average_sinr": metrics["average_sinr"]
-                #         }
-                #     }
-                #     )
-                
-                
-                
+                if self.parent.kpi_logger and self.parent.kpi_logger.enabled:
+                    metrics = {
+                        "iteration": self.parent.current_epoch * self.parent.config["marl_steps_per_phase"] + 
+                                result["training_iteration"],
+                        "reward_mean": reward_mean,  # Use the correctly retrieved value
+                        "reward_min": reward_min, 
+                        "reward_max": reward_max,
+                        "episode_length": episode_len
+                    }
                     
-        return MarlVisualizationCallback(self)
+                    self.parent.kpi_logger.log_metrics(
+                        phase="marl",
+                        algorithm="PPO",
+                        metrics=metrics,
+                        episode=result.get("training_iteration", 0)
+                    )
+                
+        return MALRCallback(self)
     
-    # def _create_marl_callback(self):
-    #     """Generate callback for real-time MARL visualization"""
-    #     class MarlVisualizationCallback(tune.Callback):
-    #         def __init__(self, orchestrator):
-    #             self.orchestrator = orchestrator
-                
-    #         def on_step_end(self, iteration, trials, **kwargs):
-    #             # ✅ Log MARL metrics to KPI tracker
-    #             self.orchestrator.kpi_logger.log_kpis(
-    #                 episode=iteration,
-    #                 reward=trials[0].last_result["episode_reward_mean"],
-    #                 average_sinr=trials[0].last_result["custom_metrics"]["sinr_mean"],
-    #                 fairness=trials[0].last_result["custom_metrics"]["fairness"],
-    #                 load_variance=trials[0].last_result["custom_metrics"]["load_variance"]
-    #             )
-    #             metrics = self.orchestrator.kpi_logger.get_recent_metrics()
-    #             self.orchestrator.dashboard.update(
-    #                 env_state=self.orchestrator.env.get_current_state(),
-    #                 metrics=metrics,
-    #                 phase="marl"
-    #             )
-                
-                
-    #     return MarlVisualizationCallback(self)
 
     def _adaptive_retuning_required(self) -> bool:
         """Check if metaheuristic retuning is needed"""
@@ -636,23 +651,23 @@ if __name__ == "__main__":
     
     config = {
         # Core configuration
-        "metaheuristic": "sa",
+        "metaheuristic": "pfo",
         "comparison_mode": False,
         "metaheuristic_algorithms": ["aco","bat", "cs", "de", "fa", "ga", "gwo", "hs", "ica", "pfo", "pso", "sa", "tabu", "woa"], #
         "marl_algorithm": "PPO", 
         
         # Environment parameters
         "env_config": {
-            "num_bs": 5,
-            "num_ue": 20,
-            "episode_length": 1000,
+            "num_bs": 10,
+            "num_ue": 60,
+            "episode_length": 10,
             "log_kpis": True
         },
         
                         
         # Training parameters
         "max_epochs": 50,
-        "marl_steps_per_phase": 200,
+        "marl_steps_per_phase": 1,
         "checkpoint_interval": 10,
         "checkpoint_dir": "results/checkpoints",
         

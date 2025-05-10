@@ -20,9 +20,9 @@ class KPITracker:
     def __init__(self, enabled=True):        
         self.enabled = enabled
         self.history = pd.DataFrame(columns=[            
-            'timestamp', 'episode', 'phase', 'algorithm',
+            'timestamp', 'episode','connected_ratio','step_time', 'phase', 'algorithm',
     'episode_reward_mean', 'policy_entropy', 'fitness',
-    'average_sinr', 'fairness', 'load_variance', 'diversity'
+    'average_sinr', 'fairness', 'load_variance', 'diversity', 'throughput', "solution", "sinr_list"
         ])
         self.logs = []  # Initialize logs storage
         self.data = []  # Initialize data storage
@@ -39,14 +39,19 @@ class KPITracker:
             self.history,
             pd.DataFrame([{
                 'timestamp': time.time(),
-                'episode': episode,
+                'episode': episode,                
                 'phase': phase,
                 'algorithm': algorithm,
-                'episode_reward_mean': metrics.get('episode_reward_mean', 0),
+                'connected_ratio': metrics.get('connected_ratio',0),
+                'step_time': metrics.get('step_time',0),
+                'episode_reward_mean': metrics.get('episode_reward_mean', 0),            
                 'policy entropy': metrics.get ('policy entropy',0),
+                "solution": metrics.get('solution',None),
+                "sinr_list": metrics.get('sinr_list',None),
                 'fitness': metrics.get('fitness', 0),
                 'average_sinr': metrics.get('average_sinr', 0),
                 'fairness': metrics.get('fairness', 0),
+                'throughput':metrics.get('throughput',0),
                 'load_variance': metrics.get('load_variance', 0),
                 'diversity':metrics.get('diversity', 0)
             }])

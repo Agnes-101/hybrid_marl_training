@@ -1,0 +1,92 @@
+{
+  "aco": {
+      "name": "Ant Colony Optimization",
+      "short": "Swarm intelligence inspired by ant foraging behavior.",
+      "long": "ACO mimics ant colony behavior through:\n- Pheromone trail deposition and evaporation mechanisms\n- Probabilistic path selection based on pheromone intensity\n- Positive feedback reinforcement for good solutions\n- Adaptive balance between exploration and exploitation\n- Collective intelligence through swarm coordination",
+      "image": "assets/algo_info/aco.png"
+  },
+  "coa": {
+      "name": "Coati Optimization Algorithm",
+      "short": "Bio-inspired by coatis' foraging strategies.",
+      "long": "COA operations include:\n- Attack phase: Directed exploration of new areas\n- Follow phase: Exploitation of known good solutions\n- Adaptive transition between search strategies\n- Population-based information sharing\n- Dynamic parameter adjustment during iterations",
+      "image": "assets/algo_info/coa.jpg"
+  },
+  "do": {
+      "name": "Dandelion Optimizer",
+      "short": "Seed dispersal-inspired optimization.",
+      "long": "Key DO mechanisms:\n- Rising phase: Global exploration using Lévy flights\n- Descending phase: Local refinement through spiral search\n- Wind-driven random walk patterns\n- Adaptive height control for search intensity\n- Population-based seed dispersion modeling",
+      "image": "assets/algo_info/do."
+  },
+  "gto": {
+      "name": "Gorilla Troops Optimizer",
+      "short": "Primate social structure-inspired algorithm.",
+      "long": "GTO features:\n- Migration phase: Wide exploration of new territories\n- Follow silverback: Exploitation of leader's solution\n- Challenge phase: Solution diversity maintenance\n- Social hierarchy-based position updates\n- Adaptive leadership challenge probability",
+      "image": "assets/algo_info/gto.jpg"
+  },
+  "hba": {
+      "name": "Honey Badger Algorithm",
+      "short": "Aggressive foraging-inspired optimization.",
+      "long": "HBA core operations:\n- Digging phase: Intensive local search patterns\n- Honey-finding phase: Global guided exploration\n- Dynamic intensity adjustment\n- Smell intensity-based solution ranking\n- Adaptive balance between random and directed moves",
+      "image": "assets/algo_info/hba.png"
+  },
+  "rsa": {
+      "name": "Reptile Search Algorithm",
+      "short": "Crocodile hunting-inspired optimization.",
+      "long": "RSA key processes:\n- Encircling phase: Solution space exploration\n- Hunting phase: Focused exploitation\n- Evolutionary momentum preservation\n- Prey tracking through fitness gradients\n- Adaptive transition between search modes",
+      "image": "assets/algo_info/rsa.png"
+  },
+  "sto": {
+      "name": "Siberian Tiger Optimization",
+      "short": "Territorial predator-inspired algorithm.",
+      "long": "STO mechanisms:\n- Territorial marking: Solution space partitioning\n- Stealthy approach: Gradual solution refinement\n- Explosive attack: Rapid convergence to prey\n- Prey tracking through fitness scent\n- Adaptive search radius contraction",
+      "image": "assets/algo_info/sto.jpg"
+  },
+  "poa": {
+      "name": "Pelican Optimization Algorithm",
+      "short": "Water bird hunting-inspired method.",
+      "long": "POA operations:\n- Diving phase: Vertical exploration of solution space\n- Scooping phase: Horizontal exploitation\n- Fish concentration modeling (fitness density)\n- Collaborative hunting through population coordination\n- Adaptive wing span control (search range)",
+      "image": "assets/algo_info/poa.jpg"
+  },
+  "hoa": {
+      "name": "Hippopotamus Optimization Algorithm",
+      "short": "Aquatic social behavior-inspired optimizer.",
+      "long": "HOA features:\n- Pod movement: Coordinated group exploration\n- Territorial defense: Local search refinement\n- Dominance display: Solution quality competition\n- River current modeling: Fitness gradient utilization\n- Night foraging: Directed random exploration",
+      "image": "assets/algo_info/hoa.png"
+  },
+  "fla": {
+      "name": "Fick's Law Algorithm",
+      "short": "Gas diffusion-inspired optimization.",
+      "long": "FLA processes:\n- Concentration gradient calculation\n- Diffusion probability modeling\n- Random walk exploration\n- Fitness-driven particle movement\n- Adaptive diffusion coefficient adjustment",
+      "image": "assets/algo_info/fla.png"
+  },
+  "rime": {
+      "name": "Rime-ice Optimization",
+      "short": "Ice formation-inspired metaheuristic.",
+      "long": "RIME operations:\n- Soft rime phase: Global exploration\n- Hard rime phase: Local exploitation\n- Freezing probability calculation\n- Structural stability evaluation\n- Temperature-controlled phase transitions",
+      "image": "assets/algo_info/rime.png"
+  },
+  "avoa": {
+      "name": "African Vultures Optimization",
+      "short": "Scavenger behavior-inspired algorithm.",
+      "long": "AVOA key processes:\n- Carcass location: Fitness-based area selection\n- Spiral flight: Intensive local search\n- Territorial competition: Solution diversity maintenance\n- Satiety-based exploration control\n- Adaptive Lévy flight exploration",
+      "image": "assets/algo_info/avoa.png"
+  },
+  "cheetah": {
+      "name": "Cheetah Optimizer",
+      "short": "High-speed predator-inspired method.",
+      "long": "Cheetah mechanisms:\n- Sprint phase: Accelerated convergence\n- Rest phase: Energy-efficient local search\n- Prey tracking: Fitness gradient utilization\n- Adaptive velocity control\n- Energy conservation management",
+      "image": "assets/algo_info/cheetah.png"
+  },
+  "rainbow": {
+      "name": "Rainbow Optimization Algorithm",
+      "short": "Light refraction-inspired metaheuristic.",
+      "long": "ROA features:\n- Wavelength-based exploration strategies\n- Prism effect exploitation intensification\n- Light intensity fitness evaluation\n- Spectral dispersion modeling\n- Adaptive refraction index control",
+      "image": "assets/algo_info/rainbow.png"
+  },
+  "pfo": {
+    "name": "Polar Fox Optimization",
+    "short": "Arctic survival-inspired population optimization.",
+    "long": "PFO key processes:\n- Behavioral groups:\n  • Explorer\n  • Follower\n  • Balanced\n  • Conservative\n- Time-adaptive parameters (exploration to exploitation)\n- Capacity repair enforcement\n- Stagnation-triggered mutations\n- Dynamic group weighting",
+    "image": "assets/algo_info/pfo.png"
+}
+}
