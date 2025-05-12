@@ -133,7 +133,10 @@ class AquilaOptimization:
         return best + self.rng.rand(self.num_ue) * (best - current) / 2.0
 
     def _repair_solution(self, solution):
-        """Identical capacity repair to ACO"""
+        """Identical capacity repair to ACO, with float-safe casting and clipping"""
+        # Ensure solution is valid: integer values in [0, num_bs - 1]
+        solution = np.clip(solution.astype(int), 0, self.num_bs - 1)
+        
         counts = np.bincount(solution, minlength=self.num_bs)
         capacities = np.array([bs.capacity for bs in self.env.base_stations])
         
@@ -141,9 +144,11 @@ class AquilaOptimization:
         for bs in overloaded:
             users = np.where(solution == bs)[0]
             excess = counts[bs] - capacities[bs]
+            # Find alternative BS for excess users
             solution[users[:excess]] = self._find_alternative_bs(users[:excess], counts)
         
         return solution
+
 
     def _find_nearest_bs(self, position):
         """Same helper as ACO"""
