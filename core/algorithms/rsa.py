@@ -2,15 +2,15 @@ import numpy as np
 from core.envs.custom_channel_env import NetworkEnvironment
 
 class RSAOptimization:
-    def __init__(self, env: NetworkEnvironment, iterations=20, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, iterations=20, reptiles = 30, alpha = 0.1,beta = 1.5,hunting_prob = 0.7,kpi_logger=None):
         """Reptile Search Algorithm for 6G user association optimization"""
         self.env = env
         
-        self.reptiles = 30     # Population size
+        self.reptiles = reptiles     # Population size
         self.iterations = iterations
-        self.alpha = 0.1       # Exploration control
-        self.beta = 1.5        # Exploitation intensity
-        self.hunting_prob = 0.7  # Probability of hunting behavior
+        self.alpha = alpha      # Exploration control
+        self.beta = beta       # Exploitation intensity
+        self.hunting_prob = hunting_prob  # Probability of hunting behavior
         self.seed = 42
         self.kpi_logger = kpi_logger
         
