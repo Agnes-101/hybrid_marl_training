@@ -2,15 +2,16 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class RainbowOptimization:
-    def __init__(self, env: NetworkEnvironment, iterations=20,kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, iterations=20,rays = 30,refraction_rate = 0.7,dispersion_factor = 0.4,
+                spectrum_bands = 7,prism_effect = 1.2,kpi_logger=None):
         """Rainbow Optimization Algorithm for 6G user association"""
         self.env = env
-        self.rays = 30          # Population size
+        self.rays = rays          # Population size
         self.iterations = iterations
-        self.refraction_rate = 0.7   # Light refraction probability
-        self.dispersion_factor = 0.4 # Wavelength dispersion strength
-        self.spectrum_bands = 7      # Number of color bands
-        self.prism_effect = 1.2      # Exploitation intensifier
+        self.refraction_rate = refraction_rate   # Light refraction probability
+        self.dispersion_factor = dispersion_factor # Wavelength dispersion strength
+        self.spectrum_bands = spectrum_bands     # Number of color bands
+        self.prism_effect = prism_effect      # Exploitation intensifier
         self.seed = 42
         self.kpi_logger = kpi_logger
         

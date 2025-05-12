@@ -2,16 +2,17 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class AVOAOptimization:
-    def __init__(self, env: NetworkEnvironment,iterations=20, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment,iterations=20, vultures = 30,exploration_rate = 0.5, exploitation_rate = 0.8,
+                satiety_threshold = 0.3,alpha = 2.0,beta = 1.5,kpi_logger=None):
         """African Vultures Optimization Algorithm for 6G user association"""
         self.env = env
-        self.vultures = 30     # Population size
+        self.vultures = vultures     # Population size
         self.iterations = iterations
-        self.exploration_rate = 0.5   # Initial exploration probability
-        self.exploitation_rate = 0.8  # Exploitation intensity
-        self.satiety_threshold = 0.3  # Food scarcity threshold
-        self.alpha = 2.0       # Exploration random walk coefficient
-        self.beta = 1.5        # Exploitation convergence coefficient
+        self.exploration_rate = exploration_rate   # Initial exploration probability
+        self.exploitation_rate = exploitation_rate  # Exploitation intensity
+        self.satiety_threshold = satiety_threshold  # Food scarcity threshold
+        self.alpha = alpha       # Exploration random walk coefficient
+        self.beta = beta        # Exploitation convergence coefficient
         self.seed = 42
         self.kpi_logger = kpi_logger
         

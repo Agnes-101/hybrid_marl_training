@@ -2,14 +2,15 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class GTOOptimization:
-    def __init__(self, env: NetworkEnvironment,iterations=20, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment,iterations=20,gorillas = 30,silverback_influence = 0.8 , migration_prob = 0.3,
+                social_factor = 0.5, kpi_logger=None):
         """Gorilla Troops Optimizer for user association in 6G networks"""
         self.env = env
-        self.gorillas = 30    # Population size
+        self.gorillas = gorillas    # Population size
         self.iterations = iterations
-        self.silverback_influence = 0.8  # Leader's decision weight
-        self.migration_prob = 0.3        # Exploration probability
-        self.social_factor = 0.5         # Group interaction strength
+        self.silverback_influence = silverback_influence  # Leader's decision weight
+        self.migration_prob = migration_prob        # Exploration probability
+        self.social_factor = social_factor         # Group interaction strength
         self.seed = 42
         self.kpi_logger = kpi_logger
         

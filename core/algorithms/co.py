@@ -2,15 +2,16 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class CheetahOptimization:
-    def __init__(self, env: NetworkEnvironment,iterations=20, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment,iterations=20, cheetahs = 30,sprint_prob = 0.6,rest_threshold = 0.3,
+                acceleration = 1.2,energy_decay = 0.95, kpi_logger=None):
         """Cheetah Optimizer for 6G user association and load balancing"""
         self.env = env
-        self.cheetahs = 30     # Population size
+        self.cheetahs = cheetahs     # Population size
         self.iterations = iterations
-        self.sprint_prob = 0.6     # Probability of high-speed chase
-        self.rest_threshold = 0.3  # Energy conservation threshold
-        self.acceleration = 1.2    # Sprint speed multiplier
-        self.energy_decay = 0.95   # Energy depletion rate
+        self.sprint_prob = sprint_prob    # Probability of high-speed chase
+        self.rest_threshold = rest_threshold  # Energy conservation threshold
+        self.acceleration = acceleration   # Sprint speed multiplier
+        self.energy_decay = energy_decay   # Energy depletion rate
         self.seed = 42
         self.kpi_logger = kpi_logger
         

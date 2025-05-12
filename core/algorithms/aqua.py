@@ -3,17 +3,17 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class AquilaOptimization:
-    def __init__(self, env: NetworkEnvironment, iterations=20,kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, iterations=20,pop_size = 30, expansion_factor = 2.0, spiral_density = 0.1,kpi_logger=None):
         """Aquila Optimizer with four hunting strategies"""
         self.env = env
         self.num_ue = env.num_ue
         self.num_bs = env.num_bs
         
         # Hyperparameters
-        self.pop_size = 30        # Equivalent to ACO's ants
+        self.pop_size = pop_size        # Equivalent to ACO's ants
         self.iterations = iterations
-        self.expansion_factor = 2.0  # For high soar exploration
-        self.spiral_density = 0.1    # Spiral search intensity
+        self.expansion_factor = expansion_factor  # For high soar exploration
+        self.spiral_density = spiral_density    # Spiral search intensity
         self.seed = 42
         self.kpi_logger = kpi_logger
         

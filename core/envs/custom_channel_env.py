@@ -990,14 +990,14 @@ class NetworkEnvironment(MultiAgentEnv):
         throughputs_Gbps = throughputs / 1e9  # bits/sec → bytes/sec → Gb/sec
         avg_throughput_Gbps = throughputs_Gbps.mean()
 
-        # Debug: print a few sample UE stats in GB/s
-        for ue_id in throughputs.argsort()[-5:]:
-            ue = self.ues[ue_id]            
-            lin_snr = ue.sinr
-            snr_db  = 10*np.log10(lin_snr + 1e-12)
-            r_gbps = throughputs_Gbps[ue_id]
-            print(f" UE {ue_id}: assoc→BS{ue.associated_bs}, "
-                f"SINR={snr_db:.2f} dB, Rate={r_gbps:.3f} Gb/s")        
+        # # Debug: print a few sample UE stats in GB/s
+        # for ue_id in throughputs.argsort()[-5:]:
+        #     ue = self.ues[ue_id]            
+        #     lin_snr = ue.sinr
+        #     snr_db  = 10*np.log10(lin_snr + 1e-12)
+        #     r_gbps = throughputs_Gbps[ue_id]
+        #     print(f" UE {ue_id}: assoc→BS{ue.associated_bs}, "
+        #         f"SINR={snr_db:.2f} dB, Rate={r_gbps:.3f} Gb/s")        
 
         # 5) Compute other metrics
         fitness     = self.calculate_reward()          # global reward

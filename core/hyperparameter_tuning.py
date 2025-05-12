@@ -36,7 +36,14 @@ class OptunaTuner:
         self.env = env
         self.studies = {}      
     
-    
+    @staticmethod
+    def suggest_aquilaoptimization_params(trial):
+        return {
+            'pop_size': trial.suggest_int('pop_size', 20, 50),
+            'expansion_factor': trial.suggest_float('expansion_factor', 1.5, 3.0),
+            'spiral_density': trial.suggest_float('spiral_density', 0.05, 0.3)
+                }
+        
     @staticmethod
     def suggest_avoaparams(trial):
         return {
@@ -183,6 +190,7 @@ class BatchTuner:
         
     def run_all(self):
         algorithms = [
+            ("AQUA", AquilaOptimization),
             ("AVOA", AVOAOptimization),
             ("Cheetah", CheetahOptimization),
             ("COA", COAOptimization),

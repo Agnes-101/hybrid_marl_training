@@ -2,14 +2,15 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class PelicanOptimization:
-    def __init__(self, env: NetworkEnvironment,iterations=20, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment,iterations=20, pelicans = 30,initial_movement = 0.8, scoop_intensity = 0.2, 
+                decay_factor = 0.95,kpi_logger=None):
         """Pelican Optimization Algorithm for 6G user association"""
         self.env = env
-        self.pelicans = 30     # Population size
+        self.pelicans = pelicans     # Population size
         self.iterations = iterations
-        self.initial_movement = 0.8    # Exploration rate
-        self.scoop_intensity = 0.2     # Exploitation rate
-        self.decay_factor = 0.95       # Exploration decay rate
+        self.initial_movement = initial_movement    # Exploration rate
+        self.scoop_intensity = scoop_intensity     # Exploitation rate
+        self.decay_factor = decay_factor      # Exploration decay rate
         self.seed = 42
         self.kpi_logger = kpi_logger
         

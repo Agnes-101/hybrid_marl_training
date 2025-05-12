@@ -652,8 +652,8 @@ if __name__ == "__main__":
     config = {
         # Core configuration
         "metaheuristic": "pfo",
-        "comparison_mode": False,
-        "metaheuristic_algorithms": ["aco","bat", "cs", "de", "fa", "ga", "gwo", "hs", "ica", "pfo", "pso", "sa", "tabu", "woa"], #
+        "comparison_mode": True,
+        "metaheuristic_algorithms": ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa","aqua", "poa", "rime", "roa", "rsa", "sto"], #
         "marl_algorithm": "PPO", 
         
         # Environment parameters

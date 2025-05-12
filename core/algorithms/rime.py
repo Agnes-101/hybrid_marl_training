@@ -2,15 +2,16 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class RIMEOptimization:
-    def __init__(self, env: NetworkEnvironment,iterations=20, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment,iterations=20, particles = 30,temperature = 1.0,cooling_rate = 0.95,
+                stability_threshold = 0.1,phase_ratio = 0.6  ,kpi_logger=None):
         """RIME Algorithm for 6G user association and load balancing"""
         self.env = env
-        self.particles = 30    # Population size
+        self.particles = particles    # Population size
         self.iterations = iterations
-        self.temperature = 1.0   # Initial phase control parameter
-        self.cooling_rate = 0.95 # Temperature decay rate
-        self.stability_threshold = 0.1 # Solution component freezing threshold
-        self.phase_ratio = 0.6  # Soft/hard rime balance
+        self.temperature = temperature   # Initial phase control parameter
+        self.cooling_rate = cooling_rate # Temperature decay rate
+        self.stability_threshold = stability_threshold# Solution component freezing threshold
+        self.phase_ratio =phase_ratio  # Soft/hard rime balance
         self.seed = 42
         self.kpi_logger = kpi_logger
         

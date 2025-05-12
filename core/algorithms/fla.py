@@ -2,15 +2,16 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class FLAOptimization:
-    def __init__(self, env: NetworkEnvironment, iterations=20, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, iterations=20,particles = 30,diffusion_rate = 0.8,random_walk_prob = 0.3 ,
+                time_step = 0.5 ,decay_factor = 0.95 ,kpi_logger=None):
         """Fick's Law Algorithm for 6G user association optimization"""
         self.env = env
-        self.particles = 30    # Population size
+        self.particles = particles   # Population size
         self.iterations = iterations
-        self.diffusion_rate = 0.8     # Initial diffusion coefficient
-        self.random_walk_prob = 0.3   # Exploration probability
-        self.time_step = 0.5          # Virtual time step for diffusion
-        self.decay_factor = 0.95      # Parameter decay rate
+        self.diffusion_rate = diffusion_rate     # Initial diffusion coefficient
+        self.random_walk_prob = random_walk_prob   # Exploration probability
+        self.time_step = time_step          # Virtual time step for diffusion
+        self.decay_factor = decay_factor      # Parameter decay rate
         self.seed = 42
         self.kpi_logger = kpi_logger
         

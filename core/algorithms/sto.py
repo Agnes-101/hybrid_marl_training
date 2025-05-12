@@ -2,14 +2,15 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class STOOptimization:
-    def __init__(self, env: NetworkEnvironment, iterations=20, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, iterations=20, tigers = 30,territory_radius = 0.4,attack_intensity = 1.5,
+                marking_rate = 0.2,kpi_logger=None):
         """Siberian Tiger Optimizer for 6G user association and load balancing"""
         self.env = env
-        self.tigers = 30       # Population size
+        self.tigers = tigers       # Population size
         self.iterations = iterations
-        self.territory_radius = 0.4  # Initial exploration range
-        self.attack_intensity = 1.5   # Exploitation strength
-        self.marking_rate = 0.2       # Territory marking frequency
+        self.territory_radius = territory_radius  # Initial exploration range
+        self.attack_intensity = attack_intensity   # Exploitation strength
+        self.marking_rate = marking_rate       # Territory marking frequency
         self.seed = 42
         self.kpi_logger = kpi_logger
         

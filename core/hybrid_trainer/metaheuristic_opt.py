@@ -127,7 +127,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     # Modified line: pass the environment to the run method
     # Instantiate with required parameters
     algo_class = algorithms[algorithm]
-    algo_instance = algo_class(env=env,kpi_logger=kpi_logger)  # ✅ Pass logger
+    algo_instance = algo_class(env=env,iterations=1,kpi_logger=kpi_logger)  # ✅ Pass logger
 
     print(f"\n Algorithm Instance, {algo_instance}")
     # solution = algo_instance.run(env)

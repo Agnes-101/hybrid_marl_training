@@ -2,14 +2,15 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class DandelionOptimization:
-    def __init__(self, env: NetworkEnvironment,iterations=20, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment,iterations=20,seeds = 30,wind_factor = 0.5,lift_coeff = 1.2,
+                descent_rate = 0.9,  kpi_logger=None):
         """Dandelion Optimizer for 6G user association"""
         self.env = env
-        self.seeds = 30       # Population size
+        self.seeds = seeds       # Population size
         self.iterations = iterations
-        self.wind_factor = 0.5  # Controls exploration magnitude
-        self.lift_coeff = 1.2   # Initial ascent coefficient
-        self.descent_rate = 0.9 # Descent coefficient per iteration
+        self.wind_factor = wind_factor  # Controls exploration magnitude
+        self.lift_coeff = lift_coeff   # Initial ascent coefficient
+        self.descent_rate = descent_rate # Descent coefficient per iteration
         self.seed = 42
         self.kpi_logger = kpi_logger
         
