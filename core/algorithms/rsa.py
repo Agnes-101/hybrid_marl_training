@@ -5,7 +5,8 @@ class RSAOptimization:
     def __init__(self, env: NetworkEnvironment, iterations=20, reptiles = 30, alpha = 0.1,beta = 1.5,hunting_prob = 0.7,kpi_logger=None):
         """Reptile Search Algorithm for 6G user association optimization"""
         self.env = env
-        
+        self.num_users = env.num_ue
+        self.num_bs = env.num_bs
         self.reptiles = reptiles     # Population size
         self.iterations = iterations
         self.alpha = alpha      # Exploration control
