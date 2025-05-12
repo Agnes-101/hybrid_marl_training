@@ -70,7 +70,7 @@ with st.sidebar:
     if mode in ["Single Metaheuristic", "Hybrid"]:
         meta_algo = st.selectbox("Metaheuristic Algorithm", ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa","aqua", "poa", "rime", "roa", "rsa", "sto"])
     if mode == "Comparison":
-        algos = st.multiselect("Compare Algos", ["avoa", "co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], default=["pfo", "co"])
+        algos = st.multiselect("Compare Algos", ["avoa", "aqua","co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], default=["pfo", "co"])
         kpi_cmp = st.selectbox("KPI to Compare", ["fitness", "average_sinr", "fairness"])
     if mode in ["MARL", "Hybrid"]:
         marl_steps = st.slider("MARL Steps/Epoch", 1, 50, 10)

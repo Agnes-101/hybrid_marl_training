@@ -31,6 +31,15 @@ from core.algorithms.roa import RainbowOptimization
 import optuna
 from optuna.samplers import TPESampler
 from optuna.visualization import plot_param_importances, plot_parallel_coordinate
+import logging
+
+logging.basicConfig(
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
 class OptunaTuner:
     def __init__(self, env: NetworkEnvironment):
         self.env = env
@@ -243,7 +252,22 @@ class BatchTuner:
             algo_params = algo_method(trial)
             
             optimizer = algorithm_class(self.env, **common_params, **algo_params)
-            result = optimizer.run()
+            # just before calling optimizer.run()
+            counter = {'i': 0}
+
+            def debug_callback(metrics, solution):
+                # this gets called once per iteration by each optimizer
+                counter['i'] += 1
+                if counter['i'] % 5 == 0:
+                    print(
+                        f"[{optimizer.__class__.__name__}] "
+                        f"Iter {counter['i']:3d} — fitness={metrics['fitness']:.4f}"
+                    )
+
+            # now pass it into run()
+            result = optimizer.run(visualize_callback=debug_callback)
+
+            # result = optimizer.run()
             
             for i, fitness in enumerate(result['agents']['fitness']):
                 trial.report(fitness, i)

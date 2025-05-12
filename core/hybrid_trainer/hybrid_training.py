@@ -652,7 +652,7 @@ if __name__ == "__main__":
     config = {
         # Core configuration
         "metaheuristic": "pfo",
-        "comparison_mode": True,
+        "comparison_mode": False,
         "metaheuristic_algorithms": ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa","aqua", "poa", "rime", "roa", "rsa", "sto"], #
         "marl_algorithm": "PPO", 
         
