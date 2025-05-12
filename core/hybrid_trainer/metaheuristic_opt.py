@@ -25,6 +25,7 @@ from core.algorithms.hoa import HippoOptimization
 from core.algorithms.fla import FLAOptimization
 from core.algorithms.rime import RIMEOptimization
 from core.algorithms.avoa import AVOAOptimization
+from core.algorithms.aqua import AquilaOptimization
 from core.algorithms.pfo import PolarFoxOptimization
 from core.algorithms.roa import RainbowOptimization
 
@@ -116,7 +117,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
         "avoa": AVOAOptimization,     # African Vultures Optimization Algorithm
         "co": CheetahOptimization, # Cheetah Optimizer
         "roa": RainbowOptimization, # Rainbow Optimization Algorithm
-        
+        "aqua": AquilaOptimization,
         # Add other algorithms as needed...
     }
     if algorithm not in algorithms:
