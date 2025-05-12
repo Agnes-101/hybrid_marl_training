@@ -31,14 +31,6 @@ from core.algorithms.roa import RainbowOptimization
 import optuna
 from optuna.samplers import TPESampler
 from optuna.visualization import plot_param_importances, plot_parallel_coordinate
-import logging
-
-logging.basicConfig(
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%H:%M:%S",
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
 
 class OptunaTuner:
     def __init__(self, env: NetworkEnvironment):
@@ -252,22 +244,7 @@ class BatchTuner:
             algo_params = algo_method(trial)
             
             optimizer = algorithm_class(self.env, **common_params, **algo_params)
-            # just before calling optimizer.run()
-            counter = {'i': 0}
-
-            def debug_callback(metrics, solution):
-                # this gets called once per iteration by each optimizer
-                counter['i'] += 1
-                if counter['i'] % 5 == 0:
-                    print(
-                        f"[{optimizer.__class__.__name__}] "
-                        f"Iter {counter['i']:3d} — fitness={metrics['fitness']:.4f}"
-                    )
-
-            # now pass it into run()
-            result = optimizer.run(visualize_callback=debug_callback)
-
-            # result = optimizer.run()
+            result = optimizer.run()
             
             for i, fitness in enumerate(result['agents']['fitness']):
                 trial.report(fitness, i)
@@ -317,10 +294,10 @@ class BatchTuner:
 
 if __name__ == "__main__":
     # Initialize network environment
-    env = NetworkEnvironment({"num_bs":10, "num_ue":60})
+    env = NetworkEnvironment({"num_bs":10, "num_ue":200})
     
     # Configure tuner (100 trials per algorithm, 1 hour max per algorithm)
-    tuner = BatchTuner(env, n_trials=100, timeout=3600)
+    tuner = BatchTuner(env, n_trials=20, timeout=3600)
     
     # Start batch optimization
     print("Starting batch optimization of all algorithms...")
