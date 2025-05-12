@@ -975,7 +975,7 @@ class NetworkEnvironment(MultiAgentEnv):
         for ue in self.ues:
             if ue.associated_bs is not None:
                 # debug SINR for the first 3 UEs
-                sinr_vec = self._calculate_sinrs(ue, debug=(ue.id < 3))
+                sinr_vec = self._calculate_sinrs(ue) #, debug=(ue.id < 3))
                 ue.sinr = sinr_vec[ue.associated_bs]
             else:
                 ue.sinr = -np.inf
