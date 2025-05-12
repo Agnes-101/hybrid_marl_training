@@ -405,17 +405,34 @@ class NetworkEnvironment(MultiAgentEnv):
         return torch.log2(1 + 10**(self.sinr/10)).item()
         
     def calculate_reward(self):
-        """Calculate reward with tensor-safe operations"""
-        # Convert SINR values to tensor first
-        sinr_tensor = torch.tensor([ue.sinr for ue in self.ues], dtype=torch.float32)
+        """Normalized reward: Gbps throughput + fairness - overload_penalty."""
+        # 1) Sum actual per-UE shared throughput in Gbps
+        #    (we assume bs.allocated_resources[u.id] is in bps)
+        total_bps = sum(
+            dr for bs in self.base_stations for dr in bs.allocated_resources.values()
+        )
+        throughput_gbps = total_bps / 1e9
+
+        # 2) Normalize each BS load by its capacity (bps)
+        loads_norm = torch.tensor(
+            [bs.load / bs.capacity for bs in self.base_stations],
+            dtype=torch.float32
+        )
         
-        throughput = torch.sum(torch.log2(1 + 10**(sinr_tensor/10)))
-        loads = torch.tensor([bs.load for bs in self.base_stations])
-        
-        jain = (loads.sum()**2) / (self.num_bs * (loads**2).sum() + 1e-6)
-        overload_penalty = torch.sum(torch.relu(loads - 1.0))
-        
-        return throughput + 2.0 * jain - 0.5 * overload_penalty
+        # 3) Jain fairness on these fractions
+        jain = (loads_norm.sum()**2) / (self.num_bs * (loads_norm**2).sum() + 1e-6)
+
+        # 4) Overload penalty: how many cells exceed 100% load
+        overload = torch.relu(loads_norm - 1.0).sum()  # unitless
+
+        # 5) Combine into a single reward
+        #    weights chosen so throughput (Gbps) is comparable to jain (0–1) and overload
+        return (
+            1.0 * throughput_gbps     # reward raw capacity in Gbps
+        + 2.0 * jain                # reward fairness [0–2]
+        - 1.0 * overload           # penalty per “overloaded cell” fraction
+        )
+
     
     def pick_best_bs(self, ue, w1=0.7, w2=0.3, delta=0.1):
         """

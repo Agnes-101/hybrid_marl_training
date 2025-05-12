@@ -44,7 +44,7 @@ class AquilaOptimization:
                 self.best_solution = population[current_best_idx].copy()
             
             # 3. Aquila hunting strategies
-            population = self._aquila_hunting(self.pop_size, fitness_values, iteration)
+            population = self._aquila_hunting(population, fitness_values, iteration)
             
             # 4. Logging and visualization (matches ACO structure)
             self._update_visualization(iteration)
@@ -111,10 +111,10 @@ class AquilaOptimization:
         
         return np.array(new_population)
 
-    def _high_soar(self, current, best, t):
+    def _high_soar(self, population,current, best, t):
         """Broad exploration using Lévy flights"""
         levy = self._levy_flight()
-        return (1 - t) * best + t * levy * self.expansion_factor * (current - np.mean(self.population, axis=0))
+        return (1 - t) * best + t * levy * self.expansion_factor * (current - np.mean(population, axis=0))
 
     def _contour_flight(self, current, best, t):
         """Spiral search around best solution"""
