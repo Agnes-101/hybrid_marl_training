@@ -99,7 +99,7 @@ class AquilaOptimization:
         
         for i in range(self.pop_size):
             if t < 0.3:  # High soar exploration
-                new_sol = self._high_soar(population[i], self.best_solution, t)
+                new_sol = self._high_soar(population, population[i], self.best_solution, t)
             elif t < 0.6:  # Contour flight
                 new_sol = self._contour_flight(population[i], self.best_solution, t)
             elif t < 0.9:  # Short glide attack
@@ -111,10 +111,11 @@ class AquilaOptimization:
         
         return np.array(new_population)
 
-    def _high_soar(self, population,current, best, t):
-        """Broad exploration using Lévy flights"""
+    def _high_soar(self, population, current, best, t):
         levy = self._levy_flight()
-        return (1 - t) * best + t * levy * self.expansion_factor * (current - np.mean(population, axis=0))
+        return (1 - t) * best \
+            + t * levy * self.expansion_factor \
+                    * (current - np.mean(population, axis=0))
 
     def _contour_flight(self, current, best, t):
         """Spiral search around best solution"""
