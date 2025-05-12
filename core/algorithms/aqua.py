@@ -44,7 +44,7 @@ class AquilaOptimization:
                 self.best_solution = population[current_best_idx].copy()
             
             # 3. Aquila hunting strategies
-            population = self._aquila_hunting(population, fitness_values, iteration)
+            population = self._aquila_hunting(self.pop_size, fitness_values, iteration)
             
             # 4. Logging and visualization (matches ACO structure)
             self._update_visualization(iteration)
