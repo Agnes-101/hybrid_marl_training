@@ -1,13 +1,13 @@
 import numpy as np
-from envs.custom_channel_env import NetworkEnvironment
+from core.envs.custom_channel_env import NetworkEnvironment
 
 class RSAOptimization:
-    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, iterations=20, kpi_logger=None):
         """Reptile Search Algorithm for 6G user association optimization"""
         self.env = env
         
         self.reptiles = 30     # Population size
-        self.iterations = 20
+        self.iterations = iterations
         self.alpha = 0.1       # Exploration control
         self.beta = 1.5        # Exploitation intensity
         self.hunting_prob = 0.7  # Probability of hunting behavior
@@ -116,8 +116,8 @@ class RSAOptimization:
                 new_sol[ue] = best_sol[ue]
             else:
                 # Local refinement with decreasing randomness
-                delta = int(self.rng.normal(0, num_bs * (1 - exploitation)))
-                new_sol[ue] = (current_sol[ue] + delta) % num_bs
+                delta = int(self.rng.normal(0, self.num_bs * (1 - exploitation)))
+                new_sol[ue] = (current_sol[ue] + delta) % self.num_bs
         return new_sol
 
     def _encircle_prey(self, current_sol: np.ndarray, exploration: float) -> np.ndarray:

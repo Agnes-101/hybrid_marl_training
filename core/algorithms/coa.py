@@ -2,11 +2,11 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class COAOptimization:
-    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, iterations=20,kpi_logger=None):
         """Coati Optimization Algorithm for 6G network optimization"""
         self.env = env
         self.coatis = 30  # Population size
-        self.iterations = 20
+        self.iterations = iterations
         self.attack_rate = 0.1  # Probability of attacking prey
         self.explore_rate = 0.7  # Exploration probability
         self.seed = 42

@@ -2,11 +2,11 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class HBAOptimization:
-    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment,iterations=20, kpi_logger=None):
         """Honey Badger Algorithm for 6G user association optimization"""
         self.env = env
         self.badgers = 30      # Population size
-        self.iterations = 20
+        self.iterations = iterations
         self.intensity = 0.9   # Smell intensity coefficient
         self.density_factor = 1.0  # Exploration density
         self.honey_prob = 0.5  # Probability of honey phase

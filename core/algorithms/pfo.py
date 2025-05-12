@@ -5,14 +5,14 @@ import torch
 from envs.custom_channel_env import NetworkEnvironment
 
 class PolarFoxOptimization:
-    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment, iterations=20, kpi_logger=None):
                 
         self.env = env
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
         
         self.population_size = 40
-        self.iterations = 20
+        self.iterations = iterations
         self.mutation_factor = 0.2
         self.jump_rate = 0.2 
         self.follow_rate = 0.3  

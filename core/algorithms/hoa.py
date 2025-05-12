@@ -2,11 +2,11 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class HippoOptimization:
-    def __init__(self, env: NetworkEnvironment, kpi_logger=None):
+    def __init__(self, env: NetworkEnvironment,iterations=20, kpi_logger=None):
         """Hippopotamus Optimization Algorithm for 6G load balancing"""
         self.env = env
         self.pod_size = 30          # Population size
-        self.iterations = 20
+        self.iterations = iterations
         self.aggression_rate = 0.3  # Territorial defense probability
         self.social_factor = 0.6    # Pod cohesion strength
         self.yawn_impact = 0.4      # Dominance display effect
