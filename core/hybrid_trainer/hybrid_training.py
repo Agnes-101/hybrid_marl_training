@@ -427,7 +427,7 @@ class HybridTraining:
 
         # 4) return the trained algo so that your wrapper can extract solution
         return algo, results
-            
+    
     def _execute_marl_phase(self, initial_policy: Dict = None):
         print(f"\n Starting {self.config.get('marl_algorithm','PPO').upper()} training...")
 
@@ -445,7 +445,7 @@ class HybridTraining:
             .environment("NetworkEnv", env_config=env_config)
             .env_runners(
                 rollout_fragment_length=10,   # collect 10 frames per worker
-                sample_timeout_s=600          # 10 minutes max
+                sample_timeout_s=3600          # 10 minutes max
             )
             .training(
                 model={
@@ -487,7 +487,73 @@ class HybridTraining:
         )
         print("Trial errors:", analysis.errors)
         return analysis
-        # Add this after tune.run()
+        # Add this after tune.run()        
+    # def _execute_marl_phase(self, initial_policy: Dict = None):
+    #     """Execute MARL training phase"""
+    #     # print(f"\n Starting {self.config['marl_algorithm'].upper()} training...")
+    #     print(f"\n Starting {self.config.get('marl_algorithm', 'PPO').upper()} training...")
+    #     # Configure environment with current network state
+    #     # Extract initial solution safely
+    #     initial_weights = []
+    #     if initial_policy is not None:
+    #         initial_weights = initial_policy.tolist()  # ✅ Correct extraction
+    #         assert len(initial_weights) == self.config["env_config"]["num_ue"]
+            
+    #     env_config = {
+    #         **self.config["env_config"]            
+    #     }
+        
+        
+    #     # MARL configuration
+    #     # MARL configuration
+    #     marl_config = (
+    #         PPOConfig()
+    #         .environment(
+    #             "NetworkEnv",
+    #             env_config=env_config
+    #         )
+    #         .training(
+    #             model={
+    #                 "custom_model": "meta_policy",
+    #                 "custom_model_config": {
+    #                     "initial_weights": initial_weights,
+    #                     "num_bs": self.config["env_config"]["num_bs"],
+    #                     "num_ue": self.config["env_config"]["num_ue"]
+    #                 }
+    #             },
+                
+    #             gamma=0.99,
+    #             lr=0.0005,  # Slightly higher learning rate
+    #             lr_schedule=[(0, 0.00005), (1000, 0.0001), (10000, 0.0005)],  # Gradual lr increase
+    #             entropy_coeff=0.01,  # Add exploration
+    #             kl_coeff=0.2,
+    #             train_batch_size=4000,
+    #             sgd_minibatch_size=128,
+    #             num_sgd_iter=10,
+    #             clip_param=0.2,
+    #         ).env_runners(
+    #         sample_timeout_s=3600, # 600,  # Increase from default (180s) to 10 minutes
+    #         rollout_fragment_length=25 # 50  # Decrease from default (200) to collect samples faster
+    #             )
+    #         .multi_agent(
+    #             policies={
+    #                 f"ue_{i}": (None, self.obs_space[f"ue_{i}"], self.act_space[f"ue_{i}"], {})
+    #                 for i in range(self.config["env_config"]["num_ue"])
+    #             },
+    #             policy_mapping_fn=lambda agent_id, episode=None, worker=None, **kwargs: agent_id
+    #         )
+    #     )
+        
+    #     analysis = ray.tune.run(
+    #         "PPO",
+    #         config=marl_config.to_dict(),
+    #         stop={"training_iteration": self.config["marl_steps_per_phase"]},
+    #         checkpoint_at_end=True,
+    #         callbacks=[self._create_marl_callback()]
+    #     )
+    #     print("Trial errors:", analysis.errors)
+    #     return analysis
+    #     # Add this after tune.run()
         
 
     def _create_marl_callback(self):

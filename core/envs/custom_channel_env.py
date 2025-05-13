@@ -407,8 +407,13 @@ class NetworkEnvironment(MultiAgentEnv):
         if hasattr(self, "load_history"):
             for bs in self.base_stations:
                 self.load_history[bs.id].clear()
-
-        return self._get_obs()# , {}
+        # 1) build obs-dict
+        obs = self._get_obs()   # returns a dict
+        # 2) build an infos-dict (can be empty per agent)
+        infos = {f"ue_{i}": {} for i in range(self.num_ue)}
+        # 3) return the two-tuple
+        return obs, infos
+        # return self._get_obs()# , {}
 
     # Add these to your NetworkEnvironment class
     def calculate_jains_fairness(self):
@@ -716,8 +721,14 @@ class NetworkEnvironment(MultiAgentEnv):
             # Split termination into terminated and truncated (for Gymnasium compatibility)
             #terminated = {"__all__": False}  # Episode is not terminated due to failure condition
             # RLlib requires an "__all__" entry
-            dones = {"__all__": self.current_step >= self.episode_length}
-            #truncated = {"__all__": self.current_step >= self.episode_length}  # Episode length limit reached    
+            #dones = {"__all__": self.current_step >= self.episode_length}
+            #truncated = {"__all__": self.current_step >= self.episode_length}  # Episode length limit reached 
+            episode_done = (self.current_step >= self.episode_length)
+            dones = {
+                **{f"ue_{i}": episode_done for i in range(self.num_ue)},
+                "__all__": episode_done
+            }
+
             # Common info for all agents
             common_info = {
                 "connected_ratio": connected_count / self.num_ue,
