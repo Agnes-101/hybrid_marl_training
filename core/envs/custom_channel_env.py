@@ -660,6 +660,7 @@ class NetworkEnvironment(MultiAgentEnv):
             print(f"Connected Users : {connected_count} Users")
             # Log performance metrics at regular intervals
             step_time = time.time() - start_time
+            jains = 0.0
             if self.current_step % 10 == 0 or connected_count < self.num_ue:
                 print(f"Step {self.current_step} | Time: {step_time:.3f}s | Connected: {connected_count}/{self.num_ue} UEs")
                 
@@ -677,10 +678,10 @@ class NetworkEnvironment(MultiAgentEnv):
                     # jain = self.calculate_jains_fairness()
                     # print(f"Load balancing Jain's index: {jain:.4f}")
                 
-                # Log detailed BS allocations if not all UEs connected
-                if connected_count < self.num_ue:
-                    print(f"BS allocations: {bs_allocations}")
-                    print(f"BS capacity %: {[bs_capacity_used[bs.id]/bs.capacity if bs.capacity > 0 else 0 for bs in self.base_stations]}")
+                # # Log detailed BS allocations if not all UEs connected
+                # if connected_count < self.num_ue:
+                #     print(f"BS allocations: {bs_allocations}")
+                #     print(f"BS capacity %: {[bs_capacity_used[bs.id]/bs.capacity if bs.capacity > 0 else 0 for bs in self.base_stations]}")
             
             
             
@@ -692,7 +693,7 @@ class NetworkEnvironment(MultiAgentEnv):
                 else:
                     # Use a default value for unconnected UEs
                     current_solution.append(0)  # Or None if your visualization can handle it
-            print(f"Current solution at : {current_solution}")
+            # print(f"Current solution at : {current_solution}")
             sinr_list = [ue.sinr if ue.associated_bs is not None else -np.inf
              for ue in self.ues]
             

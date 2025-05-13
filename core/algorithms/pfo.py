@@ -271,7 +271,7 @@ class PolarFoxOptimization:
                     metrics=current_best_metrics # Log full metrics {"fitness": best_fitness, "diversity": diversity}
                 )
                 print(f"PFO Iter {iteration}: Best Fitness = {best_fitness:.4f}, Diversity = {diversity:.2f}")
-            
+            print(f"Logging metrics at episode {iteration}: {current_best_metrics}")
             historical_bests.append(best_fitness)
             # prepare the simple metrics dict for plotting
              

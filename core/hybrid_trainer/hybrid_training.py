@@ -172,10 +172,10 @@ class MetaPolicy(TorchModelV2, nn.Module):
         assert self._cur_value is not None, "value function not calculated"
         
         # Debug: Check value function output
-        if isinstance(self._cur_value, torch.Tensor) and self._cur_value.numel() > 0:
-            print(f"Value function stats: min={self._cur_value.min().item():.4f}, "
-                f"max={self._cur_value.max().item():.4f}, mean={self._cur_value.mean().item():.4f}, "
-                f"has_nan={torch.isnan(self._cur_value).any().item()}")
+        # if isinstance(self._cur_value, torch.Tensor) and self._cur_value.numel() > 0:
+        #     print(f"Value function stats: min={self._cur_value.min().item():.4f}, "
+        #         f"max={self._cur_value.max().item():.4f}, mean={self._cur_value.mean().item():.4f}, "
+        #         f"has_nan={torch.isnan(self._cur_value).any().item()}")
         
         return self._cur_value        
     
@@ -443,6 +443,10 @@ class HybridTraining:
         marl_config = (
             PPOConfig()
             .environment("NetworkEnv", env_config=env_config)
+            .env_runners(
+                rollout_fragment_length=10,   # collect 10 frames per worker
+                sample_timeout_s=600          # 10 minutes max
+            )
             .training(
                 model={
                     "custom_model": "meta_policy",
