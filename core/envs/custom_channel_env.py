@@ -719,15 +719,15 @@ class NetworkEnvironment(MultiAgentEnv):
                 )
                 
             # Split termination into terminated and truncated (for Gymnasium compatibility)
-            #terminated = {"__all__": False}  # Episode is not terminated due to failure condition
+            terminated = {"__all__": False}  # Episode is not terminated due to failure condition
             # RLlib requires an "__all__" entry
             #dones = {"__all__": self.current_step >= self.episode_length}
-            #truncated = {"__all__": self.current_step >= self.episode_length}  # Episode length limit reached 
-            episode_done = (self.current_step >= self.episode_length)
-            dones = {
-                **{f"ue_{i}": episode_done for i in range(self.num_ue)},
-                "__all__": episode_done
-            }
+            truncated = {"__all__": self.current_step >= self.episode_length}  # Episode length limit reached 
+            # episode_done = (self.current_step >= self.episode_length)
+            # dones = {
+            #     **{f"ue_{i}": episode_done for i in range(self.num_ue)},
+            #     "__all__": episode_done
+            # }
 
             # Common info for all agents
             common_info = {
@@ -749,7 +749,7 @@ class NetworkEnvironment(MultiAgentEnv):
             self.last_info = info
             # Increment step counter
             self.current_step += 1
-            return self._get_obs(), rewards,dones, info
+            return self._get_obs(), rewards,terminated,truncated, info
         
         except Exception as e:
             print(f"ERROR in step: {e}")
