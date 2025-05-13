@@ -47,7 +47,7 @@ st.title("6G Metaheuristic & MARL Dashboard")
 # Session-state for flicker control
 if "figures" not in st.session_state:
     st.session_state.figures = {}
-for cnt in ("kpi_count", "live_count", "final_count", "topo_count", "progress_count"):
+for cnt in ("kpi_count", "live_count", "final_count", "topo_count", "progress_count","viz_counter"):
     st.session_state.setdefault(cnt, 0)
 st.session_state.setdefault("hybrid_phase", "meta")
 st.session_state.setdefault("sol0", None)
@@ -66,7 +66,7 @@ st.session_state.setdefault("last_viz_trigger", -1)
 with st.sidebar:
     mode = st.radio("Mode", ["Single Metaheuristic", "Comparison", "MARL", "Hybrid"])
     num_bs = st.slider("Base Stations", 5, 50, 10)
-    num_ue = st.slider("Users", 20, 200, 50)
+    num_ue = st.slider("Users", 20, 500, 50)
     if mode in ["Single Metaheuristic", "Hybrid"]:
         meta_algo = st.selectbox("Metaheuristic Algorithm", ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa","aqua", "poa", "rime", "roa", "rsa", "sto"])
     if mode == "Comparison":

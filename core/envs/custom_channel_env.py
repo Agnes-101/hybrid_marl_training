@@ -292,7 +292,7 @@ class NetworkEnvironment(MultiAgentEnv):
                 reuse_color=color
             )
             self.base_stations.append(bs)
-            
+        print(f"[NetworkEnvironment] num_bs = {config.get('num_bs')}")     
         self.ues = [
             UE(
                 id=i,
