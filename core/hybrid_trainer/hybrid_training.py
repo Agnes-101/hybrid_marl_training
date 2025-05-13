@@ -475,8 +475,8 @@ class HybridTraining:
                 },
                 policy_mapping_fn=lambda agent_id, episode=None, worker=None, **kwargs: agent_id
             )
-            # # Register our VizCallback so RLlib will call it each iteration
-            # .callbacks(VizCallback)
+            # Register our VizCallback so RLlib will call it each iteration
+            .callbacks(VizCallback)
         )
 
         analysis = ray.tune.run(
