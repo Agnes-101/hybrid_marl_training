@@ -472,7 +472,7 @@ class HybridTraining:
                                 self.act_space[f"ue_{i}"], {})
                     for i in range(self.config["env_config"]["num_ue"])
                 },
-                policy_mapping_fn=lambda aid, **kw: aid
+                policy_mapping_fn=lambda agent_id, episode=None, worker=None, **kwargs: agent_id
             )
             # Register our VizCallback so RLlib will call it each iteration
             .callbacks(VizCallback)
