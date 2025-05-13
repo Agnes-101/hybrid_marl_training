@@ -182,37 +182,34 @@ class MetaPolicy(TorchModelV2, nn.Module):
 # After MetaPolicy definition
 ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
 class VizCallback(DefaultCallbacks):
-    def on_train_result(self, *, trainer, result: dict, **kwargs):
+    def on_train_result(self, *, algorithm, result: dict, **kwargs):
+        """Called at end of each training iteration."""
         it = result["training_iteration"]
         if it % 5 != 0:
             return
 
-        env = trainer.workers.local_worker().env
-        policy = trainer.get_policy()
+        env = algorithm.workers.local_worker().env
+        policy = algorithm.get_policy()
         obs, _ = env.reset()
         associations = []
 
         for _ in range(env.episode_length):
-            # build action dict
             acts = {}
             for i in range(env.num_ue):
                 o = obs[f"ue_{i}"]
-                logit, _ = policy.model({
-                    "obs": o
-                })
-                acts[f"ue_{i}"] = int(torch.argmax(logit, dim=-1).item())
+                logits, _ = policy.model({"obs": o})
+                acts[f"ue_{i}"] = int(logits.argmax(dim=-1).item())
 
             obs, _, done, _, _ = env.step(acts)
             associations.append([ue.associated_bs for ue in env.ues])
             if done["__all__"]:
                 break
 
-        # dump to a JSON file your Streamlit app can read
+        # Dump JSON for Streamlit to pick up
         os.makedirs("/tmp/assoc", exist_ok=True)
-        fname = f"/tmp/assoc/assoc_iter{it}.json"
-        with open(fname, "w") as f:
+        with open(f"/tmp/assoc/assoc_iter{it}.json", "w") as f:
             json.dump({"iteration": it, "associations": associations}, f)
-        print(f"[VizCallback] wrote {fname}")
+        print(f"[VizCallback] wrote /tmp/assoc/assoc_iter{it}.json")
 # RAY_DEDUP_LOGS=0
 class HybridTraining:
     def __init__(self, config: Dict):
