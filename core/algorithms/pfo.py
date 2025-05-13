@@ -6,7 +6,7 @@ from envs.custom_channel_env import NetworkEnvironment
 
 class PolarFoxOptimization:
     def __init__(self, env: NetworkEnvironment, iterations=20,population_size = 40, mutation_factor = 0.2,
-                jump_rate = 0.2,follow_rate = 0.3,kpi_logger=None):
+                jump_rate = 0.2,follow_rate = 0.3,group_weights: list[float] | None = None,kpi_logger=None):
                 
         self.env = env
         self.num_users = env.num_ue
@@ -30,7 +30,14 @@ class PolarFoxOptimization:
         
         # Initialize population with groups
         self.population = self.initialize_population(env)
-        self.group_weights = [1000, 1000, 1000, 1000]
+        # self.group_weights = [1000, 1000, 1000, 1000]
+         # Initialize group weights: use provided or default to equal
+        if group_weights is not None:
+            raw = np.array(group_weights, dtype=float)
+        else:
+            raw = np.ones(4, dtype=float)
+        # Normalize so they sum to 1 for probability sampling
+        self.group_weights = (raw / raw.sum()).tolist()
         self.best_solution = None
         self.best_fitness = -np.inf
         # For live updates, you can also keep track of positions and fitness history:
@@ -162,17 +169,36 @@ class PolarFoxOptimization:
         
         return solution
     
-    def leader_motivation(self, stagnation_count):
-        """Reset underperforming foxes and adjust groups"""
+    # def leader_motivation(self, stagnation_count):
+    #     """Reset underperforming foxes and adjust groups"""
+    #     num_mutation = int(self.population_size * self.mutation_factor)
+    #     for i in range(num_mutation):
+    #         group_id = np.random.choice(4, p=self.group_weights/np.sum(self.group_weights))
+    #         self.population[i] = self.create_fox(group_id)
+        
+    #     # Boost weights of best-performing group
+    #     if self.best_solution is not None:
+    #         best_group = self.population[np.argmax([f["group"] for f in self.population])]["group"]
+    #         self.group_weights[best_group] += stagnation_count * 100
+    def leader_motivation(self, stagnation_count: int):
+        """Reset underperforming foxes and adjust group selection probabilities."""
         num_mutation = int(self.population_size * self.mutation_factor)
         for i in range(num_mutation):
-            group_id = np.random.choice(4, p=self.group_weights/np.sum(self.group_weights))
+            # Sample group according to normalized weights
+            group_id = np.random.choice(4, p=self.group_weights)
             self.population[i] = self.create_fox(group_id)
-        
-        # Boost weights of best-performing group
+
+        # Boost weights of best-performing group, then renormalize
         if self.best_solution is not None:
-            best_group = self.population[np.argmax([f["group"] for f in self.population])]["group"]
-            self.group_weights[best_group] += stagnation_count * 100
+            best_group = self.population[
+                np.argmax([f['group'] for f in self.population])
+            ]['group']
+            # Increase weight for best group
+            gw = np.array(self.group_weights, dtype=float)
+            gw[best_group] += stagnation_count * 100
+            # Renormalize probabilities
+            self.group_weights = (gw / gw.sum()).tolist()
+
             
     def _calculate_visual_positions(self):
         """DE-style position projection"""
