@@ -77,7 +77,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_dandelionoptimization_params(trial):
         return {
-            'seeds': trial.suggest_int('seeds', 20, 50),
+            'seeds': trial.suggest_int('seeds', 40, 60),
             'wind_factor': trial.suggest_float('wind_factor', 0.3, 0.8),
             'lift_coeff': trial.suggest_float('lift_coeff', 1.0, 1.5),
             'descent_rate': trial.suggest_float('descent_rate', 0.85, 0.99)
@@ -86,7 +86,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_flaoptimization_params(trial):
         return {
-            'particles': trial.suggest_int('particles', 20, 50),
+            'particles': trial.suggest_int('particles', 40, 60),
             'diffusion_rate': trial.suggest_float('diffusion_rate', 0.5, 0.95),
             'random_walk_prob': trial.suggest_float('random_walk_prob', 0.2, 0.6),
             'time_step': trial.suggest_float('time_step', 0.3, 0.7),
@@ -96,7 +96,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_gtooptimization_params(trial):
         return {
-            'gorillas': trial.suggest_int('gorillas', 20, 50),
+            'gorillas': trial.suggest_int('gorillas', 40, 60),
             'silverback_influence': trial.suggest_float('silverback_influence', 0.6, 0.95),
             'migration_prob': trial.suggest_float('migration_prob', 0.2, 0.5),
             'social_factor': trial.suggest_float('social_factor', 0.3, 0.8)
@@ -105,7 +105,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_hbaoptimization_params(trial):
         return {
-            'badgers': trial.suggest_int('badgers', 20, 50),
+            'badgers': trial.suggest_int('badgers', 40, 60),
             'intensity': trial.suggest_float('intensity', 0.7, 1.0),
             'density_factor': trial.suggest_float('density_factor', 0.8, 1.2),
             'honey_prob': trial.suggest_float('honey_prob', 0.3, 0.7)
@@ -114,7 +114,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_hippooptimization_params(trial):
         return {
-            'pod_size': trial.suggest_int('pod_size', 20, 50),
+            'pod_size': trial.suggest_int('pod_size', 40, 60),
             'aggression_rate': trial.suggest_float('aggression_rate', 0.2, 0.5),
             'social_factor': trial.suggest_float('social_factor', 0.4, 0.8),
             'yawn_impact': trial.suggest_float('yawn_impact', 0.3, 0.6),
@@ -124,7 +124,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_pelicanoptimization_params(trial):
         return {
-            'pelicans': trial.suggest_int('pelicans', 20, 50),
+            'pelicans': trial.suggest_int('pelicans', 40, 60),
             'initial_movement': trial.suggest_float('initial_movement', 0.6, 0.9),
             'scoop_intensity': trial.suggest_float('scoop_intensity', 0.1, 0.4),
             'decay_factor': trial.suggest_float('decay_factor', 0.9, 0.99)
@@ -133,7 +133,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_polarfoxoptimization_params(trial):
         return {
-            'population_size': trial.suggest_int('population_size', 30, 60),
+            'population_size': trial.suggest_int('population_size', 40, 60),
             'mutation_factor': trial.suggest_float('mutation_factor', 0.1, 0.5),
             'jump_rate': trial.suggest_float('jump_rate', 0.1, 0.4),
             'follow_rate': trial.suggest_float('follow_rate', 0.2, 0.5),
@@ -146,7 +146,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_rimeoptimization_params(trial):
         return {
-            'particles': trial.suggest_int('particles', 20, 50),
+            'particles': trial.suggest_int('particles', 40, 60),
             'temperature': trial.suggest_float('temperature', 0.8, 1.2),
             'cooling_rate': trial.suggest_float('cooling_rate', 0.9, 0.99),
             'stability_threshold': trial.suggest_float('stability_threshold', 0.05, 0.2),
@@ -156,7 +156,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_rainbowoptimization_params(trial):
         return {
-            'rays': trial.suggest_int('rays', 20, 50),
+            'rays': trial.suggest_int('rays', 40, 60),
             'refraction_rate': trial.suggest_float('refraction_rate', 0.5, 0.9),
             'dispersion_factor': trial.suggest_float('dispersion_factor', 0.3, 0.7),
             'prism_effect': trial.suggest_float('prism_effect', 1.0, 1.5)
@@ -165,7 +165,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_rsaoptimization_params(trial):
         return {
-            'reptiles': trial.suggest_int('reptiles', 20, 50),
+            'reptiles': trial.suggest_int('reptiles', 40, 60),
             'alpha': trial.suggest_float('alpha', 0.05, 0.3),
             'beta': trial.suggest_float('beta', 1.2, 2.0),
             'hunting_prob': trial.suggest_float('hunting_prob', 0.6, 0.9)
@@ -174,7 +174,7 @@ class OptunaTuner:
     @staticmethod
     def suggest_stooptimization_params(trial):
         return {
-            'tigers': trial.suggest_int('tigers', 20, 50),
+            'tigers': trial.suggest_int('tigers', 40, 60),
             'territory_radius': trial.suggest_float('territory_radius', 0.3, 0.6),
             'attack_intensity': trial.suggest_float('attack_intensity', 1.2, 2.0),
             'marking_rate': trial.suggest_float('marking_rate', 0.1, 0.4)
@@ -191,21 +191,22 @@ class BatchTuner:
         
     def run_all(self):
         algorithms = [
-            ("AQUA", AquilaOptimization),
-            ("AVOA", AVOAOptimization),
-            ("Cheetah", CheetahOptimization),
-            ("COA", COAOptimization),
-            ("Dandelion", DandelionOptimization),
+            ("PolarFox", PolarFoxOptimization),
             ("FLA", FLAOptimization),
             ("GTO", GTOOptimization),
             ("HBA", HBAOptimization),
             ("Hippo", HippoOptimization),
             ("Pelican", PelicanOptimization),
-            ("PolarFox", PolarFoxOptimization),
+            
             ("RIME", RIMEOptimization),
             ("Rainbow", RainbowOptimization),
             ("RSA", RSAOptimization),
-            ("STO", STOOptimization)
+            ("STO", STOOptimization),
+            ("AQUA", AquilaOptimization),
+            ("AVOA", AVOAOptimization),
+            ("Cheetah", CheetahOptimization),
+            ("COA", COAOptimization),
+            ("Dandelion", DandelionOptimization),
         ]
 
         for algo_name, algo_class in algorithms:
@@ -232,7 +233,7 @@ class BatchTuner:
         
         def objective(trial):
             common_params = {
-                'iterations': trial.suggest_int('iterations', 10, 50)
+                'iterations': trial.suggest_int('iterations', 30, 50)
                 # 'population_size': trial.suggest_int('population_size', 20, 100)
             }
             
@@ -294,10 +295,10 @@ class BatchTuner:
 
 if __name__ == "__main__":
     # Initialize network environment
-    env = NetworkEnvironment({"num_bs":10, "num_ue":200})
+    env = NetworkEnvironment({"num_bs":10, "num_ue":300})
     
     # Configure tuner (100 trials per algorithm, 1 hour max per algorithm)
-    tuner = BatchTuner(env, n_trials=20, timeout=3600)
+    tuner = BatchTuner(env, n_trials=20, timeout=2000)
     
     # Start batch optimization
     print("Starting batch optimization of all algorithms...")
