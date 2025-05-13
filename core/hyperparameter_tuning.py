@@ -134,9 +134,9 @@ class OptunaTuner:
     def suggest_polarfoxoptimization_params(trial):
         return {
             'population_size': trial.suggest_int('population_size', 40, 60),
-            'mutation_factor': trial.suggest_float('mutation_factor', 0.1, 0.5),
-            'jump_rate': trial.suggest_float('jump_rate', 0.1, 0.4),
-            'follow_rate': trial.suggest_float('follow_rate', 0.2, 0.5),
+            'mutation_factor': trial.suggest_float('mutation_factor', 0.3, 0.6),
+            'jump_rate': trial.suggest_float('jump_rate', 0.3, 0.6),
+            'follow_rate': trial.suggest_float('follow_rate', 0.3, 0.6),
             'group_weights': [
                 trial.suggest_float(f'group_weight_{i}', 0.1, 1.0) 
                 for i in range(4)
