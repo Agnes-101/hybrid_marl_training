@@ -258,7 +258,7 @@ class BatchTuner:
             objective, 
             n_trials=self.n_trials,
             timeout=self.timeout,
-            n_jobs=4,              # ← run up to 4 trials in parallel
+            # n_jobs=4,              # ← run up to 4 trials in parallel
             show_progress_bar=True
         )
         return study
