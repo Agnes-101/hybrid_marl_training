@@ -365,17 +365,8 @@ class NetworkEnvironment(MultiAgentEnv):
             
             return reward
         
-        return 0.0
+        return 0.0   
     
-    # def reset(self, seed=None, options=None):
-    #     self.current_step = 0
-    #     # Reset UE positions/associations
-    #     for ue in self.ues:
-    #         ue.position = np.random.uniform(0, 100, size=2)  # Use numpy, not PyTorch
-    #         ue.associated_bs = None
-                
-    #     # Return observations for ALL UE agents
-    #     return self._get_obs(), {}  # Return observation and info dict
     
     # def pick_best_bs(self, ue, w1=0.7, w2=0.3):
     #     unshared = np.array([bs.data_rate_unshared(ue) for bs in self.base_stations])
@@ -386,14 +377,38 @@ class NetworkEnvironment(MultiAgentEnv):
     #     scores = w1 * (unshared / max_unsh) + w2 * load_factor
     #     return int(np.argmax(scores))
 
+    # def reset(self, seed=None, options=None):
+    #     self.current_step = 0
+    #     for ue in self.ues:
+    #         ue.position = np.random.uniform(0,100,2).astype(np.float32)
+    #         ue.associated_bs = None
+    #         ue.sinr = -np.inf
+    #         ue.ewma_dr = 0.0
+    #     return self._get_obs(), {}    
     def reset(self, seed=None, options=None):
         self.current_step = 0
+
+        # 1) Clear BS allocations & loads
+        for bs in self.base_stations:
+            bs.allocated_resources.clear()
+            bs.load = 0.0
+
+        # 2) Reset UEs
         for ue in self.ues:
-            ue.position = np.random.uniform(0,100,2).astype(np.float32)
+            ue.position      = np.random.uniform(0,100,2).astype(np.float32)
             ue.associated_bs = None
-            ue.sinr = -np.inf
-            ue.ewma_dr = 0.0
-        return self._get_obs(), {}    
+            ue.sinr          = -np.inf
+            ue.ewma_dr       = 0.0
+
+        # 3) (Optional) reset any KPI histories
+        self.prev_associations = {ue.id: None for ue in self.ues}
+        self.handover_counts  = {ue.id: 0    for ue in self.ues}
+        self.step_count       = 0
+        if hasattr(self, "load_history"):
+            for bs in self.base_stations:
+                self.load_history[bs.id].clear()
+
+        return self._get_obs(), {}
 
     # Add these to your NetworkEnvironment class
     def calculate_jains_fairness(self):
@@ -599,6 +614,9 @@ class NetworkEnvironment(MultiAgentEnv):
                         bs.allocated_resources[ue.id] = dr
                         bs.calculate_load()                    # update bs.load
                         ue.associated_bs = bs_idx
+                        connected_count += 1                # ← increment here
+                        bs_allocations[bs_idx] += 1        # count UEs per BS
+                        bs_capacity_used[bs_idx] = bs.load # record load
                         admitted = True
                         break
 
@@ -654,8 +672,8 @@ class NetworkEnvironment(MultiAgentEnv):
                 if sum(utilizations) > 0:
                     squared_sum = sum(utilizations)**2
                     sum_squared = sum(u**2 for u in utilizations) * len(utilizations)
-                    jains_index = squared_sum / sum_squared if sum_squared > 0 else 0
-                    print(f"Load Balancing Fairness: {jains_index:.4f}")
+                    jains = squared_sum / sum_squared if sum_squared > 0 else 0
+                    print(f"Load Balancing Fairness: {jains:.4f}")
                     # jain = self.calculate_jains_fairness()
                     # print(f"Load balancing Jain's index: {jain:.4f}")
                 
@@ -684,7 +702,7 @@ class NetworkEnvironment(MultiAgentEnv):
                     "connected_ratio": connected_count/self.num_ue,
                     "step_time": step_time,
                     "episode_reward_mean": total_reward/self.num_ue,
-                    "fairness_index": jain,
+                    "fairness_index": jains,
                     "throughput": sum(np.log2(1+10**(ue.sinr/10)) for ue in self.ues if ue.associated_bs is not None),
                     "solution":       current_solution,
                     "sinr_list":      sinr_list,

@@ -137,10 +137,10 @@ class OptunaTuner:
             'mutation_factor': trial.suggest_float('mutation_factor', 0.1, 0.5),
             'jump_rate': trial.suggest_float('jump_rate', 0.1, 0.4),
             'follow_rate': trial.suggest_float('follow_rate', 0.2, 0.5),
-            # 'group_weights': [
-            #     trial.suggest_float(f'group_weight_{i}', 0.1, 1.0) 
-            #     for i in range(4)
-            # ]
+            'group_weights': [
+                trial.suggest_float(f'group_weight_{i}', 0.1, 1.0) 
+                for i in range(4)
+            ]
         }
 
     @staticmethod
@@ -192,8 +192,7 @@ class BatchTuner:
     def run_all(self):
         algorithms = [
             ("PolarFox", PolarFoxOptimization),
-            ("FLA", FLAOptimization),
-            ("GTO", GTOOptimization),
+            
             ("HBA", HBAOptimization),
             ("Hippo", HippoOptimization),
             ("Pelican", PelicanOptimization),
@@ -207,6 +206,8 @@ class BatchTuner:
             ("Cheetah", CheetahOptimization),
             ("COA", COAOptimization),
             ("Dandelion", DandelionOptimization),
+            ("FLA", FLAOptimization),
+            ("GTO", GTOOptimization),
         ]
 
         for algo_name, algo_class in algorithms:
@@ -258,7 +259,7 @@ class BatchTuner:
             objective, 
             n_trials=self.n_trials,
             timeout=self.timeout,
-            # n_jobs=4,              # ← run up to 4 trials in parallel
+            n_jobs=4,              # ← run up to 4 trials in parallel
             show_progress_bar=True
         )
         return study

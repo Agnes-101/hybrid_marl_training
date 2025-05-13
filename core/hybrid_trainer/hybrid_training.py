@@ -38,6 +38,8 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 import torch.nn as nn
 import gymnasium as gym
 from collections import OrderedDict
+from ray.rllib.algorithms.callbacks import DefaultCallbacks
+import json
        
 class MetaPolicy(TorchModelV2, nn.Module):
     def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
@@ -176,38 +178,41 @@ class MetaPolicy(TorchModelV2, nn.Module):
                 f"has_nan={torch.isnan(self._cur_value).any().item()}")
         
         return self._cur_value        
-    # def forward(self, input_dict, state, seq_lens):
-    #     # Get observation from input dict
-    #     obs = input_dict["obs"]
-        
-    #     # Handle different input types
-    #     if isinstance(obs, dict) or isinstance(obs, OrderedDict):
-    #         # In MARL, each agent should only receive its own observation
-    #         # Convert all values to tensors and flatten if needed
-    #         x = torch.cat([torch.tensor(v).flatten() for v in obs.values()])
-    #     else:
-    #         # Already a tensor
-    #         x = obs.float() if isinstance(obs, torch.Tensor) else torch.FloatTensor(obs)
-            
-    #     # Ensure batch dimension
-    #     if x.dim() == 1:
-    #         x = x.unsqueeze(0)
-            
-    #     # Forward passes
-    #     logits = self.policy_network(x)
-    #     self._cur_value = self.value_network(x).squeeze(-1)
-        
-    #     return logits, state
     
-    # def value_function(self):
-    #     """Return value function output for current observation"""
-    #     # This is required for PPO training
-    #     assert self._cur_value is not None, "value function not calculated"
-    #     return self._cur_value
-
 # After MetaPolicy definition
 ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
+class VizCallback(DefaultCallbacks):
+    def on_train_result(self, *, trainer, result: dict, **kwargs):
+        it = result["training_iteration"]
+        if it % 5 != 0:
+            return
 
+        env = trainer.workers.local_worker().env
+        policy = trainer.get_policy()
+        obs, _ = env.reset()
+        associations = []
+
+        for _ in range(env.episode_length):
+            # build action dict
+            acts = {}
+            for i in range(env.num_ue):
+                o = obs[f"ue_{i}"]
+                logit, _ = policy.model({
+                    "obs": o
+                })
+                acts[f"ue_{i}"] = int(torch.argmax(logit, dim=-1).item())
+
+            obs, _, done, _, _ = env.step(acts)
+            associations.append([ue.associated_bs for ue in env.ues])
+            if done["__all__"]:
+                break
+
+        # dump to a JSON file your Streamlit app can read
+        os.makedirs("/tmp/assoc", exist_ok=True)
+        fname = f"/tmp/assoc/assoc_iter{it}.json"
+        with open(fname, "w") as f:
+            json.dump({"iteration": it, "associations": associations}, f)
+        print(f"[VizCallback] wrote {fname}")
 # RAY_DEDUP_LOGS=0
 class HybridTraining:
     def __init__(self, config: Dict):
@@ -427,67 +432,57 @@ class HybridTraining:
         return algo, results
             
     def _execute_marl_phase(self, initial_policy: Dict = None):
-        """Execute MARL training phase"""
-        # print(f"\n Starting {self.config['marl_algorithm'].upper()} training...")
-        print(f"\n Starting {self.config.get('marl_algorithm', 'PPO').upper()} training...")
-        # Configure environment with current network state
-        # Extract initial solution safely
+        print(f"\n Starting {self.config.get('marl_algorithm','PPO').upper()} training...")
+
+        # Prepare the list of initial biases for the policy network
         initial_weights = []
         if initial_policy is not None:
-            initial_weights = initial_policy.tolist()  # ✅ Correct extraction
+            initial_weights = initial_policy.tolist()
             assert len(initial_weights) == self.config["env_config"]["num_ue"]
-            
-        env_config = {
-            **self.config["env_config"]            
-        }
-        
-        
-        # MARL configuration
-        # MARL configuration
+
+        env_config = {**self.config["env_config"]}
+
+        # Build the PPO config
         marl_config = (
             PPOConfig()
-            .environment(
-                "NetworkEnv",
-                env_config=env_config
-            )
+            .environment("NetworkEnv", env_config=env_config)
             .training(
                 model={
                     "custom_model": "meta_policy",
                     "custom_model_config": {
                         "initial_weights": initial_weights,
                         "num_bs": self.config["env_config"]["num_bs"],
-                        "num_ue": self.config["env_config"]["num_ue"]
+                        "num_ue": self.config["env_config"]["num_ue"],
                     }
                 },
-                
                 gamma=0.99,
-                lr=0.0005,  # Slightly higher learning rate
-                lr_schedule=[(0, 0.00005), (1000, 0.0001), (10000, 0.0005)],  # Gradual lr increase
-                entropy_coeff=0.01,  # Add exploration
+                lr=5e-4,
+                lr_schedule=[(0, 5e-5), (1000, 1e-4), (10000, 5e-4)],
+                entropy_coeff=0.01,
                 kl_coeff=0.2,
                 train_batch_size=4000,
                 sgd_minibatch_size=128,
                 num_sgd_iter=10,
                 clip_param=0.2,
-            ).env_runners(
-            sample_timeout_s=3600, # 600,  # Increase from default (180s) to 10 minutes
-            rollout_fragment_length=25 # 50  # Decrease from default (200) to collect samples faster
-                )
+            )
             .multi_agent(
                 policies={
-                    f"ue_{i}": (None, self.obs_space[f"ue_{i}"], self.act_space[f"ue_{i}"], {})
+                    f"ue_{i}": (None,
+                                self.obs_space[f"ue_{i}"],
+                                self.act_space[f"ue_{i}"], {})
                     for i in range(self.config["env_config"]["num_ue"])
                 },
-                policy_mapping_fn=lambda agent_id, episode=None, worker=None, **kwargs: agent_id
+                policy_mapping_fn=lambda aid, **kw: aid
             )
+            # Register our VizCallback so RLlib will call it each iteration
+            .callbacks(VizCallback)
         )
-        
+
         analysis = ray.tune.run(
             "PPO",
             config=marl_config.to_dict(),
             stop={"training_iteration": self.config["marl_steps_per_phase"]},
             checkpoint_at_end=True,
-            callbacks=[self._create_marl_callback()]
         )
         print("Trial errors:", analysis.errors)
         return analysis
