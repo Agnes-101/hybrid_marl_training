@@ -137,10 +137,10 @@ class OptunaTuner:
             'mutation_factor': trial.suggest_float('mutation_factor', 0.1, 0.5),
             'jump_rate': trial.suggest_float('jump_rate', 0.1, 0.4),
             'follow_rate': trial.suggest_float('follow_rate', 0.2, 0.5),
-            'group_weights': [
-                trial.suggest_float(f'group_weight_{i}', 0.1, 1.0) 
-                for i in range(4)
-            ]
+            # 'group_weights': [
+            #     trial.suggest_float(f'group_weight_{i}', 0.1, 1.0) 
+            #     for i in range(4)
+            # ]
         }
 
     @staticmethod
