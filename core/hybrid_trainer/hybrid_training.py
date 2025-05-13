@@ -121,7 +121,7 @@ class MetaPolicy(TorchModelV2, nn.Module):
                         congestion_factor = 1.0 - (bs_counts[bs_idx] / total_ues)
                         policy_output_layer.bias.data[bs_idx] = congestion_factor * 1.0 # Stronger bias toward less congested BSs
                 
-                print(f"Applied metaheuristic bias based on BS congestion")
+                # print(f"Applied metaheuristic bias based on BS congestion")
                 
     def forward(self, input_dict, state, seq_lens):
         # Get observation from input dict

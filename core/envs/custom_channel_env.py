@@ -320,8 +320,8 @@ class NetworkEnvironment(MultiAgentEnv):
             f"ue_{i}": gym.spaces.Box(
                 low=-np.inf, 
                 high=np.inf, 
-                shape=(3 * self.num_bs + 1,)  # SINRs + BS loads + BS Utilizations + own demand
-                # dtype=np.float32
+                shape=(3 * self.num_bs + 1,),  # SINRs + BS loads + BS Utilizations + own demand
+                dtype=np.float32
             ) for i in range(self.num_ue)
         })
 
@@ -331,15 +331,15 @@ class NetworkEnvironment(MultiAgentEnv):
             for i in range(self.num_ue)
         })
         
-    def observation_space(self, agent_id=None):
-        if agent_id is not None:
-            return self.observation_space[agent_id]
-        return self.observation_space
+    # def observation_space(self, agent_id=None):
+    #     if agent_id is not None:
+    #         return self.observation_space[agent_id]
+    #     return self.observation_space
 
-    def action_space(self, agent_id=None):
-        if agent_id is not None:
-            return self.action_space[agent_id]
-        return self.action_space
+    # def action_space(self, agent_id=None):
+    #     if agent_id is not None:
+    #         return self.action_space[agent_id]
+    #     return self.action_space
 
     def reward(self, agent):
         return self.calculate_individual_reward(agent)  # Implement per-BS reward
