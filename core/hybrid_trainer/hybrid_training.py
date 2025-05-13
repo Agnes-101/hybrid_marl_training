@@ -720,8 +720,8 @@ if __name__ == "__main__":
         
         # Environment parameters
         "env_config": {
-            "num_bs": 10,
-            "num_ue": 200,
+            "num_bs": 3,
+            "num_ue": 60,
             "episode_length": 10,
             "log_kpis": True
         },
