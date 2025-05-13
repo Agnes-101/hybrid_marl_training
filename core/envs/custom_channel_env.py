@@ -408,7 +408,7 @@ class NetworkEnvironment(MultiAgentEnv):
             for bs in self.base_stations:
                 self.load_history[bs.id].clear()
 
-        return self._get_obs(), {}
+        return self._get_obs()# , {}
 
     # Add these to your NetworkEnvironment class
     def calculate_jains_fairness(self):
@@ -714,8 +714,10 @@ class NetworkEnvironment(MultiAgentEnv):
                 )
                 
             # Split termination into terminated and truncated (for Gymnasium compatibility)
-            terminated = {"__all__": False}  # Episode is not terminated due to failure condition
-            truncated = {"__all__": self.current_step >= self.episode_length}  # Episode length limit reached    
+            #terminated = {"__all__": False}  # Episode is not terminated due to failure condition
+            # RLlib requires an "__all__" entry
+            dones = {"__all__": self.current_step >= self.episode_length}
+            #truncated = {"__all__": self.current_step >= self.episode_length}  # Episode length limit reached    
             # Common info for all agents
             common_info = {
                 "connected_ratio": connected_count / self.num_ue,
@@ -736,7 +738,7 @@ class NetworkEnvironment(MultiAgentEnv):
             self.last_info = info
             # Increment step counter
             self.current_step += 1
-            return self._get_obs(), rewards, terminated, truncated, info
+            return self._get_obs(), rewards,dones, info
         
         except Exception as e:
             print(f"ERROR in step: {e}")
