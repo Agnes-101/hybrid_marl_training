@@ -416,7 +416,7 @@ class NetworkEnvironment(MultiAgentEnv):
         
         # 2) build an infos-dict (can be empty per agent)
         infos = {f"ue_{i}": {} for i in range(self.num_ue)}
-        print (f"Info gotten: {info}")
+        
         
         # 3) return the two-tuple
         return obs, infos
