@@ -49,14 +49,14 @@ class MetaPolicy(TorchModelV2, nn.Module):
         # Extract config parameters
         custom_config = model_config.get("custom_model_config", {})
         self.initial_weights = custom_config.get("initial_weights", [])
-        self.num_bs = custom_config.get("num_bs", 5)
+        self.num_bs = custom_config.get("num_bs", 3)
         self.num_ue = custom_config.get("num_ue", 20)
         
         # Calculate input size - one UE's observation size
         if isinstance(obs_space, gym.spaces.Dict):
             # For Dict space, we need the size of a single agent's observation
             # This should be 2*num_bs+1
-            input_size = 3 * self.num_bs + 1
+            input_size = 3 * self.num_bs + 2
         else:
             input_size = np.prod(obs_space.shape)
             
@@ -69,7 +69,7 @@ class MetaPolicy(TorchModelV2, nn.Module):
         self.policy_network = nn.Sequential(
             nn.Linear(input_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(hidden_size, self.num_bs)  # Output should match number of BS options
+            nn.Linear(hidden_size, self.num_bs+1)  # Output should match number of BS options
         )
         
         # Value network (critic) - also with a hidden layer
@@ -437,7 +437,8 @@ class HybridTraining:
             initial_weights = initial_policy.tolist()
             assert len(initial_weights) == self.config["env_config"]["num_ue"]
 
-        env_config = {**self.config["env_config"]}
+        env_config = {**self.config["env_config"],
+                    "initial_assoc": initial_policy}
 
         # Build the PPO config
         marl_config = (

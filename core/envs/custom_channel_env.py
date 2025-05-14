@@ -311,25 +311,28 @@ class NetworkEnvironment(MultiAgentEnv):
         self.handover_counts  = {ue.id: 0    for ue in self.ues}
         self.load_history = {bs.id: [] for bs in self.base_stations}
         self.associations = {bs.id: [] for bs in self.base_stations}
+        self.initial_assoc   = config.get("initial_assoc", None)
+        self._has_warm_start = False
         for bs in self.base_stations:
             bs.base_stations = self.base_stations  # for interference loops
             bs.ues           = self.ues            # so data_rate_shared can see all UEs
         # Initialize KPI logger if logging is enabled
         self.kpi_logger = KPITracker() if log_kpis else None        
+        obs_dim = 3*self.num_bs + 1 + (self.num_bs + 1)
         self.observation_space = gym.spaces.Dict({
             f"ue_{i}": gym.spaces.Box(
-                low=-np.inf, 
-                high=np.inf, 
-                shape=(3 * self.num_bs + 1,),  # SINRs + BS loads + BS Utilizations + own demand
-                dtype=np.float32
-            ) for i in range(self.num_ue)
-        })
-
-        # Action space: UE chooses a BS (Discrete(num_bs))
-        self.action_space = gym.spaces.Dict({
-            f"ue_{i}": gym.spaces.Discrete(self.num_bs) 
+                low=-np.inf, high=np.inf,
+                shape=(obs_dim,), dtype=np.float32
+            )
             for i in range(self.num_ue)
         })
+
+
+        self.action_space = gym.spaces.Dict({
+            f"ue_{i}": gym.spaces.Discrete(self.num_bs + 1)
+            for i in range(self.num_ue)
+        })
+
         
     # def observation_space(self, agent_id=None):
     #     if agent_id is not None:
@@ -385,40 +388,36 @@ class NetworkEnvironment(MultiAgentEnv):
     #         ue.sinr = -np.inf
     #         ue.ewma_dr = 0.0
     #     return self._get_obs(), {}    
-    def reset(self, seed=None, options=None):
+    def reset(self, *, seed=None, options=None):
+        # 1) Reset step counter and clear all BS loads & UE state
         self.current_step = 0
-
-        # 1) Clear BS allocations & loads
         for bs in self.base_stations:
-            # print (f"BS {bs.id} load before reset: {bs.load}")
-            # print (f"BS {bs.id} load before reset: {bs.load}")
             bs.allocated_resources.clear()
-            bs.load = 0.0
-            # print (f"BS {bs.id} load after reset: {bs.load}")
-            # print (f"BS {bs.id} load after reset: {bs.load}")
-            
-        # 2) Reset UEs
+            bs.calculate_load()
         for ue in self.ues:
-            ue.position      = np.random.uniform(0,100,2).astype(np.float32)
             ue.associated_bs = None
             ue.sinr          = -np.inf
             ue.ewma_dr       = 0.0
 
-        # 3) (Optional) reset any KPI histories
-        self.prev_associations = {ue.id: None for ue in self.ues}
-        self.handover_counts  = {ue.id: 0    for ue in self.ues}
-        self.step_count       = 0
-        if hasattr(self, "load_history"):
+        # 2) ONE-TIME metaheuristic warm start
+        if not self._has_warm_start and self.initial_assoc is not None:
+            for ue in self.ues:
+                bs_idx = self.initial_assoc[ue.id]
+                ue.associated_bs = bs_idx
+                dr = self.base_stations[bs_idx].data_rate_shared(ue)
+                self.base_stations[bs_idx].allocated_resources[ue.id] = dr
+            # Recompute each BS’s load once after all assignments
             for bs in self.base_stations:
-                self.load_history[bs.id].clear()
-        # 1) build obs-dict
-        obs = self._get_obs()   # returns a dict
-        
-        # 2) build an infos-dict (can be empty per agent)
+                bs.calculate_load()
+
+            # Mark that warm start has been applied
+            self._has_warm_start = True
+            # Optionally clear to free memory
+            self.initial_assoc = None
+
+        # 3) Build and return the obs + infos dicts
+        obs   = self._get_obs()  
         infos = {f"ue_{i}": {} for i in range(self.num_ue)}
-        
-        
-        # 3) return the two-tuple
         return obs, infos
         # return self._get_obs()# , {}
 
@@ -769,85 +768,45 @@ class NetworkEnvironment(MultiAgentEnv):
         # Add timing for performance analysis
         print(f"Step called with {len(actions)} actions")
         try:
-            start_time = time.time()
-
-            # 1) Clear old allocations & reset loads
-            for bs in self.base_stations:
-                bs.allocated_resources.clear()
-                bs.calculate_load()
-
-            # Track BS load ratios for metrics
-            bs_current_load_ratio = {bs.id: bs.load/bs.capacity if bs.capacity > 0 else float('inf') 
-                                for bs in self.base_stations}
-            
-            bs_allocations = {bs.id: 0 for bs in self.base_stations}
-            bs_capacity_used = {bs.id: 0.0 for bs in self.base_stations}
+            start_time = time.time()            
             connected_count = 0
-            
-            for bs in self.base_stations:
-                print(f"BS {bs.id} load at step before actions: {bs.load:.3e}")
-                print(f"BS {bs.id} allocations at step: {bs.load:.3e}")
-                print(f"BS {bs.id} capacity at step: {bs.capacity:.3e}")
-                
-            # Process UEs in original order (no artificial sorting)
-            # Using the direct agent actions without sorting
-            for ue_id, action_bs_choice in actions.items():
-                ue_id = int(ue_id.split("_")[1])  # Extract UE ID from the action key
-                ue = self.ues[ue_id]
-                
-                # Trust the agent's decision entirely - no fallbacks
-                # This is critical for proper MARL training
-                if 0 <= action_bs_choice < self.num_bs:
-                    bs_idx = action_bs_choice
-                    bs = self.base_stations[bs_idx]
-                    
-                    # Still perform capacity check
-                    dr = bs.data_rate_shared(ue)
-                    if bs.load + dr <= bs.capacity:  # capacity check
-                        bs.allocated_resources[ue.id] = dr
-                        bs.calculate_load()
-                        ue.associated_bs = bs_idx
-                        connected_count += 1
-                        bs_allocations[bs_idx] += 1
-                        bs_capacity_used[bs_idx] = bs.load
-                        
-                        # Update load ratios for metrics
-                        bs_current_load_ratio[bs_idx] = bs.load/bs.capacity if bs.capacity > 0 else float('inf')
-                    else:
-                        # If capacity check fails, UE remains unconnected
-                        # This creates a strong learning signal
-                        ue.associated_bs = None
-                else:
-                    # Invalid action - UE remains unconnected
-                    ue.associated_bs = None
+            handover_count = 0
 
-                # 3) try each candidate until one fits
-                admitted = False
-                
-                # Trust the agent's decision entirely - no fallbacks
-                # This is critical for proper MARL training
-                bs_idx = action_bs_choice
-                if 0 <= bs_idx < self.num_bs:  # Valid BS index check
-                    bs = self.base_stations[bs_idx]
-                    
-                    # Still perform capacity check
-                    dr = bs.data_rate_shared(ue)
-                    if bs.load + dr <= bs.capacity:  # capacity check
-                        bs.allocated_resources[ue.id] = dr
-                        bs.calculate_load()
-                        ue.associated_bs = bs_idx
+            # 1) Process each UE’s action
+            for agent_id, a in actions.items():
+                i = int(agent_id.split("_")[1])
+                ue = self.ues[i]
+
+                # decode new BS index
+                new_bs = None if a == 0 else (a - 1)
+                old_bs = ue.associated_bs
+
+                if new_bs != old_bs:
+                    # remove from old BS
+                    if old_bs is not None:
+                        self.base_stations[old_bs].allocated_resources.pop(ue.id, None)
+                        self.base_stations[old_bs].calculate_load()
+
+                    # try admit to new BS
+                    if new_bs is not None:
+                        bs = self.base_stations[new_bs]
+                        dr = bs.data_rate_shared(ue)
+                        if bs.load + dr <= bs.capacity:
+                            bs.allocated_resources[ue.id] = dr
+                            bs.calculate_load()
+                            ue.associated_bs = new_bs
+                            connected_count += 1
+                        else:
+                            # capacity full → revert to old
+                            ue.associated_bs = old_bs
+                            if old_bs is not None:
+                                connected_count += 1
+                    handover_count += 1
+                else:
+                    # stayed put
+                    if ue.associated_bs is not None:
                         connected_count += 1
-                        bs_allocations[bs_idx] += 1
-                        bs_capacity_used[bs_idx] = bs.load
-                        
-                        # Update load ratios for metrics
-                        bs_current_load_ratio[bs_idx] = bs.load/bs.capacity if bs.capacity > 0 else float('inf')
-                        
-                        admitted = True
-                
-                # 4) if none could admit, leave unassociated
-                if not admitted:
-                    ue.associated_bs = None
+
             
             # 3) Update SINR & EWMA
             for ue in self.ues:
@@ -868,9 +827,9 @@ class NetworkEnvironment(MultiAgentEnv):
             for bs in self.base_stations:
                 print(f"BS {bs.id}: load={bs.load}, capacity={bs.capacity}, ratio={bs.load/bs.capacity if bs.capacity>0 else 'inf'}")
             
-            # 4) Compute rewards and aggregate metrics
-            rewards = {}
-            total_reward = 0.0
+            # # 4) Compute rewards and aggregate metrics
+            # rewards = {}
+            # total_reward = 0.0
             for ue in self.ues:
                 key = f"ue_{ue.id}"
                 r = self.calculate_individual_reward(key)
@@ -978,69 +937,72 @@ class NetworkEnvironment(MultiAgentEnv):
             print("Getting lastest info....")
             return self.last_info
         return None
-    # def _get_obs(self):
-    #     # Precompute BS loads and positions once
-    #     bs_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
-    #     bs_positions = np.array([bs.position for bs in self.base_stations], dtype=np.float32)
-                
-    #     obs = {}
-    #     for ue in self.ues:
-    #         # Calculate SINR to all BSs (vectorized)
-    #         distances = np.linalg.norm(bs_positions - ue.position, axis=1)
-    #         sinrs = 30.0 - 20 * np.log10(distances + 1e-6)  # Simplified model
-            
-    #         # Store SINR for the associated BS (if any)
-    #         if ue.associated_bs is not None:
-    #             ue.sinr = sinrs[ue.associated_bs]  # Add this line
-    #         else:
-    #             ue.sinr = -np.inf  # No connection
-            
-    #         # Normalize features
-    #         normalized_sinrs = sinrs / 40.0  # Assume max SINR ~40 dB
-    #         normalized_loads = bs_loads / 1000.0  # Assuming max load=1000
-                        
-    #         obs[f"ue_{ue.id}"] = np.concatenate([
-    #             normalized_sinrs,
-    #             normalized_loads,
-    #             [ue.demand / 200.0]  # Max demand=200
-    #         ], dtype=np.float32)
-            
-            
-    #     return obs
     
-    def _get_obs(self):        
-        # Precompute BS loads, capacities, positions
+    def _get_obs(self):
+        # Precompute BS loads & utils
         bs_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
         bs_caps  = np.array([bs.capacity for bs in self.base_stations], dtype=np.float32)
-        bs_positions = np.stack([bs.position for bs in self.base_stations])
-
-        # Normalize loads by capacity
         normalized_loads = bs_loads / (bs_caps + 1e-9)
-        # Utilization = clipped load/capacity
         bs_utils = np.clip(bs_loads / (bs_caps + 1e-9), 0.0, 1.0).astype(np.float32)
 
         obs = {}
         for ue in self.ues:
-            # Compute full SINR vector (interference + noise)
-            sinr_vec = self._calculate_sinrs(ue)
-            # Record UE.sinr
-            ue.sinr = sinr_vec[ue.associated_bs] if ue.associated_bs is not None else -np.inf
-
-            # Normalize SINRs (assume max ~40 dB)
+            # 1) SINR vector
+            sinr_vec = self._calculate_sinrs(ue).astype(np.float32)
             normalized_sinrs = sinr_vec / 40.0
 
-            # Normalize own demand
+            # 2) Own demand
             norm_demand = np.array([ue.demand / 200.0], dtype=np.float32)
 
-            # Concatenate into one feature vector
+            # 3) One-hot current association
+            #    index = BS id 0…num_bs-1, or num_bs if None
+            idx = ue.associated_bs if ue.associated_bs is not None else self.num_bs
+            bs_one_hot = np.eye(self.num_bs + 1, dtype=np.float32)[idx]
+
+            # 4) Concatenate everything in the prescribed order
             obs[f"ue_{ue.id}"] = np.concatenate([
-                normalized_sinrs.astype(np.float32),
-                normalized_loads,
-                bs_utils,
-                norm_demand
+                normalized_sinrs,      # shape (num_bs,)
+                normalized_loads,      # shape (num_bs,)
+                bs_utils,              # shape (num_bs,)
+                norm_demand,           # shape (1,)
+                bs_one_hot             # shape (num_bs+1,)
             ], axis=0)
 
         return obs
+
+    # def _get_obs(self):        
+    #     # Precompute BS loads, capacities, positions
+    #     bs_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
+    #     bs_caps  = np.array([bs.capacity for bs in self.base_stations], dtype=np.float32)
+    #     bs_positions = np.stack([bs.position for bs in self.base_stations])
+
+    #     # Normalize loads by capacity
+    #     normalized_loads = bs_loads / (bs_caps + 1e-9)
+    #     # Utilization = clipped load/capacity
+    #     bs_utils = np.clip(bs_loads / (bs_caps + 1e-9), 0.0, 1.0).astype(np.float32)
+
+    #     obs = {}
+    #     for ue in self.ues:
+    #         # Compute full SINR vector (interference + noise)
+    #         sinr_vec = self._calculate_sinrs(ue)
+    #         # Record UE.sinr
+    #         ue.sinr = sinr_vec[ue.associated_bs] if ue.associated_bs is not None else -np.inf
+
+    #         # Normalize SINRs (assume max ~40 dB)
+    #         normalized_sinrs = sinr_vec / 40.0
+
+    #         # Normalize own demand
+    #         norm_demand = np.array([ue.demand / 200.0], dtype=np.float32)
+
+    #         # Concatenate into one feature vector
+    #         obs[f"ue_{ue.id}"] = np.concatenate([
+    #             normalized_sinrs.astype(np.float32),
+    #             normalized_loads,
+    #             bs_utils,
+    #             norm_demand
+    #         ], axis=0)
+
+    #     return obs
     
     def _calculate_local_interference(self, neighbor_dist=100.0):
         interference = 0.0
