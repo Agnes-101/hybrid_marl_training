@@ -78,17 +78,19 @@ with st.sidebar:
     if mode in ["Single Metaheuristic", "Hybrid"]:
         meta_algo = st.selectbox("Metaheuristic Algorithm", ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa","aqua", "poa", "rime", "roa", "rsa", "sto"])
         iterations = st.slider("Iterations", 5, 50, 10)
-    if mode == "Comparison":
+    if mode == "Custom Comparison":
+        iterations = st.slider("Iterations", 5, 50, 10)
         algos = st.multiselect("Compare Algos", ["avoa", "aqua","co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], default=["pfo", "co"])
         kpi_cmp = st.selectbox("KPI to Compare", ["fitness", "average_sinr", "fairness"])
-        iterations = st.slider("Iterations", 5, 50, 10)
+        
     if mode == "Specific Comparison":
+        iterations = st.slider("Iterations", 5, 50, 10)
         scenario_name = st.selectbox("Scenario", list(SCENARIOS.keys()))
         ue_list = SCENARIOS[scenario_name]["UE"]
         bs_list = SCENARIOS[scenario_name]["BS"]
         algos = st.multiselect("Compare Algos", ["avoa", "aqua","co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], default=["pfo", "co"])
         metric = st.selectbox("Metric", ["sum_rate","fairness","cpu_time"], key="spec_comp_metric")
-        iterations = st.slider("Iterations", 5, 50, 10)
+        
     
     if mode in ["MARL", "Hybrid"]:
         marl_steps = st.slider("MARL Steps/Epoch", 1, 50, 10)

@@ -168,11 +168,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     return {
         "solution": solution,
         "metrics": metrics
-        # "agents": get_agent_states(algo_instance)  # For visualization
-        # "agents": {
-        #     "positions": algo_instance.positions.tolist(),  # Explicit conversion
-        #    #  "fitness": algo_instance.fitness
-        # }
+        
     
     }
     # In return statement:

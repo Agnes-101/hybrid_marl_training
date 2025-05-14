@@ -390,12 +390,13 @@ class NetworkEnvironment(MultiAgentEnv):
 
         # 1) Clear BS allocations & loads
         for bs in self.base_stations:
-            print (f"BS {bs.id} load before reset: {bs.load}")
-            print (f"BS {bs.id} load before reset: {bs.load}")
+            # print (f"BS {bs.id} load before reset: {bs.load}")
+            # print (f"BS {bs.id} load before reset: {bs.load}")
             bs.allocated_resources.clear()
             bs.load = 0.0
-            print (f"BS {bs.id} load after reset: {bs.load}")
-            print (f"BS {bs.id} load after reset: {bs.load}")
+            # print (f"BS {bs.id} load after reset: {bs.load}")
+            # print (f"BS {bs.id} load after reset: {bs.load}")
+            
         # 2) Reset UEs
         for ue in self.ues:
             ue.position      = np.random.uniform(0,100,2).astype(np.float32)
@@ -412,8 +413,11 @@ class NetworkEnvironment(MultiAgentEnv):
                 self.load_history[bs.id].clear()
         # 1) build obs-dict
         obs = self._get_obs()   # returns a dict
+        
         # 2) build an infos-dict (can be empty per agent)
         infos = {f"ue_{i}": {} for i in range(self.num_ue)}
+        print (f"Info gotten: {info}")
+        
         # 3) return the two-tuple
         return obs, infos
         # return self._get_obs()# , {}
@@ -569,7 +573,8 @@ class NetworkEnvironment(MultiAgentEnv):
                       f"S={prx:.3e} mW, I={interf:.3e} mW, N={noise:.3e} mW, "
                       f"SINR={snr_db:.2f} dB")
 
-            sinrs.append(lin_snr)
+            # sinrs.append(lin_snr)
+            sinrs.append(snr_db)
 
         return np.array(sinrs)
 
@@ -779,6 +784,11 @@ class NetworkEnvironment(MultiAgentEnv):
             bs_capacity_used = {bs.id: 0.0 for bs in self.base_stations}
             connected_count = 0
             
+            for bs in self.base_stations:
+                print(f"BS {bs.id} load at step before actions: {bs.load:.3e}")
+                print(f"BS {bs.id} allocations at step: {bs.load:.3e}")
+                print(f"BS {bs.id} capacity at step: {bs.capacity:.3e}")
+                
             # Process UEs in original order (no artificial sorting)
             # Using the direct agent actions without sorting
             for ue_id, action_bs_choice in actions.items():
