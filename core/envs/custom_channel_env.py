@@ -771,7 +771,10 @@ class NetworkEnvironment(MultiAgentEnv):
             start_time = time.time()            
             connected_count = 0
             handover_count = 0
-
+            for i, ue in enumerate(self.ues):
+                print(f"Before step - UE {i}: associated_bs={ue.associated_bs}")
+            for i, bs in enumerate(self.base_stations):
+                print(f"Before step - BS {i}: load={bs.load}, allocated_resources={bs.allocated_resources}")
             # 1) Process each UE’s action
             for agent_id, a in actions.items():
                 i = int(agent_id.split("_")[1])
