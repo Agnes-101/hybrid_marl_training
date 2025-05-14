@@ -390,9 +390,12 @@ class NetworkEnvironment(MultiAgentEnv):
 
         # 1) Clear BS allocations & loads
         for bs in self.base_stations:
+            print (f"BS {bs.id} load before reset: {bs.load}")
+            print (f"BS {bs.id} load before reset: {bs.load}")
             bs.allocated_resources.clear()
             bs.load = 0.0
-
+            print (f"BS {bs.id} load after reset: {bs.load}")
+            print (f"BS {bs.id} load after reset: {bs.load}")
         # 2) Reset UEs
         for ue in self.ues:
             ue.position      = np.random.uniform(0,100,2).astype(np.float32)

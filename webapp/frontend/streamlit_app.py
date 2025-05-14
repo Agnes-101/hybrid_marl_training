@@ -47,7 +47,7 @@ st.title("6G Metaheuristic & MARL Dashboard")
 # Session-state for flicker control
 if "figures" not in st.session_state:
     st.session_state.figures = {}
-for cnt in ("kpi_count", "live_count", "final_count", "topo_count", "progress_count","viz_counter"):
+for cnt in ("kpi_count", "live_count", "final_count", "topo_count", "progress_count","viz_counter", "live_specific_cmp"):
     st.session_state.setdefault(cnt, 0)
 st.session_state.setdefault("hybrid_phase", "meta")
 st.session_state.setdefault("sol0", None)
@@ -62,16 +62,34 @@ st.session_state.setdefault("progress_value", 0)
 st.session_state.setdefault("last_kpi_step", -1)
 st.session_state.setdefault("last_viz_trigger", -1)
 
+SCENARIOS = {
+    "Small":  {"UE": [10],      "BS": [3]},
+    "Medium": {"UE": [50],      "BS": [7]},
+    "Large":  {"UE": [100],     "BS": [15]},
+    "All":    {"UE": [10,50,100],"BS": [3,7,15]},
+}
+
 # --- Sidebar ---
 with st.sidebar:
-    mode = st.radio("Mode", ["Single Metaheuristic", "Comparison", "MARL", "Hybrid"])
+    mode = st.radio("Mode", ["Single Metaheuristic","Custom Comparison",   
+    "Specific Comparison",   "MARL", "Hybrid"])
     num_bs = st.slider("Base Stations", 5, 50, 10)
     num_ue = st.slider("Users", 20, 500, 50)
     if mode in ["Single Metaheuristic", "Hybrid"]:
         meta_algo = st.selectbox("Metaheuristic Algorithm", ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa","aqua", "poa", "rime", "roa", "rsa", "sto"])
+        iterations = st.slider("Iterations", 5, 50, 10)
     if mode == "Comparison":
         algos = st.multiselect("Compare Algos", ["avoa", "aqua","co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], default=["pfo", "co"])
         kpi_cmp = st.selectbox("KPI to Compare", ["fitness", "average_sinr", "fairness"])
+        iterations = st.slider("Iterations", 5, 50, 10)
+    if mode == "Specific Comparison":
+        scenario_name = st.selectbox("Scenario", list(SCENARIOS.keys()))
+        ue_list = SCENARIOS[scenario_name]["UE"]
+        bs_list = SCENARIOS[scenario_name]["BS"]
+        algos = st.multiselect("Compare Algos", ["avoa", "aqua","co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], default=["pfo", "co"])
+        metric = st.selectbox("Metric", ["sum_rate","fairness","cpu_time"], key="spec_comp_metric")
+        iterations = st.slider("Iterations", 5, 50, 10)
+    
     if mode in ["MARL", "Hybrid"]:
         marl_steps = st.slider("MARL Steps/Epoch", 1, 50, 10)
         # Add visualization frequency control
@@ -201,7 +219,7 @@ with col2:
                 st.markdown(info.get("long", "No detailed description available."))
             else:
                 st.warning(f"No information found for {meta_algo}")
-        elif mode == "Comparison":
+        elif mode in [ "Custom Comparison","Specific Comparison"]:
             for algo in algos:
                 info = algo_info.get(algo.lower(), {})
                 
@@ -249,7 +267,7 @@ if run:
             topo_fig = render_topology(env, solution)
             clear_and_plot(ph_topo, topo_fig, "topo_count")
             
-        result = run_metaheuristic(env, meta_algo, epoch=0, kpi_logger=tracker, visualize_callback=viz)
+        result = run_metaheuristic(env, meta_algo, epoch=0, kpi_logger=tracker, visualize_callback=viz, iterations=iterations)
         
         # Final render to ensure visibility
         if result and 'solution' in result:
@@ -272,10 +290,10 @@ if run:
         st.success("Metaheuristic done")
 
     # Comparison
-    elif mode == "Comparison":
+    elif mode == "Custom Comparison":
         ph_live_title = st.empty()
         ph_live_chart = st.empty()
-        ph_live_title.subheader(f"Comparison: Live {kpi_cmp.replace('_', ' ').title()}")
+        ph_live_title.subheader(f"Custom Comparison: Live {kpi_cmp.replace('_', ' ').title()}")
         
         trackers = {}
         threads = {}
@@ -287,9 +305,9 @@ if run:
             trackers[a] = tr
             e = NetworkEnvironment({"num_bs": num_bs, "num_ue": num_ue}, log_kpis=False)
             env_dict[a] = e
-            
+            i=iterations
             def w(a=a, e=e, tr=tr): 
-                results[a] = run_metaheuristic(e, a, 0, tr, None)
+                results[a] = run_metaheuristic(e, a, 0, tr, None,i)
                 
             t = threading.Thread(target=w, daemon=True)
             threads[a] = t
@@ -335,7 +353,311 @@ if run:
             clear_and_plot(ph_topo, best_topo, "topo_count")
             
         st.success("Comparison done")
+        
+    elif mode == "Specific Comparison":
+        st.header(f"Specific Comparison: {metric.replace('_',' ').title()}")
+        # 1) Pick your scenario via the dict
+        scenario_name = st.selectbox("Scenario", list(SCENARIOS.keys()), key="spec_comp_scenario")
+        ue_list = SCENARIOS[scenario_name]["UE"]
+        bs_list = SCENARIOS[scenario_name]["BS"]      
+        
+        if len(ue_list) == 1 and len(bs_list) == 1:
+            ue, bs = ue_list[0], bs_list[0]
+            
+            st.subheader(f"Live Comparison @ UE={ue}, BS={bs}")
+            trackers, threads, results, envs = {}, {}, {}, {}
+            
+            for alg in algos:
+                tr = KPITracker()
+                trackers[alg] = tr
+                
+                env = NetworkEnvironment({"num_ue": ue, "num_bs": bs}, log_kpis=True)
+                envs[alg] = env
+                
+                def worker(a=alg, e=env, t=tr):
+                    results[a] = run_metaheuristic(
+                    e,
+                    a,
+                    epoch=iterations,
+                    kpi_logger=t,
+                    iterations=iterations,
+                    visualize_callback=None                    
+                    )
+                
+                th = threading.Thread(target=worker, daemon=True)
+                threads[alg] = th
+                th.start()
+            # 1) Define a palette of Plotly symbols
+            PLOTLY_SYMBOLS = [
+                "circle", "square", "diamond", "cross", "x",
+                "triangle-up", "triangle-down", "triangle-left", "triangle-right",
+                "pentagon", "hexagon", "star", "hourglass", "bowtie"
+            ]
 
+            # 2) Create a mapping from algorithm name → Plotly symbol
+            marker_map = {
+                alg: PLOTLY_SYMBOLS[i % len(PLOTLY_SYMBOLS)]
+                for i, alg in enumerate(trackers.keys())
+            }
+            # # live‐updating chart
+            # placeholder = st.empty()
+            # while any(t.is_alive() for t in threads.values()):
+            #     fig = make_subplots(rows=1, cols=1)
+            #     for a, tr in trackers.items():
+            #         h = tr.history
+            #         if not h.empty and metric in h:
+            #             fig.add_trace(go.Scatter(
+            #                 x=h.index, y=h[metric], name=a.upper(), mode="lines+markers"
+            #             ))
+            #     clear_and_plot(placeholder, fig, "live_specific_cmp")
+            #     time.sleep(1)
+            # 3) Live‐updating plot
+            placeholder = st.empty()
+            while any(t.is_alive() for t in threads.values()):
+                fig = make_subplots(rows=1, cols=1)
+                for alg, tr in trackers.items():
+                    h = tr.history
+                    if not h.empty and metric in h:
+                        fig.add_trace(go.Scatter(
+                            x=h.index,
+                            y=h[metric],
+                            name=alg.upper(),
+                            mode="lines+markers",
+                            marker=dict(symbol=marker_map[alg], size=8),
+                            line=dict(dash="solid")
+                        ))
+                clear_and_plot(placeholder, fig, "live_specific_cmp")
+                time.sleep(1)
+            # wait for any stragglers
+            for t in threads.values():
+                t.join()
+            # once all done, pull final values from each tracker
+            final_df = pd.DataFrame([
+                {"Algorithm": a.upper(), metric: tr.history[metric].iloc[-1]}
+                for a, tr in trackers.items()
+            ]).set_index("Algorithm")
+            st.bar_chart(final_df)
+            
+            st.success("Specific Comparison Complete")
+           # Download button for this single scenario
+            csv = final_df.reset_index().to_csv(index=False).encode("utf-8")
+            st.download_button(
+                f"Download {scenario_name} Scenario Results",
+                data=csv,
+                file_name=f"results_{scenario_name.lower()}.csv",
+                mime="text/csv",
+                key=f"download_{scenario_name}"
+            )
+
+        else:
+            # Multiple configurations case (batch processing)
+            import itertools, pandas as pd
+            import numpy as np
+            import matplotlib.pyplot as plt
+            
+            st.subheader(f"UE Scaling Analysis with Fixed BS={bs_list[0]}")
+            
+            # Add controls for number of seeds
+            n_seeds = st.slider("Number of seeds per configuration", 1, 10, 3)
+            
+            # Calculate total runs for progress tracking
+            total_runs = len(ue_list) * len(bs_list) * len(algos) * n_seeds
+            st.write(f"Running {total_runs} total simulations ({len(ue_list)} UE configs × {len(bs_list)} BS configs × {len(algos)} algorithms × {n_seeds} seeds)")
+            
+            # Create progress bar
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Store all results
+            records = []
+            completed_runs = 0
+            
+            # Run all combinations
+            for ue, bs, alg, seed_num in itertools.product(ue_list, bs_list, algos, range(1, n_seeds + 1)):
+                # Update status
+                status_text.text(f"Running {alg.upper()} with UE={ue}, BS={bs}, seed #{seed_num}/{n_seeds}")
+                
+                # Create tracker and environment for this run
+                tr = KPITracker()
+                env = NetworkEnvironment({"num_ue": ue, "num_bs": bs})
+                
+                # Set random seed for reproducibility
+                np.random.seed(seed_num)
+                
+                # Run simulation
+                out = run_metaheuristic(
+                    env=env,
+                    algorithm=alg,
+                    epoch=iterations,
+                    kpi_logger=tr,
+                    visualize_callback=None,
+                    iterations=iterations
+                )
+                
+                # Get metrics using dictionary access
+                m = out["metrics"]
+                
+                # Record results
+                records.append({
+                    "UE": ue,
+                    "BS": bs,
+                    "Algorithm": alg.upper(),
+                    "Seed": seed_num,
+                    metric: m.get(metric),
+                    "CPU Time": m.get("cpu_time"),
+                })
+                
+                # Update progress
+                completed_runs += 1
+                progress_bar.progress(completed_runs / total_runs)
+            
+            # Create DataFrame from all results
+            df_results = pd.DataFrame(records)
+            
+            # Display raw data if requested
+            if st.checkbox("Show raw data"):
+                st.dataframe(df_results)
+            
+            # Aggregate statistics by UE, BS, Algorithm
+            agg = (
+                df_results
+                .groupby(["UE", "BS", "Algorithm"])[[metric, "CPU Time"]]
+                .agg(["mean", "std"])
+            )
+            
+            # Flatten column names
+            agg.columns = ["_".join(col).strip() for col in agg.columns.values]
+            agg = agg.reset_index()
+            
+            # Download buttons
+            col1, col2 = st.columns(2)
+            with col1:
+                csv_raw = df_results.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="Download Raw Results",
+                    data=csv_raw,
+                    file_name=f"{scenario_name}_raw_results.csv",
+                    mime="text/csv"
+                )
+            
+            with col2:
+                csv_agg = agg.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="Download Aggregated Results",
+                    data=csv_agg,
+                    file_name=f"{scenario_name}_aggregated_results.csv",
+                    mime="text/csv"
+                )
+            
+            # Create tabs for different visualizations
+            tab1, tab2 = st.tabs(["UE Scaling Performance", "Algorithm Comparison"])
+            
+            with tab1:
+                st.subheader(f"Algorithm Performance vs Number of UEs (Fixed BS={bs_list[0]})")
+                
+                # Consistent colors for algorithms
+                colors = plt.cm.tab10.colors
+                color_map = {alg.upper(): colors[i % len(colors)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+                
+                # Create visualization
+                MARKERS = ['o','s','^','D','v','>','<','p','*','h','H','X','d','+']
+                marker_map = {alg.upper(): MARKERS[i % len(MARKERS)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+
+                # Draw plot
+                fig, ax = plt.subplots(figsize=(10, 6))
+                for alg, sub in agg.groupby("Algorithm"):
+                    # Sort by UE to ensure proper line drawing
+                    sub = sub.sort_values("UE")
+                    ax.errorbar(
+                        sub["UE"],
+                        sub[f"{metric}_mean"],
+                        yerr=sub[f"{metric}_std"],  # Add error bars
+                        label=alg,
+                        marker=marker_map.get(alg, "o"),
+                        color=color_map.get(alg, "blue"),
+                        linestyle="-",
+                        markersize=8,
+                        capsize=4
+                    )
+                
+                ax.set_xlabel("Number of UEs")
+                ax.set_ylabel(f"{metric.replace('_', ' ').title()}")
+                ax.legend(title="Algorithm")
+                ax.grid(True, linestyle="--", alpha=0.7)
+                
+                # Add title with specific info
+                ax.set_title(f"Algorithm Scaling Performance (Fixed BS={bs_list[0]})")
+                
+                # Display plot
+                st.pyplot(fig)
+                
+            with tab2:
+                st.subheader("Comparison of Algorithm Performance")
+                
+                # Create a bar chart for each UE value
+                for ue in sorted(ue_list):
+                    # Filter data for this UE
+                    ue_data = agg[agg["UE"] == ue]
+                    
+                    # Sort by performance (assuming higher is better)
+                    ue_data = ue_data.sort_values(f"{metric}_mean", ascending=False)
+                    
+                    # Create bar chart
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    bars = ax.bar(
+                        ue_data["Algorithm"],
+                        ue_data[f"{metric}_mean"],
+                        yerr=ue_data[f"{metric}_std"],
+                        capsize=4,
+                        color=[color_map.get(alg, "blue") for alg in ue_data["Algorithm"]]
+                    )
+                    
+                    # Add labels
+                    ax.set_xlabel("Algorithm")
+                    ax.set_ylabel(f"{metric.replace('_', ' ').title()}")
+                    ax.set_title(f"Algorithm Performance at UE={ue}, BS={bs_list[0]}")
+                    
+                    # Add value labels on top of bars
+                    for bar in bars:
+                        height = bar.get_height()
+                        ax.text(
+                            bar.get_x() + bar.get_width()/2.,
+                            height + 0.02,
+                            f'{height:.2f}',
+                            ha='center', va='bottom', rotation=0
+                        )
+                    
+                    # Display plot
+                    st.pyplot(fig)
+                    
+                # Add CPU time comparison
+                st.subheader("Algorithm Execution Time")
+                
+                # Create box plot of CPU times by algorithm
+                fig, ax = plt.subplots(figsize=(10, 6))
+                
+                # Create box plot data
+                box_data = []
+                labels = []
+                for alg in df_results["Algorithm"].unique():
+                    alg_data = df_results[df_results["Algorithm"] == alg]["CPU Time"]
+                    box_data.append(alg_data)
+                    labels.append(alg)
+                
+                # Create the box plot
+                ax.boxplot(box_data, labels=labels, patch_artist=True)
+                
+                # Add labels
+                ax.set_xlabel("Algorithm")
+                ax.set_ylabel("CPU Time (seconds)")
+                ax.set_title("Distribution of Algorithm Execution Times")
+                ax.grid(True, linestyle="--", alpha=0.7)
+                
+                # Display plot
+                st.pyplot(fig)
+            
+            # Show success message
+            st.success(f"Analysis completed for {len(ue_list)} UE configurations with fixed BS={bs_list[0]}")
     # MARL
     elif mode == "MARL":
         ph_kpi = st.empty()
@@ -417,7 +739,7 @@ if run:
         # 1) Metaheuristic warm-start
         if st.session_state.hybrid_phase == "meta":
             st.info(f"Running metaheuristic ({meta_algo}) for warm-start…")
-            meta_result = run_metaheuristic(env, meta_algo, epoch=0, kpi_logger=tracker, visualize_callback=viz_meta)
+            meta_result = run_metaheuristic(env, meta_algo, epoch=0, kpi_logger=tracker, visualize_callback=viz_meta, iterations=iterations)
             # meta_result = run_metaheuristic(env, meta_algo, 0, tracker, None)
             sol0 = meta_result["solution"]
             st.write(f"Initial solution from {meta_algo}")

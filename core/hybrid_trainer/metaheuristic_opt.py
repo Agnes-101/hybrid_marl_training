@@ -71,7 +71,7 @@ def serialize_result(result: dict) -> dict:
         return obj
     return _convert(result)
 
-def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_logger: KPITracker,visualize_callback=None) -> dict:
+def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_logger: KPITracker,visualize_callback=None, iterations=10) -> dict:
     """
     Runs the selected metaheuristic algorithm and returns the optimized solution along with KPIs.
     
@@ -127,7 +127,7 @@ def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_l
     # Modified line: pass the environment to the run method
     # Instantiate with required parameters
     algo_class = algorithms[algorithm]
-    algo_instance = algo_class(env=env,iterations=10,kpi_logger=kpi_logger)  # ✅ Pass logger
+    algo_instance = algo_class(env=env,iterations=iterations,kpi_logger=kpi_logger)  # ✅ Pass logger
 
     print(f"\n Algorithm Instance, {algo_instance}")
     # solution = algo_instance.run(env)
