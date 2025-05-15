@@ -197,8 +197,8 @@ class BaseStation:
     
     def allocate_prbs(self):
         """
-        Enhanced version of your optimized allocate_prbs method with additional
-        performance improvements.
+        Enhanced version of the optimized allocate_prbs method with guaranteed
+        minimum allocation for all UEs.
         """
         # Handle empty case
         if not self.ues:
@@ -229,41 +229,95 @@ class BaseStation:
             self.rb_allocation[ue_id] = list(range(self.num_rbs))
             delivered_bits[ue_id] = np.sum(rate_map[ue_id])
         else:
-            # Process each PRB - similar to your approach but with precalculated rates
-            metrics_per_prb = np.zeros((self.num_rbs, len(self.ues)))
-            ue_indices = {ue_id: idx for idx, ue_id in enumerate(self.ues)}
+            # --- PRIORITY 1: Minimum allocation guarantee ---
+            # First, ensure every UE gets at least one PRB
+            min_prbs_per_ue = 1  # Minimum PRBs per UE
             
-            # Calculate all metrics at once
-            for ue_id, ue in self.ues.items():
-                ue_idx = ue_indices[ue_id]
-                # Avoid division by zero
-                ewma = max(ue.ewma_dr, 1e-10)
-                # Calculate metrics for all PRBs for this UE
-                metrics_per_prb[:, ue_idx] = rate_map[ue_id] / ewma
-            
-            # Find best UE for each PRB using NumPy operations
-            best_ue_indices = np.argmax(metrics_per_prb, axis=1)
-            ue_ids = list(self.ues.keys())
-            
-            # Assign PRBs based on best metrics
-            for prb, best_idx in enumerate(best_ue_indices):
-                best_ue_id = ue_ids[best_idx]
-                self.rb_allocation[best_ue_id].append(prb)
-                delivered_bits[best_ue_id] += rate_map[best_ue_id][prb]
-        # Compute which PRBs are still free
-        all_prbs     = set(range(self.num_rbs))
+            # If we have enough PRBs, give each UE at least min_prbs_per_ue
+            if self.num_rbs >= min_prbs_per_ue * len(self.ues):
+                prbs_remaining = self.num_rbs
+                all_prbs = set(range(self.num_rbs))
+                
+                # Allocate minimum PRBs to each UE based on best SINR
+                for ue_id, ue in self.ues.items():
+                    if prbs_remaining >= min_prbs_per_ue:
+                        # Find best PRBs for this UE
+                        best_prbs_indices = np.argsort(-sinr_map[ue_id])[:min_prbs_per_ue]
+                        best_prbs = [idx for idx in best_prbs_indices if idx in all_prbs]
+                        
+                        # Allocate these PRBs
+                        for prb in best_prbs:
+                            if prb in all_prbs:  # Double-check availability
+                                self.rb_allocation[ue_id].append(prb)
+                                all_prbs.remove(prb)
+                                delivered_bits[ue_id] += rate_map[ue_id][prb]
+                                prbs_remaining -= 1
+                
+                # --- PRIORITY 2: Proportional fair scheduling for remaining PRBs ---
+                if prbs_remaining > 0:
+                    # Calculate metrics for remaining PRBs
+                    remaining_prbs = list(all_prbs)
+                    metrics_per_prb = np.zeros((len(remaining_prbs), len(self.ues)))
+                    ue_indices = {ue_id: idx for idx, ue_id in enumerate(self.ues)}
+                    
+                    # Calculate all metrics at once for remaining PRBs
+                    for ue_id, ue in self.ues.items():
+                        ue_idx = ue_indices[ue_id]
+                        # Avoid division by zero with a safe minimum value
+                        ewma = max(ue.ewma_dr, 1e-10)
+                        # Calculate metrics for remaining PRBs for this UE
+                        for i, prb in enumerate(remaining_prbs):
+                            metrics_per_prb[i, ue_idx] = rate_map[ue_id][prb] / ewma
+                    
+                    # Find best UE for each remaining PRB
+                    for i, prb in enumerate(remaining_prbs):
+                        if prb in all_prbs:  # PRB still available
+                            best_ue_idx = np.argmax(metrics_per_prb[i])
+                            best_ue_id = list(self.ues.keys())[best_ue_idx]
+                            self.rb_allocation[best_ue_id].append(prb)
+                            delivered_bits[best_ue_id] += rate_map[best_ue_id][prb]
+            else:
+                # Not enough PRBs for minimum allocation - use standard PF
+                metrics_per_prb = np.zeros((self.num_rbs, len(self.ues)))
+                ue_indices = {ue_id: idx for idx, ue_id in enumerate(self.ues)}
+                
+                # Calculate all metrics at once
+                for ue_id, ue in self.ues.items():
+                    ue_idx = ue_indices[ue_id]
+                    # Avoid division by zero with a safe minimum value
+                    ewma = max(ue.ewma_dr, 1e-10)
+                    # Calculate metrics for all PRBs for this UE
+                    metrics_per_prb[:, ue_idx] = rate_map[ue_id] / ewma
+                
+                # Find best UE for each PRB using NumPy operations
+                best_ue_indices = np.argmax(metrics_per_prb, axis=1)
+                ue_ids = list(self.ues.keys())
+                
+                # Assign PRBs based on best metrics
+                for prb, best_idx in enumerate(best_ue_indices):
+                    best_ue_id = ue_ids[best_idx]
+                    self.rb_allocation[best_ue_id].append(prb)
+                    delivered_bits[best_ue_id] += rate_map[best_ue_id][prb]
+        
+        # Double-check and verify no UE has zero PRBs
+        # This is a safety measure to ensure the allocation logic worked
+        all_prbs = set(range(self.num_rbs))
         assigned_prbs = set(pr for lst in self.rb_allocation.values() for pr in lst)
-        free_prbs     = all_prbs - assigned_prbs
-
-        # Give each UE with zero PRBs exactly one, if available
+        free_prbs = all_prbs - assigned_prbs
+        
+        # Give PRBs to any UE that still has none (if PRBs available)
         for ue_id, prbs in self.rb_allocation.items():
             if not prbs and free_prbs:
                 prb = free_prbs.pop()
                 self.rb_allocation[ue_id].append(prb)
                 delivered_bits[ue_id] += rate_map[ue_id][prb]
+        
         # Update EWMA throughput for each UE
         for ue_id, ue in self.ues.items():
+            # Ensure EWMA never gets too small
             ue.update_ewma(delivered_bits[ue_id])
+            if ue.ewma_dr < 1e-6:  # Set a minimal EWMA to prevent division issues
+                ue.ewma_dr = 1e-6
         
         # Vectorized calculation of allocated resources in Mbps
         self.allocated_resources = {}
