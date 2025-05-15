@@ -1461,7 +1461,7 @@ class NetworkEnvironment(MultiAgentEnv):
 
                 # Determine RBs allocated this TTI
                 rb_list = bs.rb_allocation.get(ue.id, [])
-                print (f"RB List is:{rb_list}")
+                # print (f"RB List is:{rb_list}")
                 if rb_list:
                     # Mean SINR over allocated RBs
                     ue.sinr = float(np.mean(sinr_rb[rb_list]))
