@@ -20,7 +20,7 @@ class UE:
     def __init__(self, id, position, demand,
                 v_min=0.5, v_max=1.5,
                 pause_min=1.0, pause_max=5.0,rx_gain_dbi=0.0,
-                ewma_alpha=0.9):
+                ewma_alpha=0.7):
         self.id          = int(id)
         self.position    = np.array(position, dtype=np.float32)
         self.demand      = float(demand)       # Mbps
@@ -35,7 +35,7 @@ class UE:
         # Scheduling fields:
         self.associated_bs = None
         self.sinr          = -np.inf
-        self.ewma_dr       = 1e3
+        self.ewma_dr       = 1e6
         self.ewma_alpha    = ewma_alpha
         self.rx_gain = float(rx_gain_dbi)  # dBi
     def _draw_waypoint(self):
@@ -250,7 +250,17 @@ class BaseStation:
                 best_ue_id = ue_ids[best_idx]
                 self.rb_allocation[best_ue_id].append(prb)
                 delivered_bits[best_ue_id] += rate_map[best_ue_id][prb]
-        
+        # Compute which PRBs are still free
+        all_prbs     = set(range(self.num_rbs))
+        assigned_prbs = set(pr for lst in self.rb_allocation.values() for pr in lst)
+        free_prbs     = all_prbs - assigned_prbs
+
+        # Give each UE with zero PRBs exactly one, if available
+        for ue_id, prbs in self.rb_allocation.items():
+            if not prbs and free_prbs:
+                prb = free_prbs.pop()
+                self.rb_allocation[ue_id].append(prb)
+                delivered_bits[ue_id] += rate_map[ue_id][prb]
         # Update EWMA throughput for each UE
         for ue_id, ue in self.ues.items():
             ue.update_ewma(delivered_bits[ue_id])
@@ -633,25 +643,39 @@ class NetworkEnvironment(MultiAgentEnv):
     def calculate_individual_reward(self, agent_id=None):
         if agent_id is None:
             return 0.0
-            
-        # Extract UE ID from agent ID
+
+        # Parse UE index
         if isinstance(agent_id, str) and agent_id.startswith("ue_"):
             ue_id = int(agent_id.split("_")[1])
             ue = self.ues[ue_id]
-            
+
+            # 1) Unconnected penalty
             if ue.associated_bs is None:
-                return -10.0  # Penalize unconnected UEs, but not too extreme
-            
+                return -1.0
+
+            # 2) SINR factor (linear → clipped & normalized)
+            lin_snr = ue.sinr  # already linear
+            # Clip to [0, SNR_max] and normalize
+            SNR_MAX = 100.0
+            snr_clipped = max(0.0, min(lin_snr, SNR_MAX))
+            sinr_factor = snr_clipped / SNR_MAX  # ∈ [0,1]
+
+            # 3) Load factor (PRB utilization)
             bs = self.base_stations[ue.associated_bs]
-            sinr_factor = max(0, min(1, (ue.sinr + 10) / 40))  # Normalize to [0,1]
-            
-            # Reward balancing load and maximizing SINR
-            load_factor = 1 - (bs.load / bs.capacity)
-            reward = (0.7 * sinr_factor + 0.3 * load_factor) * 10.0
-            
-            return reward
-        
-        return 0.0   
+            prb_util = bs.load / (bs.num_rbs + 1e-9)  # ∈ [0,1]
+            load_factor = 1.0 - prb_util           # ∈ [0,1]
+
+            # 4) Composite reward
+            #    weight SINR high if you care throughput, weight load high if you care fairness
+            w_snr, w_load = 0.7, 0.3
+            base_reward = w_snr * sinr_factor + w_load * load_factor
+
+            # 5) Scale into a convenient range (e.g. [–1, +1])
+            #    Here we map base_reward ∈ [0,1] → [0,+1], then shift down for unconnected
+            return float(base_reward)
+
+        return 0.0
+
     
     
     # def pick_best_bs(self, ue, w1=0.7, w2=0.3):
@@ -901,56 +925,141 @@ class NetworkEnvironment(MultiAgentEnv):
                 ue.sinr = sinrs[ue.associated_bs]
             else:
                 ue.sinr = -np.inf
-    
-    
+    def step(self, actions):
+        try:
+            print(f"Step called with {len(actions)} actions")
+            start_time = time.time()            
+            connected_count = 0
+            handover_count = 0
+            # 1) Decode and apply associations
+            for agent_id, a in actions.items():
+                idx = int(agent_id.split("_")[1])
+                self.ues[idx].associated_bs = None if a == 0 else (a-1)
+                connected_count += 1
+
+            # 2) Run PF scheduler on each BS
+            for bs in self.base_stations:
+                bs.ues = {ue.id: ue for ue in self.ues if ue.associated_bs == bs.id}
+                bs.allocate_prbs()
+
+            # 3) Update SINR & EWMA
+            self._update_system_metrics()
+            print(f"Connected Users : {connected_count} Users")
+            # 4) Compute per-agent rewards
+            rewards = {f"ue_{ue.id}": self.calculate_individual_reward(f"ue_{ue.id}")
+                    for ue in self.ues}
+            step_time = time.time() - start_time
+            # 4b) Compute aggregate metrics for logging
+            total_reward = sum(rewards.values())
+            # Connected ratio
+            connected_ratio = sum(1 for ue in self.ues if ue.associated_bs is not None) / self.num_ue
+
+            # Load‐balancing fairness (Jain) on normalized PRB loads
+            loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
+            prb_caps = np.array([bs.num_rbs for bs in self.base_stations], dtype=np.float32)
+            util = loads / (prb_caps + 1e-9)
+            if util.sum() > 0:
+                jains = (util.sum()**2) / (len(util) * (util**2).sum() + 1e-9)
+            else:
+                jains = 0.0
+
+            # Current association solution
+            current_solution = [
+                ue.associated_bs if ue.associated_bs is not None else -1
+                for ue in self.ues
+            ]
+
+            # SINR list (capped at 100 dB for safety)
+            sinr_list = [
+                float(min(ue.sinr, 100.0)) if ue.associated_bs is not None else -np.inf
+                for ue in self.ues
+            ]
+
+            # Safe throughput sum (Gbps)
+            total_throughput = 0.0
+            for ue in self.ues:
+                if ue.associated_bs is not None:
+                    lin = min(ue.sinr, 100.0)
+                    total_throughput += np.log2(1 + 10**(lin/10))
+            # now total_throughput is in bits/s per Hz—if you want Gbps, multiply by your PRB_bw and num_prbs:
+            total_throughput_gbps = total_throughput * self.rb_bandwidth * len(self.base_stations[0].rb_allocation) / 1e9
+
+            # 4c) Log to KPI
+            if self.log_kpis and self.kpi_logger:
+                metrics = {
+                    "connected_ratio": connected_ratio,
+                    "step_time": step_time,
+                    "episode_reward_mean": total_reward / self.num_ue,
+                    "fairness_index": jains,
+                    "throughput_sum": total_throughput_gbps,
+                    "solution": current_solution,
+                    "sinr_list": sinr_list,
+                }
+                self.kpi_logger.log_metrics(
+                    phase="environment",
+                    algorithm="hybrid_marl",
+                    metrics=metrics,
+                    episode=self.current_step
+                )
+            # 5) Build infos, check termination
+            obs = self._get_obs()
+            terminated = {"__all__": False}
+            truncated  = {"__all__": self.current_step >= self.episode_length}
+            info       = self._build_info_dict()
+            self.current_step += 1
+
+            return obs, rewards, terminated, truncated, info
+        except Exception as e:        
+            print(f"ERROR in step: {e}")
+            import traceback
+            print(traceback.format_exc())
+            # Return a safe default response
+            return self._get_obs(), {f"ue_{ue.id}": 0.0 for ue in self.ues}, {"__all__": False}, {"__all__": True}, {"__common__": {"error": str(e)}} 
     # def step(self, actions: Dict[str, int]):
     #     # Add timing for performance analysis
     #     print(f"Step called with {len(actions)} actions")
     #     try:
-    #         start_time = time.time()
-
-    #         # 1) Clear old allocations & reset loads
-    #         for bs in self.base_stations:
-    #             bs.allocated_resources.clear()
-    #             bs.calculate_load()
-
-    #         # 2) Process UE associations (sorted by demand for packing)
-    #         ue_actions = sorted(
-    #             ((int(aid.split("_")[1]), bs_choice) for aid, bs_choice in actions.items()),
-    #             key=lambda x: self.ues[x[0]].demand
-    #         )
-    #         bs_allocations = {bs.id: 0 for bs in self.base_stations}
-    #         bs_capacity_used = {bs.id: 0.0 for bs in self.base_stations}
+    #         start_time = time.time()            
     #         connected_count = 0
-            
-    #         # assume ue_actions is a list of (ue_id, _) sorted by demand
-    #         for ue_id, _ in ue_actions:
-    #             ue = self.ues[ue_id]
+    #         handover_count = 0
+    #         for i, ue in enumerate(self.ues):
+    #             print(f"Before step - UE {i}: associated_bs={ue.associated_bs}")
+    #         for i, bs in enumerate(self.base_stations):
+    #             print(f"Before step - BS {i}: load={bs.load}, allocated_resources={bs.allocated_resources}")
+    #         # 1) Process each UE’s action
+    #         for agent_id, a in actions.items():
+    #             i = int(agent_id.split("_")[1])
+    #             ue = self.ues[i]
 
-    #             # 1) primary choice by PF+load score
-    #             primary = self.pick_best_bs(ue)
+    #             # decode new BS index
+    #             new_bs = None if a == 0 else (a - 1)
+    #             old_bs = ue.associated_bs
 
-    #             # 2) build ordered list: primary first, then the rest
-    #             candidates = [primary] + [i for i in range(self.num_bs) if i != primary]
+    #             if new_bs != old_bs:
+    #                 # remove from old BS
+    #                 if old_bs is not None:
+    #                     self.base_stations[old_bs].allocated_resources.pop(ue.id, None)
+    #                     self.base_stations[old_bs].calculate_load()
 
-    #             # 3) try each candidate until one fits
-    #             admitted = False
-    #             for bs_idx in candidates:
-    #                 bs = self.base_stations[bs_idx]
-    #                 dr = bs.data_rate_shared(ue)               # how much rate UE would use
-    #                 if bs.load + dr <= bs.capacity:            # capacity check
-    #                     bs.allocated_resources[ue.id] = dr
-    #                     bs.calculate_load()                    # update bs.load
-    #                     ue.associated_bs = bs_idx
-    #                     connected_count += 1                # ← increment here
-    #                     bs_allocations[bs_idx] += 1        # count UEs per BS
-    #                     bs_capacity_used[bs_idx] = bs.load # record load
-    #                     admitted = True
-                        # break
-
-    #             # 4) if none could admit, leave unassociated
-    #             if not admitted:
-    #                 ue.associated_bs = None
+    #                 # try admit to new BS
+    #                 if new_bs is not None:
+    #                     bs = self.base_stations[new_bs]
+    #                     dr = bs.data_rate_shared(ue)
+    #                     if bs.load + dr <= bs.capacity:
+    #                         bs.allocated_resources[ue.id] = dr
+    #                         bs.calculate_load()
+    #                         ue.associated_bs = new_bs
+    #                         connected_count += 1
+    #                     else:
+    #                         # capacity full → revert to old
+    #                         ue.associated_bs = old_bs
+    #                         if old_bs is not None:
+    #                             connected_count += 1
+    #                 handover_count += 1
+    #             else:
+    #                 # stayed put
+    #                 if ue.associated_bs is not None:
+    #                     connected_count += 1
 
             
     #         # 3) Update SINR & EWMA
@@ -971,20 +1080,16 @@ class NetworkEnvironment(MultiAgentEnv):
     #         total_reward = 0
     #         for bs in self.base_stations:
     #             print(f"BS {bs.id}: load={bs.load}, capacity={bs.capacity}, ratio={bs.load/bs.capacity if bs.capacity>0 else 'inf'}")
-    #         # 4) Compute rewards and aggregate metrics
-    #         rewards = {}
-    #         total_reward = 0.0
+            
+    #         # # 4) Compute rewards and aggregate metrics
+    #         # rewards = {}
+    #         # total_reward = 0.0
     #         for ue in self.ues:
     #             key = f"ue_{ue.id}"
     #             r = self.calculate_individual_reward(key)
     #             rewards[key] = r
     #             total_reward += r                 
-                
-    #             # if ue_id % 10 == 0:  # Only print every 10th UE to avoid excessive output
-    #             #         print(f"UE {ue_id}: connected={ue.associated_bs is not None}, "
-    #             #             f"sinr={ue.sinr:.2f}, throughput={throughput:.2f}, "
-    #             #             f"load_factor={load_factor:.2f}, reward={rewards[f'ue_{ue.id}']:.4f}")
-                        
+            
     #         print(f"Connected Users : {connected_count} Users")
     #         # Log performance metrics at regular intervals
     #         step_time = time.time() - start_time
@@ -1003,15 +1108,6 @@ class NetworkEnvironment(MultiAgentEnv):
     #                 sum_squared = sum(u**2 for u in utilizations) * len(utilizations)
     #                 jains = squared_sum / sum_squared if sum_squared > 0 else 0
     #                 print(f"Load Balancing Fairness: {jains:.4f}")
-    #                 # jain = self.calculate_jains_fairness()
-    #                 # print(f"Load balancing Jain's index: {jain:.4f}")
-                
-    #             # # Log detailed BS allocations if not all UEs connected
-    #             # if connected_count < self.num_ue:
-    #             #     print(f"BS allocations: {bs_allocations}")
-    #             #     print(f"BS capacity %: {[bs_capacity_used[bs.id]/bs.capacity if bs.capacity > 0 else 0 for bs in self.base_stations]}")
-            
-            
             
     #         # Track current solution for visualization
     #         current_solution = []
@@ -1020,21 +1116,36 @@ class NetworkEnvironment(MultiAgentEnv):
     #                 current_solution.append(ue.associated_bs)
     #             else:
     #                 # Use a default value for unconnected UEs
-    #                 current_solution.append(0)  # Or None if your visualization can handle it
-    #         # print(f"Current solution at : {current_solution}")
-    #         sinr_list = [ue.sinr if ue.associated_bs is not None else -np.inf
-    #          for ue in self.ues]
+    #                 current_solution.append(-1)  # Using -1 to clearly indicate unconnected status
+            
+    #         # Calculate SINR values, with protection against overflow
+    #         sinr_list = []
+    #         for ue in self.ues:
+    #             if ue.associated_bs is not None:
+    #                 # Ensure SINR is within a reasonable range to prevent overflow
+    #                 capped_sinr = min(ue.sinr, 100.0)  # Cap at 100 dB to prevent overflow
+    #                 sinr_list.append(capped_sinr)
+    #             else:
+    #                 sinr_list.append(-np.inf)
             
     #         # KPI logging
     #         if self.log_kpis and self.kpi_logger:
+    #             # Safe throughput calculation to prevent overflow
+    #             throughput = 0.0
+    #             for ue in self.ues:
+    #                 if ue.associated_bs is not None:
+    #                     # Prevent overflow by capping SINR
+    #                     capped_sinr = min(ue.sinr, 100.0)  # Cap at 100 dB
+    #                     throughput += np.log2(1 + 10**(capped_sinr/10))
+                
     #             metrics = {
     #                 "connected_ratio": connected_count/self.num_ue,
     #                 "step_time": step_time,
     #                 "episode_reward_mean": total_reward/self.num_ue,
     #                 "fairness_index": jains,
-    #                 "throughput": sum(np.log2(1+10**(ue.sinr/10)) for ue in self.ues if ue.associated_bs is not None),
-    #                 "solution":       current_solution,
-    #                 "sinr_list":      sinr_list,
+    #                 "throughput": throughput,
+    #                 "solution": current_solution,
+    #                 "sinr_list": sinr_list,
     #             }
     #             self.kpi_logger.log_metrics(
     #                 phase="environment", algorithm="hybrid_marl",
@@ -1043,20 +1154,13 @@ class NetworkEnvironment(MultiAgentEnv):
                 
     #         # Split termination into terminated and truncated (for Gymnasium compatibility)
     #         terminated = {"__all__": False}  # Episode is not terminated due to failure condition
-    #         # RLlib requires an "__all__" entry
-    #         #dones = {"__all__": self.current_step >= self.episode_length}
     #         truncated = {"__all__": self.current_step >= self.episode_length}  # Episode length limit reached 
-    #         # episode_done = (self.current_step >= self.episode_length)
-    #         # dones = {
-    #         #     **{f"ue_{i}": episode_done for i in range(self.num_ue)},
-    #         #     "__all__": episode_done
-    #         # }
 
     #         # Common info for all agents
     #         common_info = {
     #             "connected_ratio": connected_count / self.num_ue,
     #             "step_time": step_time,
-    #             "current solution":current_solution,
+    #             "current_solution": current_solution,
     #             "avg_reward": total_reward / self.num_ue if self.num_ue > 0 else 0
     #         }
             
@@ -1064,7 +1168,7 @@ class NetworkEnvironment(MultiAgentEnv):
     #         info = {
     #             f"ue_{ue.id}": {
     #                 "connected": ue.associated_bs is not None,
-    #                 "sinr": float(ue.sinr)
+    #                 "sinr": float(min(ue.sinr, 100.0) if ue.associated_bs is not None else -np.inf)  # Cap SINR values
     #             } for ue in self.ues  # Add minimal agent-specific info
     #         }
     #         info["__common__"] = common_info  # Add common info under special key
@@ -1072,183 +1176,14 @@ class NetworkEnvironment(MultiAgentEnv):
     #         self.last_info = info
     #         # Increment step counter
     #         self.current_step += 1
-    #         return self._get_obs(), rewards,terminated,truncated, info
+    #         return self._get_obs(), rewards, terminated, truncated, info
         
     #     except Exception as e:
     #         print(f"ERROR in step: {e}")
     #         import traceback
     #         print(traceback.format_exc())
     #         # Return a safe default response
-    #         return self._get_obs(), {f"ue_{ue.id}": 0.0 for ue in self.ues}, {"__all__": False}, {"__all__": True}, {"__common__": {"error": str(e)}}
-    def step(self, actions: Dict[str, int]):
-        # Add timing for performance analysis
-        print(f"Step called with {len(actions)} actions")
-        try:
-            start_time = time.time()            
-            connected_count = 0
-            handover_count = 0
-            for i, ue in enumerate(self.ues):
-                print(f"Before step - UE {i}: associated_bs={ue.associated_bs}")
-            for i, bs in enumerate(self.base_stations):
-                print(f"Before step - BS {i}: load={bs.load}, allocated_resources={bs.allocated_resources}")
-            # 1) Process each UE’s action
-            for agent_id, a in actions.items():
-                i = int(agent_id.split("_")[1])
-                ue = self.ues[i]
-
-                # decode new BS index
-                new_bs = None if a == 0 else (a - 1)
-                old_bs = ue.associated_bs
-
-                if new_bs != old_bs:
-                    # remove from old BS
-                    if old_bs is not None:
-                        self.base_stations[old_bs].allocated_resources.pop(ue.id, None)
-                        self.base_stations[old_bs].calculate_load()
-
-                    # try admit to new BS
-                    if new_bs is not None:
-                        bs = self.base_stations[new_bs]
-                        dr = bs.data_rate_shared(ue)
-                        if bs.load + dr <= bs.capacity:
-                            bs.allocated_resources[ue.id] = dr
-                            bs.calculate_load()
-                            ue.associated_bs = new_bs
-                            connected_count += 1
-                        else:
-                            # capacity full → revert to old
-                            ue.associated_bs = old_bs
-                            if old_bs is not None:
-                                connected_count += 1
-                    handover_count += 1
-                else:
-                    # stayed put
-                    if ue.associated_bs is not None:
-                        connected_count += 1
-
-            
-            # 3) Update SINR & EWMA
-            for ue in self.ues:
-                # full multi-cell SINR vector
-                sinr_vec = self._calculate_sinrs(ue)
-                if ue.associated_bs is not None:
-                    ue.sinr = sinr_vec[ue.associated_bs]
-                    # update EWMA with allocated rate
-                    self.base_stations[ue.associated_bs].calculate_load()
-                    measured = self.base_stations[ue.associated_bs].allocated_resources.get(ue.id, 0.0)
-                    ue.update_ewma(measured)
-                else:
-                    ue.sinr = -np.inf
-            
-            # Calculate rewards efficiently
-            rewards = {}
-            total_reward = 0
-            for bs in self.base_stations:
-                print(f"BS {bs.id}: load={bs.load}, capacity={bs.capacity}, ratio={bs.load/bs.capacity if bs.capacity>0 else 'inf'}")
-            
-            # # 4) Compute rewards and aggregate metrics
-            # rewards = {}
-            # total_reward = 0.0
-            for ue in self.ues:
-                key = f"ue_{ue.id}"
-                r = self.calculate_individual_reward(key)
-                rewards[key] = r
-                total_reward += r                 
-            
-            print(f"Connected Users : {connected_count} Users")
-            # Log performance metrics at regular intervals
-            step_time = time.time() - start_time
-            jains = 0.0
-            if self.current_step % 10 == 0 or connected_count < self.num_ue:
-                print(f"Step {self.current_step} | Time: {step_time:.3f}s | Connected: {connected_count}/{self.num_ue} UEs")
-                
-                # Calculate load balancing metrics
-                loads = [bs.load for bs in self.base_stations]
-                capacities = [bs.capacity for bs in self.base_stations]
-                utilizations = [load/cap if cap > 0 else 0 for load, cap in zip(loads, capacities)]
-                
-                # Jain's fairness index for load distribution
-                if sum(utilizations) > 0:
-                    squared_sum = sum(utilizations)**2
-                    sum_squared = sum(u**2 for u in utilizations) * len(utilizations)
-                    jains = squared_sum / sum_squared if sum_squared > 0 else 0
-                    print(f"Load Balancing Fairness: {jains:.4f}")
-            
-            # Track current solution for visualization
-            current_solution = []
-            for ue in self.ues:
-                if ue.associated_bs is not None:
-                    current_solution.append(ue.associated_bs)
-                else:
-                    # Use a default value for unconnected UEs
-                    current_solution.append(-1)  # Using -1 to clearly indicate unconnected status
-            
-            # Calculate SINR values, with protection against overflow
-            sinr_list = []
-            for ue in self.ues:
-                if ue.associated_bs is not None:
-                    # Ensure SINR is within a reasonable range to prevent overflow
-                    capped_sinr = min(ue.sinr, 100.0)  # Cap at 100 dB to prevent overflow
-                    sinr_list.append(capped_sinr)
-                else:
-                    sinr_list.append(-np.inf)
-            
-            # KPI logging
-            if self.log_kpis and self.kpi_logger:
-                # Safe throughput calculation to prevent overflow
-                throughput = 0.0
-                for ue in self.ues:
-                    if ue.associated_bs is not None:
-                        # Prevent overflow by capping SINR
-                        capped_sinr = min(ue.sinr, 100.0)  # Cap at 100 dB
-                        throughput += np.log2(1 + 10**(capped_sinr/10))
-                
-                metrics = {
-                    "connected_ratio": connected_count/self.num_ue,
-                    "step_time": step_time,
-                    "episode_reward_mean": total_reward/self.num_ue,
-                    "fairness_index": jains,
-                    "throughput": throughput,
-                    "solution": current_solution,
-                    "sinr_list": sinr_list,
-                }
-                self.kpi_logger.log_metrics(
-                    phase="environment", algorithm="hybrid_marl",
-                    metrics=metrics, episode=self.current_step
-                )
-                
-            # Split termination into terminated and truncated (for Gymnasium compatibility)
-            terminated = {"__all__": False}  # Episode is not terminated due to failure condition
-            truncated = {"__all__": self.current_step >= self.episode_length}  # Episode length limit reached 
-
-            # Common info for all agents
-            common_info = {
-                "connected_ratio": connected_count / self.num_ue,
-                "step_time": step_time,
-                "current_solution": current_solution,
-                "avg_reward": total_reward / self.num_ue if self.num_ue > 0 else 0
-            }
-            
-            # Create info dict with one entry per agent, plus common info
-            info = {
-                f"ue_{ue.id}": {
-                    "connected": ue.associated_bs is not None,
-                    "sinr": float(min(ue.sinr, 100.0) if ue.associated_bs is not None else -np.inf)  # Cap SINR values
-                } for ue in self.ues  # Add minimal agent-specific info
-            }
-            info["__common__"] = common_info  # Add common info under special key
-            # Save as last info
-            self.last_info = info
-            # Increment step counter
-            self.current_step += 1
-            return self._get_obs(), rewards, terminated, truncated, info
-        
-        except Exception as e:
-            print(f"ERROR in step: {e}")
-            import traceback
-            print(traceback.format_exc())
-            # Return a safe default response
-            return self._get_obs(), {f"ue_{ue.id}": 0.0 for ue in self.ues}, {"__all__": False}, {"__all__": True}, {"__common__": {"error": str(e)}}   
+    #         return self._get_obs(), {f"ue_{ue.id}": 0.0 for ue in self.ues}, {"__all__": False}, {"__all__": True}, {"__common__": {"error": str(e)}}   
     # Add this to your NetworkEnvironment class
     def get_last_info(self):
         """Return the last info dict from a step"""
@@ -1256,73 +1191,76 @@ class NetworkEnvironment(MultiAgentEnv):
             print("Getting lastest info....")
             return self.last_info
         return None
-    
     def _get_obs(self):
-        # Precompute BS loads & utils
-        bs_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
-        bs_caps  = np.array([bs.capacity for bs in self.base_stations], dtype=np.float32)
-        normalized_loads = bs_loads / (bs_caps + 1e-9)
-        bs_utils = np.clip(bs_loads / (bs_caps + 1e-9), 0.0, 1.0).astype(np.float32)
+        # 1) PRB-based load fraction per BS
+        bs_prb_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
+        prb_fractions = bs_prb_loads / (np.array([bs.num_rbs for bs in self.base_stations]) + 1e-9)
+        rate_loads = np.array([sum(bs.allocated_resources.values()) 
+                        for bs in self.base_stations], dtype=np.float32)
+        cap_bps    = np.array([bs.capacity * 1e6 
+                            for bs in self.base_stations], dtype=np.float32)
+        util_bps   = rate_loads / (cap_bps + 1e-9)
+        # 2) Optionally: data-rate utilization per BS
+        #    rate_loads = np.array([sum(bs.allocated_resources.values()) for bs in self.base_stations])
+        #    cap_bps    = np.array([bs.capacity * 1e6 for bs in self.base_stations])
+        #    util_bps   = rate_loads / (cap_bps + 1e-9)
 
         obs = {}
         for ue in self.ues:
-            # 1) SINR vector
-            sinr_vec = self._calculate_sinrs(ue).astype(np.float32)
-            normalized_sinrs = sinr_vec / 40.0
+            # A) linear SINR to each BS, normalized by its max
+            sinr_lin = self._calculate_sinrs(ue).astype(np.float32)
+            norm_sinr = sinr_lin / (sinr_lin.max() + 1e-9)
 
-            # 2) Own demand
-            norm_demand = np.array([ue.demand / 200.0], dtype=np.float32)
+            # B) own demand normalized to [0,1]
+            norm_demand = np.array([ue.demand / self.max_demand], dtype=np.float32)
 
-            # 3) One-hot current association
-            #    index = BS id 0…num_bs-1, or num_bs if None
+            # C) one-hot for association
             idx = ue.associated_bs if ue.associated_bs is not None else self.num_bs
-            bs_one_hot = np.eye(self.num_bs + 1, dtype=np.float32)[idx]
+            one_hot = np.eye(self.num_bs+1, dtype=np.float32)[idx]
 
-            # 4) Concatenate everything in the prescribed order
+            # D) concat: SINR | PRB-load | demand | one-hot
             obs[f"ue_{ue.id}"] = np.concatenate([
-                normalized_sinrs,      # shape (num_bs,)
-                normalized_loads,      # shape (num_bs,)
-                bs_utils,              # shape (num_bs,)
-                norm_demand,           # shape (1,)
-                bs_one_hot             # shape (num_bs+1,)
+                norm_sinr,          # (num_bs,)
+                prb_fractions,      # (num_bs,)
+                util_bps,         # (num_bs,)   ← newly added
+                norm_demand,        # (1,)
+                one_hot             # (num_bs+1,)
             ], axis=0)
 
         return obs
 
-    # def _get_obs(self):        
-    #     # Precompute BS loads, capacities, positions
+    # def _get_obs(self):
+    #     # Precompute BS loads & utils
     #     bs_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
     #     bs_caps  = np.array([bs.capacity for bs in self.base_stations], dtype=np.float32)
-    #     bs_positions = np.stack([bs.position for bs in self.base_stations])
-
-    #     # Normalize loads by capacity
     #     normalized_loads = bs_loads / (bs_caps + 1e-9)
-    #     # Utilization = clipped load/capacity
     #     bs_utils = np.clip(bs_loads / (bs_caps + 1e-9), 0.0, 1.0).astype(np.float32)
 
     #     obs = {}
     #     for ue in self.ues:
-    #         # Compute full SINR vector (interference + noise)
-    #         sinr_vec = self._calculate_sinrs(ue)
-    #         # Record UE.sinr
-    #         ue.sinr = sinr_vec[ue.associated_bs] if ue.associated_bs is not None else -np.inf
-
-    #         # Normalize SINRs (assume max ~40 dB)
+    #         # 1) SINR vector
+    #         sinr_vec = self._calculate_sinrs(ue).astype(np.float32)
     #         normalized_sinrs = sinr_vec / 40.0
 
-    #         # Normalize own demand
+    #         # 2) Own demand
     #         norm_demand = np.array([ue.demand / 200.0], dtype=np.float32)
 
-    #         # Concatenate into one feature vector
+    #         # 3) One-hot current association
+    #         #    index = BS id 0…num_bs-1, or num_bs if None
+    #         idx = ue.associated_bs if ue.associated_bs is not None else self.num_bs
+    #         bs_one_hot = np.eye(self.num_bs + 1, dtype=np.float32)[idx]
+
+    #         # 4) Concatenate everything in the prescribed order
     #         obs[f"ue_{ue.id}"] = np.concatenate([
-    #             normalized_sinrs.astype(np.float32),
-    #             normalized_loads,
-    #             bs_utils,
-    #             norm_demand
+    #             normalized_sinrs,      # shape (num_bs,)
+    #             normalized_loads,      # shape (num_bs,)
+    #             bs_utils,              # shape (num_bs,)
+    #             norm_demand,           # shape (1,)
+    #             bs_one_hot             # shape (num_bs+1,)
     #         ], axis=0)
 
     #     return obs
-    
+   
     def _calculate_local_interference(self, neighbor_dist=100.0):
         interference = 0.0
         for other in self.base_stations:
@@ -1348,40 +1286,11 @@ class NetworkEnvironment(MultiAgentEnv):
             positions.append(norm_pos.astype(np.float32))  # ✅ Cast
         return np.array(positions).flatten()
     
-    def get_current_state(self):
-        return {
-            "base_stations": [
-                {
-                    "id": bs.id,
-                    "position": bs.position.tolist(),
-                    "load": bs.load,
-                    "capacity": bs.capacity,
-                    "reuse_color": bs.reuse_color,     # new
-                    "frequency": bs.frequency          # new
-                } for bs in self.base_stations
-            ],
-            "users": [
-                {
-                    "id": ue.id,
-                    "position": ue.position.tolist(),
-                    "associated_bs": ue.associated_bs,
-                    "sinr": float(ue.sinr),
-                    "speed": float(ue.speed),           # new
-                    "pause_time": float(ue.pause_time), # new
-                    "ewma_dr": float(ue.ewma_dr)        # optional
-                } for ue in self.ues
-            ],
-            "associations": self.associations.copy(),
-            "version": self.version,
-        }
-
-        
     def get_state_snapshot(self) -> dict:
         return {
             "users": [{
                 "id": ue.id,
                 "position": ue.position.copy().tolist(),
-                # MRWP fields instead of raw velocity:
                 "waypoint": ue.waypoint.copy().tolist(),
                 "speed": float(ue.speed),
                 "pause_time": float(ue.pause_time),
@@ -1393,12 +1302,17 @@ class NetworkEnvironment(MultiAgentEnv):
             "base_stations": [{
                 "id": bs.id,
                 "allocated_resources": bs.allocated_resources.copy(),
+                "rb_allocation": {ue_id: prbs.copy() for ue_id, prbs in bs.rb_allocation.items()},
                 "load": float(bs.load),
                 "capacity": float(bs.capacity),
-                # if you care about reuse_color/frequency snapshot:
                 "reuse_color": bs.reuse_color,
                 "frequency": float(bs.frequency)
             } for bs in self.base_stations],
+            # Optional: histories & counters
+            "load_history": {bs.id: hist.copy() for bs, hist in self.load_history.items()},
+            "handover_counts": self.handover_counts.copy(),
+            "prev_associations": self.prev_associations.copy(),
+            "step_count": self.step_count,
             "current_step": self.current_step
         }
 
@@ -1406,24 +1320,35 @@ class NetworkEnvironment(MultiAgentEnv):
         # restore UEs
         for ue_state in state["users"]:
             ue = next(u for u in self.ues if u.id == ue_state["id"])
-            ue.position     = np.array(ue_state["position"], dtype=np.float32)
-            ue.waypoint     = np.array(ue_state["waypoint"], dtype=np.float32)
-            ue.speed        = ue_state["speed"]
-            ue.pause_time   = ue_state["pause_time"]
-            ue.demand       = ue_state["demand"]
-            ue.associated_bs = ue_state["associated_bs"]
-            ue.sinr         = ue_state["sinr"]
-            ue.ewma_dr      = ue_state["ewma_dr"]
+            ue.position       = np.array(ue_state["position"], dtype=np.float32)
+            ue.waypoint       = np.array(ue_state["waypoint"], dtype=np.float32)
+            ue.speed          = ue_state["speed"]
+            ue.pause_time     = ue_state["pause_time"]
+            ue.demand         = ue_state["demand"]
+            ue.associated_bs  = ue_state["associated_bs"]
+            ue.sinr           = ue_state["sinr"]
+            ue.ewma_dr        = ue_state["ewma_dr"]
+
         # restore BSs
         for bs_state in state["base_stations"]:
             bs = next(b for b in self.base_stations if b.id == bs_state["id"])
             bs.allocated_resources = bs_state["allocated_resources"].copy()
-            bs.load               = bs_state["load"]
-            bs.capacity           = bs_state["capacity"]
-            # if you snapshot these too:
-            bs.reuse_color        = bs_state.get("reuse_color", bs.reuse_color)
-            bs.frequency          = bs_state.get("frequency", bs.frequency)
-        self.current_step = state["current_step"]
+            # restore PRB maps too
+            bs.rb_allocation = {int(uid): prbs.copy() 
+                                for uid, prbs in bs_state["rb_allocation"].items()}
+            bs.load        = bs_state["load"]
+            bs.capacity    = bs_state["capacity"]
+            bs.reuse_color = bs_state.get("reuse_color", bs.reuse_color)
+            bs.frequency   = bs_state.get("frequency", bs.frequency)
+
+        # restore histories & counters
+        self.load_history      = {int(bs_id): hist.copy() 
+                                for bs_id, hist in state.get("load_history", {}).items()}
+        self.handover_counts   = state.get("handover_counts", {}).copy()
+        self.prev_associations = state.get("prev_associations", {}).copy()
+        self.step_count        = state.get("step_count", self.step_count)
+        self.current_step      = state.get("current_step", self.current_step)    
+    
 
 
     
