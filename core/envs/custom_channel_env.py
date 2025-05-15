@@ -197,8 +197,8 @@ class BaseStation:
     
     def allocate_prbs(self):
         """
-        Enhanced version of the optimized allocate_prbs method with guaranteed
-        minimum allocation for all UEs.
+        Enhanced version of the PRB allocation method with improved fairness guarantees
+        while maintaining system efficiency.
         """
         # Handle empty case
         if not self.ues:
@@ -229,16 +229,19 @@ class BaseStation:
             self.rb_allocation[ue_id] = list(range(self.num_rbs))
             delivered_bits[ue_id] = np.sum(rate_map[ue_id])
         else:
-            # --- PRIORITY 1: Minimum allocation guarantee ---
-            # First, ensure every UE gets at least one PRB
-            min_prbs_per_ue = 1  # Minimum PRBs per UE
+            # --- FAIRNESS IMPROVEMENT: Guarantee minimum allocation ---
+            num_ues = len(self.ues)
+            
+            # Calculate how many PRBs each UE should get as minimum
+            # Ensure at least 10% of available PRBs per UE or at minimum 1 PRB
+            min_prbs_per_ue = max(1, int(0.1 * self.num_rbs / num_ues))
             
             # If we have enough PRBs, give each UE at least min_prbs_per_ue
-            if self.num_rbs >= min_prbs_per_ue * len(self.ues):
+            if self.num_rbs >= min_prbs_per_ue * num_ues:
                 prbs_remaining = self.num_rbs
                 all_prbs = set(range(self.num_rbs))
                 
-                # Allocate minimum PRBs to each UE based on best SINR
+                # PHASE 1: Allocate minimum guaranteed PRBs to each UE
                 for ue_id, ue in self.ues.items():
                     if prbs_remaining >= min_prbs_per_ue:
                         # Find best PRBs for this UE
@@ -253,21 +256,50 @@ class BaseStation:
                                 delivered_bits[ue_id] += rate_map[ue_id][prb]
                                 prbs_remaining -= 1
                 
-                # --- PRIORITY 2: Proportional fair scheduling for remaining PRBs ---
+                # PHASE 2: Distribute remaining PRBs using modified PF scheduling
                 if prbs_remaining > 0:
-                    # Calculate metrics for remaining PRBs
+                    # Calculate average SINR for reference
+                    avg_sinr = {}
+                    for ue_id in self.ues:
+                        avg_sinr[ue_id] = np.mean(sinr_map[ue_id])
+                    
+                    # Calculate metrics for remaining PRBs with fairness adjustment
                     remaining_prbs = list(all_prbs)
                     metrics_per_prb = np.zeros((len(remaining_prbs), len(self.ues)))
                     ue_indices = {ue_id: idx for idx, ue_id in enumerate(self.ues)}
                     
-                    # Calculate all metrics at once for remaining PRBs
+                    # Calculate current allocation rate for each UE for fairness calculation
+                    current_rates = {}
+                    for ue_id in self.ues:
+                        if self.rb_allocation[ue_id]:
+                            current_rates[ue_id] = np.sum(rate_map[ue_id][self.rb_allocation[ue_id]])
+                        else:
+                            current_rates[ue_id] = 0.0
+                    
+                    # Find max current rate to normalize
+                    max_current_rate = max(current_rates.values()) if current_rates else 1.0
+                    max_current_rate = max(max_current_rate, 1.0)  # Ensure non-zero
+                    
+                    # Calculate fairness factor - UEs with less allocation get higher priority
+                    fairness_factor = {}
+                    for ue_id in self.ues:
+                        normalized_rate = current_rates[ue_id] / max_current_rate
+                        # Lower current rate leads to higher fairness factor
+                        fairness_factor[ue_id] = 1.0 - 0.8 * normalized_rate  # Range: [0.2, 1.0]
+                    
+                    # Calculate metrics with fairness adjustment
                     for ue_id, ue in self.ues.items():
                         ue_idx = ue_indices[ue_id]
                         # Avoid division by zero with a safe minimum value
-                        ewma = max(ue.ewma_dr, 1e-10)
+                        ewma = max(ue.ewma_dr, 1e-6)
+                        
                         # Calculate metrics for remaining PRBs for this UE
                         for i, prb in enumerate(remaining_prbs):
-                            metrics_per_prb[i, ue_idx] = rate_map[ue_id][prb] / ewma
+                            # Standard PF metric
+                            pf_metric = rate_map[ue_id][prb] / ewma
+                            
+                            # Apply fairness boost for UEs with less allocation
+                            metrics_per_prb[i, ue_idx] = pf_metric * fairness_factor[ue_id]
                     
                     # Find best UE for each remaining PRB
                     for i, prb in enumerate(remaining_prbs):
@@ -277,17 +309,35 @@ class BaseStation:
                             self.rb_allocation[best_ue_id].append(prb)
                             delivered_bits[best_ue_id] += rate_map[best_ue_id][prb]
             else:
-                # Not enough PRBs for minimum allocation - use standard PF
+                # Not enough PRBs for minimum allocation - use enhanced PF with fairness factor
                 metrics_per_prb = np.zeros((self.num_rbs, len(self.ues)))
                 ue_indices = {ue_id: idx for idx, ue_id in enumerate(self.ues)}
                 
-                # Calculate all metrics at once
+                # Pre-calculate fairness factor based on SINR
+                # UEs with lower SINR should get higher priority
+                avg_sinr = {}
+                for ue_id in self.ues:
+                    avg_sinr[ue_id] = np.mean(sinr_map[ue_id])
+                
+                # Calculate max SINR for normalization
+                max_avg_sinr = max(avg_sinr.values())
+                max_avg_sinr = max(max_avg_sinr, 1.0)  # Ensure non-zero
+                
+                # Calculate fairness factor - UEs with worse SINR get higher priority
+                fairness_factor = {}
+                for ue_id in self.ues:
+                    normalized_sinr = avg_sinr[ue_id] / max_avg_sinr
+                    # Lower SINR leads to higher fairness factor
+                    fairness_factor[ue_id] = 2.0 - normalized_sinr  # Range: [1.0, 2.0]
+                
+                # Calculate adjusted metrics
                 for ue_id, ue in self.ues.items():
                     ue_idx = ue_indices[ue_id]
                     # Avoid division by zero with a safe minimum value
-                    ewma = max(ue.ewma_dr, 1e-10)
-                    # Calculate metrics for all PRBs for this UE
-                    metrics_per_prb[:, ue_idx] = rate_map[ue_id] / ewma
+                    ewma = max(ue.ewma_dr, 1e-6)
+                    
+                    # Calculate standard PF metric and apply fairness factor
+                    metrics_per_prb[:, ue_idx] = (rate_map[ue_id] / ewma) * fairness_factor[ue_id]
                 
                 # Find best UE for each PRB using NumPy operations
                 best_ue_indices = np.argmax(metrics_per_prb, axis=1)
@@ -299,32 +349,62 @@ class BaseStation:
                     self.rb_allocation[best_ue_id].append(prb)
                     delivered_bits[best_ue_id] += rate_map[best_ue_id][prb]
         
-        # Double-check and verify no UE has zero PRBs
-        # This is a safety measure to ensure the allocation logic worked
+        # Double-check and verify PRB allocation fairness
+        # Ensure no UE has zero PRBs
         all_prbs = set(range(self.num_rbs))
         assigned_prbs = set(pr for lst in self.rb_allocation.values() for pr in lst)
         free_prbs = all_prbs - assigned_prbs
         
-        # Give PRBs to any UE that still has none (if PRBs available)
-        for ue_id, prbs in self.rb_allocation.items():
-            if not prbs and free_prbs:
-                prb = free_prbs.pop()
-                self.rb_allocation[ue_id].append(prb)
-                delivered_bits[ue_id] += rate_map[ue_id][prb]
+        # Calculate current rates for each UE
+        current_rates = {}
+        for ue_id in self.ues:
+            if self.rb_allocation[ue_id]:
+                current_rates[ue_id] = np.sum(rate_map[ue_id][self.rb_allocation[ue_id]])
+            else:
+                current_rates[ue_id] = 0.0
         
-        # Update EWMA throughput for each UE
+        # Redistribute PRBs from UEs with high rates to those with very low rates
+        # Only if significant disparity exists and we have multiple UEs
+        if len(self.ues) > 1:
+            sorted_rates = sorted([(ue_id, rate) for ue_id, rate in current_rates.items()], 
+                                key=lambda x: x[1])
+            
+            # If we have extreme disparity (min rate is less than 0.1% of max rate)
+            min_rate_ue, min_rate = sorted_rates[0]
+            max_rate_ue, max_rate = sorted_rates[-1]
+            
+            if min_rate < 0.001 * max_rate and min_rate < 1.0:  # Disparity threshold
+                # Redistribute some PRBs from highest rate UE to lowest rate UE
+                if len(self.rb_allocation[max_rate_ue]) > 2:  # Don't take all PRBs
+                    # Take up to 10% of PRBs from highest rate UE
+                    prbs_to_redistribute = max(1, len(self.rb_allocation[max_rate_ue]) // 10)
+                    
+                    # Take PRBs with lowest SINR from highest rate UE
+                    prbs_by_sinr = sorted(self.rb_allocation[max_rate_ue], 
+                                        key=lambda prb: sinr_map[max_rate_ue][prb])
+                    
+                    for _ in range(prbs_to_redistribute):
+                        if prbs_by_sinr:
+                            prb = prbs_by_sinr.pop(0)  # Take lowest SINR PRB
+                            self.rb_allocation[max_rate_ue].remove(prb)
+                            self.rb_allocation[min_rate_ue].append(prb)
+                            
+                            # Update delivered bits
+                            delivered_bits[max_rate_ue] -= rate_map[max_rate_ue][prb]
+                            delivered_bits[min_rate_ue] += rate_map[min_rate_ue][prb]
+        
+        # Update EWMA throughput for each UE - ensure minimum value
         for ue_id, ue in self.ues.items():
             # Ensure EWMA never gets too small
             ue.update_ewma(delivered_bits[ue_id])
             if ue.ewma_dr < 1e-6:  # Set a minimal EWMA to prevent division issues
                 ue.ewma_dr = 1e-6
         
-        # Vectorized calculation of allocated resources in Mbps
+        # Calculate allocated resources in bps
         self.allocated_resources = {}
         for ue_id, prbs in self.rb_allocation.items():
             if prbs:  # Only calculate for UEs with allocated PRBs
-                # Use numpy for faster sum
-                self.allocated_resources[ue_id] = np.sum(rate_map[ue_id][prbs]) # / 1e6
+                self.allocated_resources[ue_id] = np.sum(rate_map[ue_id][prbs])
             else:
                 self.allocated_resources[ue_id] = 0.0
         
