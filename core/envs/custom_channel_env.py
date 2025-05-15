@@ -1307,13 +1307,13 @@ class NetworkEnvironment(MultiAgentEnv):
                 "capacity": float(bs.capacity),
                 "reuse_color": bs.reuse_color,
                 "frequency": float(bs.frequency)
-            } for bs in self.base_stations],
-            # Optional: histories & counters
-            "load_history": {bs.id: hist.copy() for bs, hist in self.load_history.items()},
-            "handover_counts": self.handover_counts.copy(),
-            "prev_associations": self.prev_associations.copy(),
-            "step_count": self.step_count,
-            "current_step": self.current_step
+            } for bs in self.base_stations]
+            # # Optional: histories & counters
+            # "load_history": {bs.id: hist.copy() for bs, hist in self.load_history.items()},
+            # "handover_counts": self.handover_counts.copy(),
+            # "prev_associations": self.prev_associations.copy(),
+            # "step_count": self.step_count,
+            # "current_step": self.current_step
         }
 
     def set_state_snapshot(self, state: dict):
