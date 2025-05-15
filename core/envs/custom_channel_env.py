@@ -197,58 +197,73 @@ class BaseStation:
     
     def allocate_prbs(self):
         """
-        Proportional-Fair PRB-by-PRB scheduler with optimized SINR retrieval.
-        Assumes:
-        - self.ues: dict mapping ue_id to UE instance
-        - each UE has attributes:
-            ewma_dr: long-term average throughput in bps (non-zero)
-            update_ewma(measured_bits)
-        - self.num_rbs, self.rb_bandwidth (Hz)
-        - self.snr_per_rb(ue): returns np.array of length num_rbs with linear SINR
+        Enhanced version of your optimized allocate_prbs method with additional
+        performance improvements.
         """
-        # Initialize allocation
-        free_prbs = set(range(self.num_rbs))
+        # Handle empty case
+        if not self.ues:
+            self.rb_allocation = {}
+            self.allocated_resources = {}
+            self.calculate_load()
+            return
+            
+        # Initialize allocation and delivered bits
         self.rb_allocation = {ue_id: [] for ue_id in self.ues}
-
-        # Precompute SINR arrays per UE
-        sinr_map = {ue_id: self.snr_per_rb(ue) for ue_id, ue in self.ues.items()}
-
-        # Prepare delivered bits accumulator
         delivered_bits = {ue_id: 0.0 for ue_id in self.ues}
-
-        # Per-PRB scheduling
-        while free_prbs:
-            best_metric = -float('inf')
-            best_ue_id = None
-            best_prb = None
-
-            # Find best UE-PRB metric without redundant SINR calls
-            for prb in free_prbs:
-                for ue_id, ue in self.ues.items():
-                    sinr = sinr_map[ue_id][prb]
-                    inst_rate = self.rb_bandwidth * np.log2(1 + sinr)
-                    metric = inst_rate / ue.ewma_dr
-                    if metric > best_metric:
-                        best_metric = metric
-                        best_ue_id = ue_id
-                        best_prb = prb
-
-            # Assign PRB and update delivered bits
-            self.rb_allocation[best_ue_id].append(best_prb)
-            free_prbs.remove(best_prb)
-            delivered_bits[best_ue_id] += self.rb_bandwidth * np.log2(1 + sinr_map[best_ue_id][best_prb])
-
+        
+        # Precompute SINR arrays and Shannon capacity for each UE-PRB combination
+        sinr_map = {}
+        rate_map = {}  # Store precalculated rates to avoid redundant log2 calculations
+        
+        for ue_id, ue in self.ues.items():
+            # Get SINR for all PRBs at once
+            sinr_array = self.snr_per_rb(ue)
+            sinr_map[ue_id] = sinr_array
+            
+            # Precalculate rates for all PRBs
+            rate_map[ue_id] = self.rb_bandwidth * np.log2(1 + sinr_array)
+        
+        # Fast path for single UE case
+        if len(self.ues) == 1:
+            ue_id = next(iter(self.ues))
+            self.rb_allocation[ue_id] = list(range(self.num_rbs))
+            delivered_bits[ue_id] = np.sum(rate_map[ue_id])
+        else:
+            # Process each PRB - similar to your approach but with precalculated rates
+            metrics_per_prb = np.zeros((self.num_rbs, len(self.ues)))
+            ue_indices = {ue_id: idx for idx, ue_id in enumerate(self.ues)}
+            
+            # Calculate all metrics at once
+            for ue_id, ue in self.ues.items():
+                ue_idx = ue_indices[ue_id]
+                # Avoid division by zero
+                ewma = max(ue.ewma_dr, 1e-10)
+                # Calculate metrics for all PRBs for this UE
+                metrics_per_prb[:, ue_idx] = rate_map[ue_id] / ewma
+            
+            # Find best UE for each PRB using NumPy operations
+            best_ue_indices = np.argmax(metrics_per_prb, axis=1)
+            ue_ids = list(self.ues.keys())
+            
+            # Assign PRBs based on best metrics
+            for prb, best_idx in enumerate(best_ue_indices):
+                best_ue_id = ue_ids[best_idx]
+                self.rb_allocation[best_ue_id].append(prb)
+                delivered_bits[best_ue_id] += rate_map[best_ue_id][prb]
+        
         # Update EWMA throughput for each UE
         for ue_id, ue in self.ues.items():
-            ue.update_ewma(measured_dr=delivered_bits[ue_id])
-
-        # Compute allocated_resources in Mbps
-        self.allocated_resources = {
-            ue_id: sum(self.rb_bandwidth * np.log2(1 + sinr_map[ue_id][p]) for p in prbs) / 1e6
-            for ue_id, prbs in self.rb_allocation.items()
-        }
-
-        # Update BS load (# PRBs used)
+            ue.update_ewma(delivered_bits[ue_id])
+        
+        # Vectorized calculation of allocated resources in Mbps
+        self.allocated_resources = {}
+        for ue_id, prbs in self.rb_allocation.items():
+            if prbs:  # Only calculate for UEs with allocated PRBs
+                # Use numpy for faster sum
+                self.allocated_resources[ue_id] = np.sum(rate_map[ue_id][prbs]) / 1e6
+            else:
+                self.allocated_resources[ue_id] = 0.0
+        
         self.calculate_load()
 
     
