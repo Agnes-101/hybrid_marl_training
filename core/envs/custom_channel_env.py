@@ -1341,13 +1341,13 @@ class NetworkEnvironment(MultiAgentEnv):
             bs.reuse_color = bs_state.get("reuse_color", bs.reuse_color)
             bs.frequency   = bs_state.get("frequency", bs.frequency)
 
-        # restore histories & counters
-        self.load_history      = {int(bs_id): hist.copy() 
-                                for bs_id, hist in state.get("load_history", {}).items()}
-        self.handover_counts   = state.get("handover_counts", {}).copy()
-        self.prev_associations = state.get("prev_associations", {}).copy()
-        self.step_count        = state.get("step_count", self.step_count)
-        self.current_step      = state.get("current_step", self.current_step)    
+        # # restore histories & counters
+        # self.load_history      = {int(bs_id): hist.copy() 
+        #                         for bs_id, hist in state.get("load_history", {}).items()}
+        # self.handover_counts   = state.get("handover_counts", {}).copy()
+        # self.prev_associations = state.get("prev_associations", {}).copy()
+        # self.step_count        = state.get("step_count", self.step_count)
+        # self.current_step      = state.get("current_step", self.current_step)    
     
 
 
