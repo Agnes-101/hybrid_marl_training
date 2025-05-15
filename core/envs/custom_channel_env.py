@@ -260,7 +260,7 @@ class BaseStation:
         for ue_id, prbs in self.rb_allocation.items():
             if prbs:  # Only calculate for UEs with allocated PRBs
                 # Use numpy for faster sum
-                self.allocated_resources[ue_id] = np.sum(rate_map[ue_id][prbs]) / 1e6
+                self.allocated_resources[ue_id] = np.sum(rate_map[ue_id][prbs]) # / 1e6
             else:
                 self.allocated_resources[ue_id] = 0.0
         
@@ -601,7 +601,7 @@ class NetworkEnvironment(MultiAgentEnv):
             bs.ues           = self.ues            # so data_rate_shared can see all UEs
         # Initialize KPI logger if logging is enabled
         self.kpi_logger = KPITracker() if log_kpis else None        
-        obs_dim = 3*self.num_bs + 1 + (self.num_bs + 1)
+        obs_dim = 3*self.num_bs + 1 + (self.num_bs + 1) # SINRs + BS loads + BS Utilizations + own demand + Connected
         self.observation_space = gym.spaces.Dict({
             f"ue_{i}": gym.spaces.Box(
                 low=-np.inf, high=np.inf,
