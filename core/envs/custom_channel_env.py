@@ -35,7 +35,7 @@ class UE:
         # Scheduling fields:
         self.associated_bs = None
         self.sinr          = -np.inf
-        self.ewma_dr       = 0.0
+        self.ewma_dr       = 1e3
         self.ewma_alpha    = ewma_alpha
         self.rx_gain = float(rx_gain_dbi)  # dBi
     def _draw_waypoint(self):
@@ -70,24 +70,46 @@ class UE:
     def update_ewma(self, measured_dr):
         self.ewma_dr = self.ewma_alpha * self.ewma_dr \
                      + (1 - self.ewma_alpha) * measured_dr
+    
+    # def update_ewma(self, allocated_rb):
+    #     # EWMA of RBs per TTI
+    #     self.ewma_rb = self.ewma_alpha * self.ewma_rb + (1 - self.ewma_alpha) * allocated_rb
+                     
+    def get_required_rbs(self, bs):
+        """Calculate how many RBs this UE needs from this BS"""
+        sinr = self._calculate_sinrs(bs, 0)  # Using RB 0 as reference
+        spectral_efficiency = np.log2(1 + sinr)  # bits/s/Hz
+        rb_capacity = bs.rb_bandwidth * 1e6 * spectral_efficiency  # bits/s per RB
+        
+        # RBs needed to satisfy demand (bps)
+        return int(np.ceil((self.demand * 1e6) / rb_capacity))
                     
 class BaseStation:
     def __init__(self, id, position, frequency, bandwidth, height=50.0, reuse_color=None,tx_power_dbm=30.0,tx_gain_dbi=8.0,bf_gain_dbi=20.0):
         self.id = int(id)
         self.position = np.array(position, dtype=np.float32)
-        self.frequency = float(frequency)    # MHz
-        self.bandwidth = float(bandwidth)    # MHz
+        self.frequency = float(frequency)    # Hz
+        self.bandwidth = float(bandwidth)    # Hz
         self.height = float(height)          # m
         self.tx_power = float(tx_power_dbm)  # dBm
         self.tx_gain       = float(tx_gain_dbi)  # dBi
         self.bf_gain      = bf_gain_dbi   # beamforming gain
         self.allocated_resources = {}        # {ue_id: allocated_rate}
         self.load = 0.0                      # sum of allocated rates
-        self.capacity = self.bandwidth * 0.8 # e.g. 80% of bandwidth in Mbps
+        self.capacity = 0 # self.bandwidth * 0.8 # e.g. 80% of bandwidth in Mbps
         self.reuse_color   = reuse_color         # e.g. "A", "B", or "C"
+        # Resource block parameters
+        self.rb_bandwidth = 180e3  # Hz (typical 5G/6G subcarrier spacing × 12)
+        self.num_rbs = int(self.bandwidth / self.rb_bandwidth)  # Number of available RBs
+        
+        self.rb_allocation = {}  # Dictionary mapping UE IDs to allocated RBs
+        self.rb_sinr = np.zeros(self.num_rbs)  # SINR per RB (for interference modeling)
         
     def calculate_load(self):
-        self.load = sum(self.allocated_resources.values())
+        # total number of RBs in use:
+        used_rbs = sum(len(rbs) for rbs in self.rb_allocation.values())
+        # if you want absolute count:
+        self.load = used_rbs
 
     # def path_loss(self, distance, ue_height=1.5):
     #     # Okumura-Hata suburban model
@@ -137,19 +159,8 @@ class BaseStation:
                 # received power from interfering BS
                 prx_int = other.received_power_mW(self.position)
                 interference += prx_int
-        return interference
-            
-    # def received_power_mW(self, ue_pos, ue_rx_gain=None):
-    #     d = np.linalg.norm(self.position - ue_pos)
-    #     # path loss in dB
-    #     L = self.path_loss(d, d0=1.0, n=2.5, sigma=8.0)
-    #     # total gain in dB
-    #     G_tx = self.tx_gain
-    #     G_rx = ue_rx_gain if ue_rx_gain is not None else 0.0
-    #     # link budget: P_rx (dBm) = P_tx(dBm) + G_tx + G_rx - L
-    #     p_rx_dbm = self.tx_power + G_tx + G_rx - L
-    #     # convert to mW
-    #     return 10 ** (p_rx_dbm / 10)
+        return interference           
+    
     
     def received_power_mW(self, ue_pos, ue_rx_gain=None):# , ue_bf_gain_dbi=0.0
         d = np.linalg.norm(self.position - ue_pos)
@@ -184,6 +195,205 @@ class BaseStation:
         # 4) linear SINR
         return signal_mW / (interference_mW + noise_mW + 1e-12)
     
+    def allocate_prbs(self):
+        """
+        Proportional-Fair PRB-by-PRB scheduler with optimized SINR retrieval.
+        Assumes:
+        - self.ues: dict mapping ue_id to UE instance
+        - each UE has attributes:
+            ewma_dr: long-term average throughput in bps (non-zero)
+            update_ewma(measured_bits)
+        - self.num_rbs, self.rb_bandwidth (Hz)
+        - self.snr_per_rb(ue): returns np.array of length num_rbs with linear SINR
+        """
+        # Initialize allocation
+        free_prbs = set(range(self.num_rbs))
+        self.rb_allocation = {ue_id: [] for ue_id in self.ues}
+
+        # Precompute SINR arrays per UE
+        sinr_map = {ue_id: self.snr_per_rb(ue) for ue_id, ue in self.ues.items()}
+
+        # Prepare delivered bits accumulator
+        delivered_bits = {ue_id: 0.0 for ue_id in self.ues}
+
+        # Per-PRB scheduling
+        while free_prbs:
+            best_metric = -float('inf')
+            best_ue_id = None
+            best_prb = None
+
+            # Find best UE-PRB metric without redundant SINR calls
+            for prb in free_prbs:
+                for ue_id, ue in self.ues.items():
+                    sinr = sinr_map[ue_id][prb]
+                    inst_rate = self.rb_bandwidth * np.log2(1 + sinr)
+                    metric = inst_rate / ue.ewma_dr
+                    if metric > best_metric:
+                        best_metric = metric
+                        best_ue_id = ue_id
+                        best_prb = prb
+
+            # Assign PRB and update delivered bits
+            self.rb_allocation[best_ue_id].append(best_prb)
+            free_prbs.remove(best_prb)
+            delivered_bits[best_ue_id] += self.rb_bandwidth * np.log2(1 + sinr_map[best_ue_id][best_prb])
+
+        # Update EWMA throughput for each UE
+        for ue_id, ue in self.ues.items():
+            ue.update_ewma(measured_dr=delivered_bits[ue_id])
+
+        # Compute allocated_resources in Mbps
+        self.allocated_resources = {
+            ue_id: sum(self.rb_bandwidth * np.log2(1 + sinr_map[ue_id][p]) for p in prbs) / 1e6
+            for ue_id, prbs in self.rb_allocation.items()
+        }
+
+        # Update BS load (# PRBs used)
+        self.calculate_load()
+
+    
+    # def allocate_rbs(self, ue_priorities):
+    #     """
+    #     Allocate resource blocks based on proportional fair priorities
+    #     ue_priorities: {ue_id: priority_value} dictionary
+    #     """
+    #     # 1. Sort UEs by priority
+    #     sorted_ues = sorted(ue_priorities.items(), key=lambda x: x[1], reverse=True)
+        
+    #     # 2. Clear current allocations
+    #     self.rb_allocation = {ue_id: [] for ue_id, _ in sorted_ues}
+        
+    #     # 3. Calculate how many RBs each UE should get proportionally
+    #     total_priority = sum(ue_priorities.values()) + 1e-9
+    #     rb_shares = {ue_id: int(np.ceil(priority/total_priority * self.num_rbs)) 
+    #                 for ue_id, priority in ue_priorities.items()}
+        
+    #     # 4. First pass: allocate minimum of calculated share or demanded RBs
+    #     remaining_rbs = self.num_rbs
+    #     for ue_id, _ in sorted_ues:
+    #         ue = self.ues[ue_id]
+            
+    #         # Calculate how many RBs this UE needs based on demand and channel quality
+    #         sinr_linear = self.snr_linear(ue)
+    #         spectral_efficiency = np.log2(1 + sinr_linear)  # bits/s/Hz
+    #         rb_capacity = self.rb_bandwidth * 1e6 * spectral_efficiency  # bits/s per RB
+            
+    #         # How many RBs needed to satisfy demand
+    #         rbs_needed = int(np.ceil((ue.demand * 1e6) / rb_capacity))  # Convert Mbps to bps
+    #         rbs_to_allocate = min(rb_shares[ue_id], rbs_needed, remaining_rbs)
+            
+    #         # Allocate RBs
+    #         self.rb_allocation[ue_id] = list(range(self.num_rbs - remaining_rbs, 
+    #                                            self.num_rbs - remaining_rbs + rbs_to_allocate))
+    #         remaining_rbs -= rbs_to_allocate
+            
+    #         if remaining_rbs <= 0:
+    #             break
+                
+    #     # 5. Second pass: distribute remaining RBs to UEs that can use more
+    #     if remaining_rbs > 0:
+    #         unsatisfied_ues = [(ue_id, p) for ue_id, p in sorted_ues 
+    #                          if len(self.rb_allocation[ue_id]) < rb_shares[ue_id]]
+            
+    #         while remaining_rbs > 0 and unsatisfied_ues:
+    #             for ue_id, _ in unsatisfied_ues:
+    #                 if remaining_rbs <= 0:
+    #                     break
+    #                 self.rb_allocation[ue_id].append(self.num_rbs - remaining_rbs)
+    #                 remaining_rbs -= 1
+        
+    #     # 6. Calculate and store allocated rates
+    #     self.allocated_resources = {}
+    #     for ue_id, allocated_rbs in self.rb_allocation.items():
+    #         if not allocated_rbs:
+    #             self.allocated_resources[ue_id] = 0.0
+    #             continue
+                
+    #         ue = self.ues[ue_id]
+    #         sinr_linear = self.snr_linear(ue)
+    #         spectral_efficiency = np.log2(1 + sinr_linear)  # bits/s/Hz
+    #         rb_capacity = self.rb_bandwidth * 1e6 * spectral_efficiency  # bits/s per RB
+            
+    #         # Total allocated capacity in Mbps
+    #         self.allocated_resources[ue_id] = (len(allocated_rbs) * rb_capacity) / 1e6
+        
+    #     # 7. Update load
+    #     self.calculate_load()
+    
+    def calculate_capacity_rb_based(self, sample_points=100, overhead_factor=0.8):
+        """
+        Estimate BS capacity based on sample-driven average spectral efficiency.
+        - sample_points: number of random spatial samples in cell area
+        - overhead_factor: fraction of resources available for user data
+        Returns capacity in Mbps.
+        """
+        total_se = 0.0  # sum of spectral efficiencies (bits/s/Hz)
+        # Determine cell radius from BS positions (max distance)
+        cell_radius = max(np.linalg.norm(bs.position - self.position)
+                          for bs in self.base_stations)
+
+        for _ in range(sample_points):
+            # Uniformly sample a point in the circular cell
+            u = np.random.uniform(0, 1)
+            r = np.sqrt(u) * cell_radius
+            theta = np.random.uniform(0, 2 * np.pi)
+            sample_point = self.position + np.array([r * np.cos(theta),
+                                                   r * np.sin(theta)], dtype=np.float32)
+
+            # Desired signal (mW)
+            d = np.linalg.norm(sample_point - self.position)
+            pl = self.path_loss(d)
+            prx = 10 ** ((self.tx_power + self.tx_gain + self.bf_gain - pl) / 10)
+
+            # Co-channel interference (mW)
+            interf = 0.0
+            for other in self.base_stations:
+                if other.id != self.id and other.reuse_color == self.reuse_color:
+                    d_int = np.linalg.norm(sample_point - other.position)
+                    pl_int = other.path_loss(d_int)
+                    interf += 10 ** ((other.tx_power + other.tx_gain + other.bf_gain - pl_int) / 10)
+
+            # Noise (mW)
+            noise = self.noise_mW()
+            sinr = prx / (interf + noise + 1e-12)
+            total_se += np.log2(1 + sinr)
+
+        # Compute average spectral efficiency (bits/s/Hz)
+        avg_se = total_se / sample_points
+
+        # Per-RB capacity (bits/s)
+        rb_capacity = self.rb_bandwidth * avg_se
+
+        # Total capacity (bits/s) with overhead
+        total_bps = rb_capacity * self.num_rbs * overhead_factor
+
+        # Convert to Mbps
+        self.capacity = total_bps / 1e6
+        return self.capacity
+    def snr_per_rb(self, ue):
+        """
+        Compute per-RB linear SINR array for a given UE.
+        Returns a numpy array of length self.num_rbs.
+        """
+        sinr_rb = np.empty(self.num_rbs, dtype=np.float32)
+        # Pre-compute noise per RB (assuming noise_mW returns total per RB noise)
+        noise_rb = self.noise_mW()
+
+        # For flat fading: the received power is same on every RB, so compute once
+        prx = self.received_power_mW(ue.position, ue.rx_gain)
+
+        # Compute interference per RB: sum of mW from co-channel BSs
+        interf = 0.0
+        for other in self.base_stations:
+            if other.id == self.id or other.reuse_color != self.reuse_color:
+                continue
+            interf += other.received_power_mW(ue.position, ue.rx_gain)
+
+        # Fill array
+        sinr_val = prx / (interf + noise_rb + 1e-12)
+        sinr_rb.fill(sinr_val)
+        return sinr_rb
+    
     def data_rate_unshared(self, ue):
         """
         Returns the instantaneous Shannon capacity of UE if alone on the BS.
@@ -199,55 +409,99 @@ class BaseStation:
         R_hist = ue.ewma_dr   # same units as T_inst
         return (T_inst ** alpha) / (R_hist ** beta + eps)
     
-    def data_rate_shared(self, ue, alpha=1.0, beta=1.0):
-        # Ensure UE is “connected” so it appears in allocated_resources
-        if ue.id not in self.allocated_resources:
-            self.allocated_resources[ue.id] = 0.0
-
-        # 1) Compute priority for every UE on this BS
+    def data_rate_shared(self, ue, alpha=1.0, beta=1.0, gamma=0.5):
+        """Enhanced PF scheduler incorporating demand"""
+        # 1) Compute priority with demand factor
         weights = []
+        ue_demands = {}
+        
         for other_ue_id in self.allocated_resources:
             other_ue = self.ues[other_ue_id]
-            w = self.priority(other_ue, alpha, beta)
+            # Base priority using PF
+            w_pf = self.priority(other_ue, alpha, beta)
+            
+            # Demand factor: prioritize UEs whose demand is not yet met
+            demand_factor = min(1.0, other_ue.demand / (other_ue.ewma_dr + 1e-6))**gamma
+            
+            # Final priority
+            w = w_pf * demand_factor
             weights.append(w)
-
+            ue_demands[other_ue_id] = other_ue.demand
+        
         W = sum(weights) + 1e-9
-
-        # 2) Fraction for THIS UE
-        w_i = self.priority(ue, alpha, beta)
+        
+        # 2) Fraction for THIS UE with demand consideration
+        w_i_pf = self.priority(ue, alpha, beta)
+        demand_factor_i = min(1.0, ue.demand / (ue.ewma_dr + 1e-6))**gamma
+        w_i = w_i_pf * demand_factor_i
+        
         fraction = w_i / W
-
+        
         # 3) Shared rate = fraction × instantaneous capacity
         T_inst = self.data_rate_unshared(ue)
-        return fraction * T_inst
-
+        
+        # 4) Cap allocated rate at demand if desired
+        allocated_rate = fraction * T_inst
+        # Uncomment to cap at demand:
+        # allocated_rate = min(allocated_rate, ue.demand)
+        
+        return allocated_rate
+    
 class NetworkEnvironment(MultiAgentEnv):
     @staticmethod
     def generate_hex_positions(num_bs, width=100.0, height=100.0):
         """
-        Return up to num_bs (row, col, [x,y]) tuples on a hex lattice.
+        Generate base station positions in a hexagonal pattern that automatically
+        scales spacing based on the number of stations, ensuring even distribution
+        across the entire map area.
         """
-        n_cols = int(math.ceil(math.sqrt(num_bs * width / height)))
-        n_rows = int(math.ceil(num_bs / n_cols))
+        if num_bs < 1:
+            return []
 
-        # horizontal & vertical pitch
-        pitch_x = width / (n_cols + 0.5)
-        pitch_y = pitch_x * math.sin(math.radians(60))
-        if pitch_y * (n_rows + 0.5) > height:
-            pitch_y = height / (n_rows + 0.5)
-            pitch_x = pitch_y / math.sin(math.radians(60))
+        # Calculate spacing based on area per BS
+        area_per_bs = (width * height) / num_bs
+        pitch = math.sqrt((2 * area_per_bs) / math.sqrt(3))
+        
+        # Prevent excessive spacing for very small numbers
+        max_pitch = min(width, height) / 2
+        pitch = min(pitch, max_pitch)
+        
+        # Ensure minimum spacing for readability
+        pitch = max(pitch, 5.0)
 
-        grid = []
+        # Calculate grid dimensions to cover entire map
+        hex_height = pitch * math.sin(math.radians(60))
+        n_cols = int(math.ceil(width / pitch)) + 2
+        n_rows = int(math.ceil(height / hex_height)) + 2
+
+        # Center the grid
+        total_width = (n_cols-1) * pitch
+        total_height = (n_rows-1) * hex_height
+        x_offset = (width - total_width) / 2
+        y_offset = (height - total_height) / 2
+
+        # Generate all potential positions
+        positions = []
         for row in range(n_rows):
-            y = pitch_y * (row + 0.5)
-            x_offset = 0.5 * pitch_x if (row % 2 == 1) else 0.0
+            y = y_offset + row * hex_height
+            x_start = x_offset + (pitch/2 if row % 2 else 0)
+            
             for col in range(n_cols):
-                x = pitch_x * col + x_offset + 0.5 * pitch_x
-                if x <= width - 0.5 * pitch_x and y <= height - 0.5 * pitch_y:
-                    grid.append((row, col, [x, y]))
-                    if len(grid) == num_bs:
-                        return grid
-        return grid[:num_bs]
+                x = x_start + col * pitch
+                if 0 <= x <= width and 0 <= y <= height:
+                    positions.append((x, y))
+
+        # Sort by distance from center with spiral pattern
+        center = (width/2, height/2)
+        positions.sort(
+            key=lambda p: (
+                math.hypot(p[0]-center[0], p[1]-center[1]),  # Primary: distance
+                -math.atan2(p[1]-center[1], p[0]-center[0])   # Secondary: angle
+            )
+        )
+
+        return [((x, y)) for x, y in positions[:num_bs]]
+
     
     def __init__(self, config:EnvContext, log_kpis=True):        
         super().__init__()  # ✅ Initialize gym.Env
@@ -281,16 +535,30 @@ class NetworkEnvironment(MultiAgentEnv):
 
         # 3) instantiate BS with reuse_color & per‐slice frequency
         self.base_stations = []
-        for i, (row, col, pos) in enumerate(grid):
-            color = colors[(row + 2*col) % len(colors)]
-            freq  = carrier_freqs[color]
+        # Then update your BS instantiation loop:
+        for i, pos in enumerate(grid):
+            color = colors[i % len(colors)]  # Simple rotating color scheme
+            # Or for spatial color distribution:
+            # color = colors[int((pos[0]/100 + pos[1]/100) * len(colors)) % len(colors)]
+            freq = carrier_freqs[color]
             bs = BaseStation(
                 id=i,
                 position=pos,
                 frequency=freq,
                 bandwidth=bandwidth,
                 reuse_color=color
+                # ... other parameters
             )
+        # for i, (row, col, pos) in enumerate(grid):
+        #     color = colors[(row + 2*col) % len(colors)]
+        #     freq  = carrier_freqs[color]
+        #     bs = BaseStation(
+        #         id=i,
+        #         position=pos,
+        #         frequency=freq,
+        #         bandwidth=bandwidth,
+        #         reuse_color=color                
+        #     )
             self.base_stations.append(bs)
         print(f"[NetworkEnvironment] num_bs = {config.get('num_bs')}")     
         self.ues = [
@@ -431,72 +699,99 @@ class NetworkEnvironment(MultiAgentEnv):
         return torch.log2(1 + 10**(self.sinr/10)).item()
         
     def calculate_reward(self):
-        """Normalized reward: Gbps throughput + fairness - overload_penalty."""
-        # 1) Sum actual per-UE shared throughput in Gbps
-        #    (we assume bs.allocated_resources[u.id] is in bps)
+        """
+        Normalized reward: Gbps throughput + fairness - overload_penalty.
+        
+        Assumptions:
+          - Each BS stores per-UE throughput in bits/s in bs.allocated_resources (dict ue_id->bits/s).
+          - bs.capacity is in Mbps (set by calculate_capacity_rb_based()).
+        """
+        # 1) Total system throughput (bits/s) → Gbps
         total_bps = sum(
-            dr for bs in self.base_stations for dr in bs.allocated_resources.values()
+            dr
+            for bs in self.base_stations
+            for dr in bs.allocated_resources.values()
         )
         throughput_gbps = total_bps / 1e9
 
-        # 2) Normalize each BS load by its capacity (bps)
-        loads_norm = torch.tensor(
-            [bs.load / bs.capacity for bs in self.base_stations],
+        # 2) Refresh each BS capacity (Mbps)
+        for bs in self.base_stations:
+            bs.capacity = bs.calculate_capacity_rb_based()
+
+        # 3) Build load and capacity tensors (both in bps)
+        loads_bps = torch.tensor(
+            [sum(bs.allocated_resources.values()) for bs in self.base_stations],
             dtype=torch.float32
         )
-        
-        # 3) Jain fairness on these fractions
-        jain = (loads_norm.sum()**2) / (self.num_bs * (loads_norm**2).sum() + 1e-6)
-
-        # 4) Overload penalty: how many cells exceed 100% load
-        overload = torch.relu(loads_norm - 1.0).sum()  # unitless
-
-        # 5) Combine into a single reward
-        #    weights chosen so throughput (Gbps) is comparable to jain (0–1) and overload
-        return (
-            1.0 * throughput_gbps     # reward raw capacity in Gbps
-        + 2.0 * jain                # reward fairness [0–2]
-        - 1.0 * overload           # penalty per “overloaded cell” fraction
+        capacities_bps = torch.tensor(
+            [bs.capacity * 1e6 for bs in self.base_stations],
+            dtype=torch.float32
         )
 
+        # 4) Normalized load per BS (unitless)
+        loads_norm = loads_bps / (capacities_bps + 1e-9)
+
+        # 5) Jain’s fairness index on normalized loads
+        #    J = (sum x_i)^2 / (N * sum x_i^2)
+        N = len(self.base_stations)
+        sum_loads = loads_norm.sum()
+        fairness = (sum_loads * sum_loads) / (N * (loads_norm * loads_norm).sum() + 1e-6)
+
+        # 6) Overload penalty: sum of (load_norm - 1)+ across BSs
+        overload = torch.relu(loads_norm - 1.0).sum()
+
+        # 7) Composite reward
+        #    - throughput in Gbps (≈ 0–X)
+        #    - fairness [0–1]
+        #    - overload penalty (unitless)
+        reward = (
+            1.0 * throughput_gbps   # reward raw capacity in Gbps
+            + 2.0 * fairness        # weight fairness
+            - 1.0 * overload        # penalize overloaded cells
+        )
+        return reward
+
     
-    def pick_best_bs(self, ue, w1=0.7, w2=0.3, delta=0.1):
-        """
-        Returns the best BS index for UE, but only hands over if
-        new_score >= old_score + delta.
-        
-        - w1, w2: weighting for rate vs. load
-        - delta: minimum score improvement to trigger handover
-        """
-        # 1) Compute normalized unshared rates
-        unshared = np.array([bs.data_rate_unshared(ue) for bs in self.base_stations])
-        max_unsh = unshared.max() + 1e-9
-        rate_score = unshared / max_unsh
+    def pick_best_bs(self, ue, w1=0.4, w2=0.3, w3=0.2, w4=0.1, delta=0.1):
+        # 1) Instantaneous PF-style rate on the best PRB for each BS
+        inst_rates = []
+        for bs in self.base_stations:
+            # get per-RB SINR array for this UE
+            sinr_rb = bs.snr_per_rb(ue)                     # linear
+            # best PRB rate = max_over_p(RB_bw * log2(1+SINR_p))
+            best_rate = np.max(self.rb_bandwidth * np.log2(1 + sinr_rb))
+            inst_rates.append(best_rate / ue.ewma_dr)       # PF metric
+        inst_rates = np.array(inst_rates)
 
-        # 2) Compute load factor score
-        loads = np.array([bs.load for bs in self.base_stations])
-        caps  = np.array([bs.capacity for bs in self.base_stations])
-        load_score = 1 - loads / caps
+        # 2) Load-based free-RB score
+        load_scores = np.array([
+            1 - (sum(len(r) for r in bs.rb_allocation.values()) / bs.num_rbs)
+            for bs in self.base_stations
+        ])
 
-        # 3) Composite score vector
-        scores = w1 * rate_score + w2 * load_score
+        # 3) Normalized SINR across BSs
+        sinrs = self._calculate_sinrs(ue)                  # returns linear array per BS
+        sinr_norm = sinrs / (sinrs.max() + 1e-6)
 
-        # 4) Find candidate
-        cand_idx   = int(np.argmax(scores))
-        cand_score = scores[cand_idx]
+        # 4) Composite score
+        scores = (
+            w1 * inst_rates +
+            w2 * load_scores +
+            w3 * (inst_rates / (inst_rates.max() + 1e-6)) +
+            w4 * sinr_norm
+        )
 
-        # 5) If already associated, check threshold
+        # 5) Hysteretic selection
+        cand = int(np.argmax(scores))
         if ue.associated_bs is not None:
-            cur_idx   = ue.associated_bs
-            cur_score = scores[cur_idx]
-            # only switch if cand_score >= cur_score + delta
-            if cand_score >= cur_score + delta:
-                return cand_idx
+            old = ue.associated_bs
+            if scores[cand] >= scores[old] + delta:
+                return cand
             else:
-                return cur_idx
+                return old
+        return cand
 
-        # 6) If not yet associated, just pick the best
-        return cand_idx
+
 
     def _admit_nearest_ue(self, bs):
         """Find and associate nearest unassociated UE to BS"""
@@ -550,32 +845,38 @@ class NetworkEnvironment(MultiAgentEnv):
     
     def _calculate_sinrs(self, ue, debug=False):
         """
-        Return an array of linear SINRs from every BS → ue link.
-        If debug=True, print the first few link budgets in dB.
+        Return an array of linear SINRs from every BS → UE link.
+        If debug=True, also print the first few link budgets in dB.
         """
         sinrs = []
         for bs in self.base_stations:
-            # signal + interference + noise (all in mW)
-            prx   = bs.received_power_mW(ue.position, ue.rx_gain)
+            # 1) desired signal power (mW)
+            prx = bs.received_power_mW(ue.position, ue.rx_gain)
+
+            # 2) co-channel interference (mW)
             interf = sum(
                 other.received_power_mW(ue.position, ue.rx_gain)
                 for other in self.base_stations
                 if (other.id != bs.id) and (other.reuse_color == bs.reuse_color)
             )
+
+            # 3) noise power (mW)
             noise = bs.noise_mW()
 
+            # 4) linear SINR
             lin_snr = prx / (interf + noise + 1e-12)
-            snr_db  = 10 * np.log10(lin_snr)
 
+            # Optional debug print in dB
             if debug and ue.id < 3:
+                snr_db = 10 * np.log10(lin_snr)
                 print(f" UE {ue.id} → BS {bs.id}: "
-                      f"S={prx:.3e} mW, I={interf:.3e} mW, N={noise:.3e} mW, "
-                      f"SINR={snr_db:.2f} dB")
+                    f"S={prx:.3e} mW, I={interf:.3e} mW, N={noise:.3e} mW, "
+                    f"SINR={snr_db:.2f} dB")
 
-            # sinrs.append(lin_snr)
-            sinrs.append(snr_db)
+            sinrs.append(lin_snr)
 
         return np.array(sinrs)
+
 
     
     def _update_sinrs(self):
@@ -630,7 +931,7 @@ class NetworkEnvironment(MultiAgentEnv):
     #                     bs_allocations[bs_idx] += 1        # count UEs per BS
     #                     bs_capacity_used[bs_idx] = bs.load # record load
     #                     admitted = True
-    #                     break
+                        # break
 
     #             # 4) if none could admit, leave unassociated
     #             if not admitted:
@@ -1111,78 +1412,105 @@ class NetworkEnvironment(MultiAgentEnv):
 
 
     
+    # def _update_system_metrics(self):
+    #     # 1) Recompute loads from PF‐shared allocations
+    #     for bs in self.base_stations:
+    #         bs.calculate_load()
+
+    #     # 2) Recompute each UE’s SINR using the multi‐cell helper
+    #     for ue in self.ues:
+    #         if ue.associated_bs is not None:
+    #             sinr_vec = self._calculate_sinrs(ue)     # NumPy vector of SINRs
+    #             ue.sinr = sinr_vec[ue.associated_bs]
+    #         else:
+    #             ue.sinr = -np.inf
     def _update_system_metrics(self):
-        # 1) Recompute loads from PF‐shared allocations
+        """
+        Refresh per-TTI system metrics:
+        1) Updates each BS.load via calculate_load() (throughput or RB usage).
+        2) Updates each UE.sinr as the average per-RB SINR over its allocated RBs.
+        3) (Optional) Append histories for PRBS masks and SINR, if needed.
+        """
+        # 1) Recompute loads
         for bs in self.base_stations:
             bs.calculate_load()
-
-        # 2) Recompute each UE’s SINR using the multi‐cell helper
+            print(f"For Update System Metrics to {bs.id}, Load :{bs.load}")
+        # 2) Update UE SINRs based on actual RB allocations
         for ue in self.ues:
             if ue.associated_bs is not None:
-                sinr_vec = self._calculate_sinrs(ue)     # NumPy vector of SINRs
-                ue.sinr = sinr_vec[ue.associated_bs]
+                bs = next(b for b in self.base_stations if b.id == ue.associated_bs)
+
+                # Get per-RB SINRs
+                sinr_rb = bs.snr_per_rb(ue)
+
+                # Determine RBs allocated this TTI
+                rb_list = bs.rb_allocation.get(ue.id, [])
+                print (f"RB List is:{rb_list}")
+                if rb_list:
+                    # Mean SINR over allocated RBs
+                    ue.sinr = float(np.mean(sinr_rb[rb_list]))
+                else:
+                    ue.sinr = -np.inf
             else:
                 ue.sinr = -np.inf
-
     
     def apply_solution(self, solution):
-        """Apply a solution (numpy array or dict) to the environment"""
-        # 1) Unwrap array into {bs_id:[ue_ids]} if needed
+        """
+        Apply a user↔BS association mapping and run the PRB-by-PRB PF scheduler
+        on each BS for its set of UEs.
+        """
+        # --- 1) Normalize solution dict ---
         if isinstance(solution, np.ndarray):
             sol_dict = {bs.id: [] for bs in self.base_stations}
             for ue_idx, bs_id in enumerate(solution.astype(int)):
                 sol_dict[int(bs_id)].append(ue_idx)
             solution = sol_dict
 
-        # Validate BS IDs exist
+        # --- 2) Validate BS and UE indices (as before) ---
         valid_bs_ids = {int(bs.id) for bs in self.base_stations}
-        for bs_id in solution.keys():
-            try:
-                bs_id_int = int(bs_id)
-                if bs_id_int not in valid_bs_ids:
-                    raise ValueError(f"Invalid BS ID {bs_id} in solution")
-            except ValueError:
-                raise ValueError(f"BS ID {bs_id} is not an integer")
-            
-        # Optional: Validate that each user index is within range.
         num_ues = len(self.ues)
-        for bs_id, ue_ids in solution.items():
-            for ue_id in ue_ids:
+        for bs_id, ue_list in solution.items():
+            if int(bs_id) not in valid_bs_ids:
+                raise ValueError(f"Invalid BS ID {bs_id}")
+            for ue_id in ue_list:
                 if ue_id < 0 or ue_id >= num_ues:
-                    raise IndexError(f"UE index {ue_id} for BS ID {bs_id} is out of valid range (0 to {num_ues-1}).")
-        
-        # Clear existing associations
-        for bs in self.base_stations:
-            # bs.allocated_resources = {}
-            bs.allocated_resources.clear()
-            bs.calculate_load()
-            self.associations[bs.id] = []
+                    raise IndexError(f"UE index {ue_id} out of range")
 
-        # 4) Assign PF‐shared rates and mark UEs as associated
+        # --- 3) Clear out old allocs & associations ---
+        for bs in self.base_stations:
+            bs.rb_allocation = {ue_id: [] for ue_id in range(len(self.ues))}
+            bs.allocated_resources.clear()
+        for ue in self.ues:
+            ue.associated_bs = None
+
+        # --- 4) Apply new associations ---
         for bs_id, ue_list in solution.items():
             bs = next(b for b in self.base_stations if b.id == int(bs_id))
+            # Mark UEs as “in cell”
             for ue_id in ue_list:
-                ue = self.ues[ue_id]
-                # 4a) compute and store the shared rate
-                dr = bs.data_rate_shared(ue)
-                bs.allocated_resources[ue.id] = dr
-                # 4b) set the UE’s associated_bs
-                ue.associated_bs = bs.id
-                # 4c) record in your associations dict
-                self.associations[bs.id].append(ue.id)
-            bs.calculate_load()
+                self.ues[ue_id].associated_bs = bs.id
+
+        # --- 5) Run PF scheduler on each BS ---
+        for bs in self.base_stations:
+            # Only schedule the UEs currently associated
+            active_ues = {ue.id: ue for ue in self.ues if ue.associated_bs == bs.id}
+            bs.ues = active_ues
+            bs.allocate_prbs()    # your PRB-by-PRB PF method
+
+        # --- 6) Track load history & handovers ---
         for bs in self.base_stations:
             self.load_history[bs.id].append(bs.load)
         for ue in self.ues:
             old = self.prev_associations[ue.id]
             new = ue.associated_bs
-            if (old is not None) and (new is not None) and (old != new):
+            if old is not None and new is not None and old != new:
                 self.handover_counts[ue.id] += 1
             self.prev_associations[ue.id] = new
         self.step_count += 1
-        # 5) Refresh SINR metrics
-        self._update_system_metrics()   
-    
+
+        # --- 7) Refresh per-UE SINR & BS loads ---
+        self._update_system_metrics()
+
     
     def evaluate_detailed_solution(self, solution, alpha=0.1, beta=0.1):
         """

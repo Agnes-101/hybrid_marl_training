@@ -68,11 +68,21 @@ SCENARIOS = {
     "Large":  {"UE": [100],     "BS": [15]},
     "All":    {"UE": [10,50,100],"BS": [3,7,15]},
 }
-
+# Define list of KPIs to track
+all_kpis = [
+            'fitness', 
+            'handover_rate_per_step',
+            'average_sinr', 
+            'fairness', 
+            'load_variance',
+            'throughput',
+            'energy_efficiency',
+            'connection_rate'
+        ]
 # --- Sidebar ---
 with st.sidebar:
     mode = st.radio("Mode", ["Single Metaheuristic","Custom Comparison",   
-    "Specific Comparison",   "MARL", "Hybrid"])
+    "Specific Comparison",   "MARL", "Hybrid", "Wilcoxon Test"])
     num_bs = st.slider("Base Stations", 5, 50, 10)
     num_ue = st.slider("Users", 20, 500, 50)
     if mode in ["Single Metaheuristic", "Hybrid"]:
@@ -89,14 +99,18 @@ with st.sidebar:
         ue_list = SCENARIOS[scenario_name]["UE"]
         bs_list = SCENARIOS[scenario_name]["BS"]
         algos = st.multiselect("Compare Algos", ["avoa", "aqua","co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], default=["pfo", "co"])
-        metric = st.selectbox("Metric", ["sum_rate","fairness","cpu_time"], key="spec_comp_metric")
-        
+        selected_kpis = st.selectbox("KPI Selection",['fitness', 'average_sinr', 'throughput', "all_kpis"], key="spec_comp_metric")        
     
     if mode in ["MARL", "Hybrid"]:
         marl_steps = st.slider("MARL Steps/Epoch", 1, 50, 10)
         # Add visualization frequency control
         viz_freq = st.slider("Visualization Frequency", 1, 20, 5, 
                              help="Update topology visualization every N steps (higher = faster but less visual feedback)")
+    if mode == "Wilcoxon Test":
+        iterations = st.slider("Iterations", 5, 50, 10)
+        # algos = st.multiselect("Compare Algos", ["avoa", "aqua","co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], default=["pfo", "co"])
+        # kpi_cmp = st.selectbox("KPI to Compare", ["fitness", "average_sinr", "fairness"])
+    
     # run = st.button("Start")
     if st.button("Start"):
         st.session_state.started = True
@@ -355,18 +369,33 @@ if run:
             clear_and_plot(ph_topo, best_topo, "topo_count")
             
         st.success("Comparison done")
-        
     elif mode == "Specific Comparison":
-        st.header(f"Specific Comparison: {metric.replace('_',' ').title()}")
+        st.header("Multi-KPI Algorithm Comparison")
+        
         # 1) Pick your scenario via the dict
         scenario_name = st.selectbox("Scenario", list(SCENARIOS.keys()), key="spec_comp_scenario")
         ue_list = SCENARIOS[scenario_name]["UE"]
         bs_list = SCENARIOS[scenario_name]["BS"]      
+    
+        
+        # Option to fix BS and vary UE only
+        with st.expander("Configuration Options", expanded=True):
+            vary_ue_only = st.checkbox("Vary UE only (fix BS)", value=True)
+            
+            if vary_ue_only:
+                # If we're varying UE only, select a specific BS value
+                if len(bs_list) > 1:
+                    fixed_bs = st.selectbox("Fixed BS Value", bs_list, index=0)
+                    bs_list = [fixed_bs]  # Replace the list with just the selected value
+                else:
+                    fixed_bs = bs_list[0]
+                    st.info(f"Using fixed BS value: {fixed_bs}")
         
         if len(ue_list) == 1 and len(bs_list) == 1:
+            # Single configuration case (live comparison)
             ue, bs = ue_list[0], bs_list[0]
             
-            st.subheader(f"Live Comparison @ UE={ue}, BS={bs}")
+            st.subheader(f"Live Multi-KPI Comparison @ UE={ue}, BS={bs}")
             trackers, threads, results, envs = {}, {}, {}, {}
             
             for alg in algos:
@@ -378,86 +407,104 @@ if run:
                 
                 def worker(a=alg, e=env, t=tr):
                     results[a] = run_metaheuristic(
-                    e,
-                    a,
-                    epoch=iterations,
-                    kpi_logger=t,
-                    iterations=iterations,
-                    visualize_callback=None                    
+                        e,
+                        a,
+                        iterations,
+                        t                    
                     )
                 
                 th = threading.Thread(target=worker, daemon=True)
                 threads[alg] = th
                 th.start()
-            # 1) Define a palette of Plotly symbols
+            
+            # Define Plotly symbols for markers
             PLOTLY_SYMBOLS = [
                 "circle", "square", "diamond", "cross", "x",
                 "triangle-up", "triangle-down", "triangle-left", "triangle-right",
                 "pentagon", "hexagon", "star", "hourglass", "bowtie"
             ]
 
-            # 2) Create a mapping from algorithm name → Plotly symbol
+            # Create mapping from algorithm name to symbol
             marker_map = {
                 alg: PLOTLY_SYMBOLS[i % len(PLOTLY_SYMBOLS)]
                 for i, alg in enumerate(trackers.keys())
             }
-            # # live‐updating chart
-            # placeholder = st.empty()
-            # while any(t.is_alive() for t in threads.values()):
-            #     fig = make_subplots(rows=1, cols=1)
-            #     for a, tr in trackers.items():
-            #         h = tr.history
-            #         if not h.empty and metric in h:
-            #             fig.add_trace(go.Scatter(
-            #                 x=h.index, y=h[metric], name=a.upper(), mode="lines+markers"
-            #             ))
-            #     clear_and_plot(placeholder, fig, "live_specific_cmp")
-            #     time.sleep(1)
-            # 3) Live‐updating plot
-            placeholder = st.empty()
+            
+            # Create tabs for each KPI
+            kpi_tabs = st.tabs(selected_kpis)
+            placeholders = {kpi: tab.empty() for kpi, tab in zip(selected_kpis, kpi_tabs)}
+            
+            # Live-updating plots
             while any(t.is_alive() for t in threads.values()):
-                fig = make_subplots(rows=1, cols=1)
-                for alg, tr in trackers.items():
-                    h = tr.history
-                    if not h.empty and metric in h:
-                        fig.add_trace(go.Scatter(
-                            x=h.index,
-                            y=h[metric],
-                            name=alg.upper(),
-                            mode="lines+markers",
-                            marker=dict(symbol=marker_map[alg], size=8),
-                            line=dict(dash="solid")
-                        ))
-                clear_and_plot(placeholder, fig, "live_specific_cmp")
+                for kpi in selected_kpis:
+                    fig = make_subplots(rows=1, cols=1, subplot_titles=[f"{kpi.replace('_', ' ').title()} Progress"])
+                    for alg, tr in trackers.items():
+                        h = tr.history
+                        if not h.empty and kpi in h:
+                            fig.add_trace(go.Scatter(
+                                x=h.index,
+                                y=h[kpi],
+                                name=alg.upper(),
+                                mode="lines+markers",
+                                marker=dict(symbol=marker_map[alg], size=8),
+                                line=dict(dash="solid")
+                            ))
+                    fig.update_layout(
+                        xaxis_title="Iteration",
+                        yaxis_title=kpi.replace('_', ' ').title(),
+                        legend_title="Algorithm",
+                        height=500
+                    )
+                    placeholders[kpi].plotly_chart(fig, use_container_width=True)
                 time.sleep(1)
-            # wait for any stragglers
+                
+            # Wait for any stragglers
             for t in threads.values():
                 t.join()
-            # once all done, pull final values from each tracker
-            final_df = pd.DataFrame([
-                {"Algorithm": a.upper(), metric: tr.history[metric].iloc[-1]}
-                for a, tr in trackers.items()
-            ]).set_index("Algorithm")
-            st.bar_chart(final_df)
+                
+            # Once all done, pull final values for each KPI
+            for kpi in selected_kpis:
+                final_df = pd.DataFrame([
+                    {"Algorithm": a.upper(), kpi: tr.history[kpi].iloc[-1] if kpi in tr.history else None}
+                    for a, tr in trackers.items()
+                ]).set_index("Algorithm")
+                
+                # Display bar chart for this KPI
+                st.subheader(f"Final {kpi.replace('_', ' ').title()} Comparison")
+                st.bar_chart(final_df)
             
-            st.success("Specific Comparison Complete")
-           # Download button for this single scenario
-            csv = final_df.reset_index().to_csv(index=False).encode("utf-8")
+            st.success("Single Configuration Analysis Complete")
+            
+            # Create final summary table with all KPIs
+            st.subheader("Final Multi-KPI Summary")
+            summary_data = []
+            for alg, tr in trackers.items():
+                row = {"Algorithm": alg.upper()}
+                for kpi in selected_kpis:
+                    if kpi in tr.history:
+                        row[kpi] = tr.history[kpi].iloc[-1]
+                summary_data.append(row)
+            
+            summary_df = pd.DataFrame(summary_data)
+            st.dataframe(summary_df)
+            
+            # Download button for multi-KPI results
+            csv = summary_df.to_csv(index=False).encode("utf-8")
             st.download_button(
-                f"Download {scenario_name} Scenario Results",
+                f"Download Multi-KPI Results",
                 data=csv,
-                file_name=f"results_{scenario_name.lower()}.csv",
+                file_name=f"multi_kpi_{scenario_name.lower()}.csv",
                 mime="text/csv",
-                key=f"download_{scenario_name}"
+                key=f"download_multi_{scenario_name}"
             )
-
+            
         else:
             # Multiple configurations case (batch processing)
             import itertools, pandas as pd
             import numpy as np
             import matplotlib.pyplot as plt
             
-            st.subheader(f"UE Scaling Analysis with Fixed BS={bs_list[0]}")
+            st.subheader(f"Multi-KPI UE Scaling Analysis with Fixed BS={bs_list[0]}")
             
             # Add controls for number of seeds
             n_seeds = st.slider("Number of seeds per configuration", 1, 10, 3)
@@ -499,15 +546,21 @@ if run:
                 # Get metrics using dictionary access
                 m = out["metrics"]
                 
-                # Record results
-                records.append({
+                # Create record with all KPIs
+                record = {
                     "UE": ue,
                     "BS": bs,
                     "Algorithm": alg.upper(),
                     "Seed": seed_num,
-                    metric: m.get(metric),
-                    "CPU Time": m.get("cpu_time"),
-                })
+                    "CPU Time": m.get("cpu_time", 0)
+                }
+                
+                # Add all available KPIs to the record - handle None values
+                for kpi in selected_kpis:
+                    # Ensure we have a valid value (replace None with 0 to avoid arithmetic errors)
+                    record[kpi] = m.get(kpi, 0) if m.get(kpi) is not None else 0
+                    
+                records.append(record)
                 
                 # Update progress
                 completed_runs += 1
@@ -520,10 +573,11 @@ if run:
             if st.checkbox("Show raw data"):
                 st.dataframe(df_results)
             
-            # Aggregate statistics by UE, BS, Algorithm
+            # Aggregate statistics by UE, BS, Algorithm for all KPIs
+            kpi_columns = selected_kpis + ["CPU Time"]
             agg = (
                 df_results
-                .groupby(["UE", "BS", "Algorithm"])[[metric, "CPU Time"]]
+                .groupby(["UE", "BS", "Algorithm"])[kpi_columns]
                 .agg(["mean", "std"])
             )
             
@@ -551,115 +605,513 @@ if run:
                     mime="text/csv"
                 )
             
-            # Create tabs for different visualizations
-            tab1, tab2 = st.tabs(["UE Scaling Performance", "Algorithm Comparison"])
+            # Create tabs for KPI visualizations
+            kpi_tabs = st.tabs(selected_kpis + ["CPU Time"])
             
-            with tab1:
-                st.subheader(f"Algorithm Performance vs Number of UEs (Fixed BS={bs_list[0]})")
-                
-                # Consistent colors for algorithms
-                colors = plt.cm.tab10.colors
-                color_map = {alg.upper(): colors[i % len(colors)] for i, alg in enumerate(df_results["Algorithm"].unique())}
-                
-                # Create visualization
-                MARKERS = ['o','s','^','D','v','>','<','p','*','h','H','X','d','+']
-                marker_map = {alg.upper(): MARKERS[i % len(MARKERS)] for i, alg in enumerate(df_results["Algorithm"].unique())}
-
-                # Draw plot
-                fig, ax = plt.subplots(figsize=(10, 6))
-                for alg, sub in agg.groupby("Algorithm"):
-                    # Sort by UE to ensure proper line drawing
-                    sub = sub.sort_values("UE")
-                    ax.errorbar(
-                        sub["UE"],
-                        sub[f"{metric}_mean"],
-                        yerr=sub[f"{metric}_std"],  # Add error bars
-                        label=alg,
-                        marker=marker_map.get(alg, "o"),
-                        color=color_map.get(alg, "blue"),
-                        linestyle="-",
-                        markersize=8,
-                        capsize=4
-                    )
-                
-                ax.set_xlabel("Number of UEs")
-                ax.set_ylabel(f"{metric.replace('_', ' ').title()}")
-                ax.legend(title="Algorithm")
-                ax.grid(True, linestyle="--", alpha=0.7)
-                
-                # Add title with specific info
-                ax.set_title(f"Algorithm Scaling Performance (Fixed BS={bs_list[0]})")
-                
-                # Display plot
-                st.pyplot(fig)
-                
-            with tab2:
-                st.subheader("Comparison of Algorithm Performance")
-                
-                # Create a bar chart for each UE value
-                for ue in sorted(ue_list):
-                    # Filter data for this UE
-                    ue_data = agg[agg["UE"] == ue]
+            # Consistent colors for algorithms
+            colors = plt.cm.tab10.colors
+            color_map = {alg.upper(): colors[i % len(colors)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+            
+            # Create visualization markers
+            MARKERS = ['o','s','^','D','v','>','<','p','*','h','H','X','d','+']
+            marker_map = {alg.upper(): MARKERS[i % len(MARKERS)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+            
+            # Create a plot for each KPI in its own tab
+            for i, kpi in enumerate(selected_kpis + ["CPU Time"]):
+                with kpi_tabs[i]:
+                    st.subheader(f"{kpi.replace('_', ' ').title()} Analysis")
                     
-                    # Sort by performance (assuming higher is better)
-                    ue_data = ue_data.sort_values(f"{metric}_mean", ascending=False)
-                    
-                    # Create bar chart
-                    fig, ax = plt.subplots(figsize=(10, 5))
-                    bars = ax.bar(
-                        ue_data["Algorithm"],
-                        ue_data[f"{metric}_mean"],
-                        yerr=ue_data[f"{metric}_std"],
-                        capsize=4,
-                        color=[color_map.get(alg, "blue") for alg in ue_data["Algorithm"]]
-                    )
-                    
-                    # Add labels
-                    ax.set_xlabel("Algorithm")
-                    ax.set_ylabel(f"{metric.replace('_', ' ').title()}")
-                    ax.set_title(f"Algorithm Performance at UE={ue}, BS={bs_list[0]}")
-                    
-                    # Add value labels on top of bars
-                    for bar in bars:
-                        height = bar.get_height()
-                        ax.text(
-                            bar.get_x() + bar.get_width()/2.,
-                            height + 0.02,
-                            f'{height:.2f}',
-                            ha='center', va='bottom', rotation=0
+                    # Show scaling behavior with UE
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    for alg, sub in agg.groupby("Algorithm"):
+                        # Sort by UE to ensure proper line drawing
+                        sub = sub.sort_values("UE")
+                        ax.errorbar(
+                            sub["UE"],
+                            sub[f"{kpi}_mean"],
+                            yerr=sub[f"{kpi}_std"],  # Add error bars
+                            label=alg,
+                            marker=marker_map.get(alg, "o"),
+                            color=color_map.get(alg, "blue"),
+                            linestyle="-",
+                            markersize=8,
+                            capsize=4
                         )
+                    
+                    ax.set_xlabel("Number of UEs")
+                    ax.set_ylabel(f"{kpi.replace('_', ' ').title()}")
+                    ax.legend(title="Algorithm")
+                    ax.grid(True, linestyle="--", alpha=0.7)
+                    
+                    # Add title with specific info
+                    ax.set_title(f"{kpi.replace('_', ' ').title()} Scaling with UE (Fixed BS={bs_list[0]})")
                     
                     # Display plot
                     st.pyplot(fig)
                     
-                # Add CPU time comparison
-                st.subheader("Algorithm Execution Time")
+                    # REPLACED BAR CHARTS WITH LINE GRAPH
+                    st.subheader(f"{kpi.replace('_', ' ').title()} by Algorithm at All UE Levels")
+                    
+                    # Create a line graph showing performance across all UE levels
+                    fig, ax = plt.subplots(figsize=(12, 7))
+                    
+                    # Get unique algorithms and UE values
+                    unique_algs = sorted(agg["Algorithm"].unique())
+                    unique_ue = sorted(agg["UE"].unique())
+                    
+                    # For each algorithm, plot a line across all UE values
+                    for alg in unique_algs:
+                        alg_data = agg[agg["Algorithm"] == alg].sort_values("UE")
+                        ax.plot(
+                            alg_data["UE"], 
+                            alg_data[f"{kpi}_mean"],
+                            label=alg,
+                            marker=marker_map.get(alg, "o"),
+                            color=color_map.get(alg, "blue"),
+                            linewidth=2,
+                            markersize=8
+                        )
+                        
+                        # Add shaded error region
+                        ax.fill_between(
+                            alg_data["UE"],
+                            alg_data[f"{kpi}_mean"] - alg_data[f"{kpi}_std"],
+                            alg_data[f"{kpi}_mean"] + alg_data[f"{kpi}_std"],
+                            alpha=0.2,
+                            color=color_map.get(alg, "blue")
+                        )
+                    
+                    # Add labels and grid
+                    ax.set_xlabel("Number of UEs")
+                    ax.set_ylabel(f"{kpi.replace('_', ' ').title()}")
+                    ax.set_title(f"{kpi.replace('_', ' ').title()} Performance Across All UE Levels")
+                    ax.legend(title="Algorithm")
+                    ax.grid(True, linestyle="--", alpha=0.7)
+                    
+                    # Set x-ticks to only show the actual UE values
+                    ax.set_xticks(unique_ue)
+                    
+                    # Display plot
+                    st.pyplot(fig)
+            
+            # Add a radar chart to compare algorithms across all KPIs
+            st.subheader("Multi-KPI Radar Chart Comparison")
+            
+            # Let user select a specific UE value for the radar chart
+            radar_ue = st.selectbox("Select UE for radar comparison", options=sorted(ue_list), key="radar_ue")
+            
+            # Filter data for the selected UE
+            radar_data = agg[agg["UE"] == radar_ue]
+            
+            # Create a radar chart
+            import matplotlib.pyplot as plt
+            from matplotlib.path import Path
+            from matplotlib.spines import Spine
+            from matplotlib.transforms import Affine2D
+            
+            # Function to create a radar chart
+            def radar_chart(fig, titles, values, algorithms):
+                # Number of variables
+                N = len(titles)
                 
-                # Create box plot of CPU times by algorithm
-                fig, ax = plt.subplots(figsize=(10, 6))
+                # What will be the angle of each axis in the plot
+                angles = [n / float(N) * 2 * np.pi for n in range(N)]
+                angles += angles[:1]  # Close the loop
                 
-                # Create box plot data
-                box_data = []
-                labels = []
-                for alg in df_results["Algorithm"].unique():
-                    alg_data = df_results[df_results["Algorithm"] == alg]["CPU Time"]
-                    box_data.append(alg_data)
-                    labels.append(alg)
+                # Create subplot
+                ax = fig.add_subplot(111, polar=True)
                 
-                # Create the box plot
-                ax.boxplot(box_data, labels=labels, patch_artist=True)
+                # Draw one axis per variable and add labels
+                plt.xticks(angles[:-1], titles, size=12)
                 
-                # Add labels
-                ax.set_xlabel("Algorithm")
-                ax.set_ylabel("CPU Time (seconds)")
-                ax.set_title("Distribution of Algorithm Execution Times")
-                ax.grid(True, linestyle="--", alpha=0.7)
+                # Draw ylabels
+                ax.set_rlabel_position(0)
                 
-                # Display plot
+                # Plot data
+                for i, alg in enumerate(algorithms):
+                    alg_values = values[i]
+                    alg_values += alg_values[:1]  # Close the loop
+                    ax.plot(angles, alg_values, linewidth=2, linestyle='solid', label=alg, 
+                            color=color_map.get(alg, "blue"))
+                    ax.fill(angles, alg_values, alpha=0.1, color=color_map.get(alg, "blue"))
+                
+                # Add legend
+                plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
+                
+                return ax
+            
+            # Normalize data for radar chart (0-1 scale for each KPI)
+            radar_kpis = [kpi for kpi in selected_kpis if kpi in df_results.columns]
+            
+            if len(radar_kpis) >= 3:  # Need at least 3 metrics for a meaningful radar chart
+                # Create normalized data for radar chart
+                norm_data = {}
+                for kpi in radar_kpis:
+                    # Get min and max values for this KPI
+                    kpi_min = df_results[kpi].min()
+                    kpi_max = df_results[kpi].max()
+                    kpi_range = kpi_max - kpi_min if kpi_max > kpi_min else 1
+                    
+                    # Normalize values between 0-1
+                    norm_data[kpi] = [(val - kpi_min) / kpi_range for val in radar_data[f"{kpi}_mean"]]
+                
+                # Create radar chart
+                fig = plt.figure(figsize=(10, 8))
+                algorithms = radar_data["Algorithm"].tolist()
+                
+                # Prepare data for radar chart
+                radar_values = []
+                for i, alg in enumerate(algorithms):
+                    alg_values = [norm_data[kpi][i] for kpi in radar_kpis]
+                    radar_values.append(alg_values)
+                
+                # Create the radar chart
+                ax = radar_chart(fig, radar_kpis, radar_values, algorithms)
+                ax.set_title(f"Algorithm Comparison Across All KPIs (UE={radar_ue}, BS={bs_list[0]})")
+                
+                # Display the plot
                 st.pyplot(fig)
+            else:
+                st.warning("Need at least 3 KPIs for radar chart visualization")
+            
+            # Add a correlation heatmap between KPIs
+            st.subheader("KPI Correlation Analysis")
+            
+            # Compute correlation matrix between KPIs
+            corr_columns = selected_kpis + ["CPU Time"]
+            corr_df = df_results[corr_columns].corr()
+            
+            # Create heatmap
+            fig, ax = plt.subplots(figsize=(10, 8))
+            im = ax.imshow(corr_df, cmap="coolwarm")
+            
+            # Add colorbar
+            cbar = ax.figure.colorbar(im, ax=ax)
+            
+            # Set tick labels
+            ax.set_xticks(np.arange(len(corr_columns)))
+            ax.set_yticks(np.arange(len(corr_columns)))
+            ax.set_xticklabels(corr_columns, rotation=45, ha="right")
+            ax.set_yticklabels(corr_columns)
+            
+            # Add correlation values in the cells
+            for i in range(len(corr_columns)):
+                for j in range(len(corr_columns)):
+                    text = ax.text(j, i, f"{corr_df.iloc[i, j]:.2f}",
+                                ha="center", va="center", color="black" if abs(corr_df.iloc[i, j]) < 0.7 else "white")
+            
+            ax.set_title("Correlation Between KPIs")
+            fig.tight_layout()
+            
+            # Display the plot
+            st.pyplot(fig)
             
             # Show success message
-            st.success(f"Analysis completed for {len(ue_list)} UE configurations with fixed BS={bs_list[0]}")
+            st.success(f"Multi-KPI analysis completed for {len(ue_list)} UE configurations with fixed BS={bs_list[0]}")   
+    # elif mode == "Specific Comparison":
+    #     st.header(f"Specific Comparison: {metric.replace('_',' ').title()}")
+    #     # 1) Pick your scenario via the dict
+    #     scenario_name = st.selectbox("Scenario", list(SCENARIOS.keys()), key="spec_comp_scenario")
+    #     ue_list = SCENARIOS[scenario_name]["UE"]
+    #     bs_list = SCENARIOS[scenario_name]["BS"]      
+        
+    #     if len(ue_list) == 1 and len(bs_list) == 1:
+    #         ue, bs = ue_list[0], bs_list[0]
+            
+    #         st.subheader(f"Live Comparison @ UE={ue}, BS={bs}")
+    #         trackers, threads, results, envs = {}, {}, {}, {}
+            
+    #         for alg in algos:
+    #             tr = KPITracker()
+    #             trackers[alg] = tr
+                
+    #             env = NetworkEnvironment({"num_ue": ue, "num_bs": bs}, log_kpis=True)
+    #             envs[alg] = env
+                
+    #             def worker(a=alg, e=env, t=tr):
+    #                 results[a] = run_metaheuristic(
+    #                 e,
+    #                 a,
+    #                 epoch=iterations,
+    #                 kpi_logger=t,
+    #                 iterations=iterations,
+    #                 visualize_callback=None                    
+    #                 )
+                
+    #             th = threading.Thread(target=worker, daemon=True)
+    #             threads[alg] = th
+    #             th.start()
+    #         # 1) Define a palette of Plotly symbols
+    #         PLOTLY_SYMBOLS = [
+    #             "circle", "square", "diamond", "cross", "x",
+    #             "triangle-up", "triangle-down", "triangle-left", "triangle-right",
+    #             "pentagon", "hexagon", "star", "hourglass", "bowtie"
+    #         ]
+
+    #         # 2) Create a mapping from algorithm name → Plotly symbol
+    #         marker_map = {
+    #             alg: PLOTLY_SYMBOLS[i % len(PLOTLY_SYMBOLS)]
+    #             for i, alg in enumerate(trackers.keys())
+    #         }
+    #         # # live‐updating chart
+    #         # placeholder = st.empty()
+    #         # while any(t.is_alive() for t in threads.values()):
+    #         #     fig = make_subplots(rows=1, cols=1)
+    #         #     for a, tr in trackers.items():
+    #         #         h = tr.history
+    #         #         if not h.empty and metric in h:
+    #         #             fig.add_trace(go.Scatter(
+    #         #                 x=h.index, y=h[metric], name=a.upper(), mode="lines+markers"
+    #         #             ))
+    #         #     clear_and_plot(placeholder, fig, "live_specific_cmp")
+    #         #     time.sleep(1)
+    #         # 3) Live‐updating plot
+    #         placeholder = st.empty()
+    #         while any(t.is_alive() for t in threads.values()):
+    #             fig = make_subplots(rows=1, cols=1)
+    #             for alg, tr in trackers.items():
+    #                 h = tr.history
+    #                 if not h.empty and metric in h:
+    #                     fig.add_trace(go.Scatter(
+    #                         x=h.index,
+    #                         y=h[metric],
+    #                         name=alg.upper(),
+    #                         mode="lines+markers",
+    #                         marker=dict(symbol=marker_map[alg], size=8),
+    #                         line=dict(dash="solid")
+    #                     ))
+    #             clear_and_plot(placeholder, fig, "live_specific_cmp")
+    #             time.sleep(1)
+    #         # wait for any stragglers
+    #         for t in threads.values():
+    #             t.join()
+    #         # once all done, pull final values from each tracker
+    #         final_df = pd.DataFrame([
+    #             {"Algorithm": a.upper(), metric: tr.history[metric].iloc[-1]}
+    #             for a, tr in trackers.items()
+    #         ]).set_index("Algorithm")
+    #         st.bar_chart(final_df)
+            
+    #         st.success("Specific Comparison Complete")
+    #        # Download button for this single scenario
+    #         csv = final_df.reset_index().to_csv(index=False).encode("utf-8")
+    #         st.download_button(
+    #             f"Download {scenario_name} Scenario Results",
+    #             data=csv,
+    #             file_name=f"results_{scenario_name.lower()}.csv",
+    #             mime="text/csv",
+    #             key=f"download_{scenario_name}"
+    #         )
+
+    #     else:
+    #         # Multiple configurations case (batch processing)
+    #         import itertools, pandas as pd
+    #         import numpy as np
+    #         import matplotlib.pyplot as plt
+            
+    #         st.subheader(f"UE Scaling Analysis with Fixed BS={bs_list[0]}")
+            
+    #         # Add controls for number of seeds
+    #         n_seeds = st.slider("Number of seeds per configuration", 1, 10, 3)
+            
+    #         # Calculate total runs for progress tracking
+    #         total_runs = len(ue_list) * len(bs_list) * len(algos) * n_seeds
+    #         st.write(f"Running {total_runs} total simulations ({len(ue_list)} UE configs × {len(bs_list)} BS configs × {len(algos)} algorithms × {n_seeds} seeds)")
+            
+    #         # Create progress bar
+    #         progress_bar = st.progress(0)
+    #         status_text = st.empty()
+            
+    #         # Store all results
+    #         records = []
+    #         completed_runs = 0
+            
+    #         # Run all combinations
+    #         for ue, bs, alg, seed_num in itertools.product(ue_list, bs_list, algos, range(1, n_seeds + 1)):
+    #             # Update status
+    #             status_text.text(f"Running {alg.upper()} with UE={ue}, BS={bs}, seed #{seed_num}/{n_seeds}")
+                
+    #             # Create tracker and environment for this run
+    #             tr = KPITracker()
+    #             env = NetworkEnvironment({"num_ue": ue, "num_bs": bs})
+                
+    #             # Set random seed for reproducibility
+    #             np.random.seed(seed_num)
+                
+    #             # Run simulation
+    #             out = run_metaheuristic(
+    #                 env=env,
+    #                 algorithm=alg,
+    #                 epoch=iterations,
+    #                 kpi_logger=tr,
+    #                 visualize_callback=None,
+    #                 iterations=iterations
+    #             )
+                
+    #             # Get metrics using dictionary access
+    #             m = out["metrics"]
+                
+    #             # Record results
+    #             records.append({
+    #                 "UE": ue,
+    #                 "BS": bs,
+    #                 "Algorithm": alg.upper(),
+    #                 "Seed": seed_num,
+    #                 metric: m.get(metric),
+    #                 "CPU Time": m.get("cpu_time"),
+    #             })
+                
+    #             # Update progress
+    #             completed_runs += 1
+    #             progress_bar.progress(completed_runs / total_runs)
+            
+    #         # Create DataFrame from all results
+    #         df_results = pd.DataFrame(records)
+            
+    #         # Display raw data if requested
+    #         if st.checkbox("Show raw data"):
+    #             st.dataframe(df_results)
+            
+    #         # Aggregate statistics by UE, BS, Algorithm
+    #         agg = (
+    #             df_results
+    #             .groupby(["UE", "BS", "Algorithm"])[[metric, "CPU Time"]]
+    #             .agg(["mean", "std"])
+    #         )
+            
+    #         # Flatten column names
+    #         agg.columns = ["_".join(col).strip() for col in agg.columns.values]
+    #         agg = agg.reset_index()
+            
+    #         # Download buttons
+    #         col1, col2 = st.columns(2)
+    #         with col1:
+    #             csv_raw = df_results.to_csv(index=False).encode("utf-8")
+    #             st.download_button(
+    #                 label="Download Raw Results",
+    #                 data=csv_raw,
+    #                 file_name=f"{scenario_name}_raw_results.csv",
+    #                 mime="text/csv"
+    #             )
+            
+    #         with col2:
+    #             csv_agg = agg.to_csv(index=False).encode("utf-8")
+    #             st.download_button(
+    #                 label="Download Aggregated Results",
+    #                 data=csv_agg,
+    #                 file_name=f"{scenario_name}_aggregated_results.csv",
+    #                 mime="text/csv"
+    #             )
+            
+    #         # Create tabs for different visualizations
+    #         tab1, tab2 = st.tabs(["UE Scaling Performance", "Algorithm Comparison"])
+            
+    #         with tab1:
+    #             st.subheader(f"Algorithm Performance vs Number of UEs (Fixed BS={bs_list[0]})")
+                
+    #             # Consistent colors for algorithms
+    #             colors = plt.cm.tab10.colors
+    #             color_map = {alg.upper(): colors[i % len(colors)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+                
+    #             # Create visualization
+    #             MARKERS = ['o','s','^','D','v','>','<','p','*','h','H','X','d','+']
+    #             marker_map = {alg.upper(): MARKERS[i % len(MARKERS)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+
+    #             # Draw plot
+    #             fig, ax = plt.subplots(figsize=(10, 6))
+    #             for alg, sub in agg.groupby("Algorithm"):
+    #                 # Sort by UE to ensure proper line drawing
+    #                 sub = sub.sort_values("UE")
+    #                 ax.errorbar(
+    #                     sub["UE"],
+    #                     sub[f"{metric}_mean"],
+    #                     yerr=sub[f"{metric}_std"],  # Add error bars
+    #                     label=alg,
+    #                     marker=marker_map.get(alg, "o"),
+    #                     color=color_map.get(alg, "blue"),
+    #                     linestyle="-",
+    #                     markersize=8,
+    #                     capsize=4
+    #                 )
+                
+    #             ax.set_xlabel("Number of UEs")
+    #             ax.set_ylabel(f"{metric.replace('_', ' ').title()}")
+    #             ax.legend(title="Algorithm")
+    #             ax.grid(True, linestyle="--", alpha=0.7)
+                
+    #             # Add title with specific info
+    #             ax.set_title(f"Algorithm Scaling Performance (Fixed BS={bs_list[0]})")
+                
+    #             # Display plot
+    #             st.pyplot(fig)
+                
+    #         with tab2:
+    #             st.subheader("Comparison of Algorithm Performance")
+                
+    #             # Create a bar chart for each UE value
+    #             for ue in sorted(ue_list):
+    #                 # Filter data for this UE
+    #                 ue_data = agg[agg["UE"] == ue]
+                    
+    #                 # Sort by performance (assuming higher is better)
+    #                 ue_data = ue_data.sort_values(f"{metric}_mean", ascending=False)
+                    
+    #                 # Create bar chart
+    #                 fig, ax = plt.subplots(figsize=(10, 5))
+    #                 bars = ax.bar(
+    #                     ue_data["Algorithm"],
+    #                     ue_data[f"{metric}_mean"],
+    #                     yerr=ue_data[f"{metric}_std"],
+    #                     capsize=4,
+    #                     color=[color_map.get(alg, "blue") for alg in ue_data["Algorithm"]]
+    #                 )
+                    
+    #                 # Add labels
+    #                 ax.set_xlabel("Algorithm")
+    #                 ax.set_ylabel(f"{metric.replace('_', ' ').title()}")
+    #                 ax.set_title(f"Algorithm Performance at UE={ue}, BS={bs_list[0]}")
+                    
+    #                 # Add value labels on top of bars
+    #                 for bar in bars:
+    #                     height = bar.get_height()
+    #                     ax.text(
+    #                         bar.get_x() + bar.get_width()/2.,
+    #                         height + 0.02,
+    #                         f'{height:.2f}',
+    #                         ha='center', va='bottom', rotation=0
+    #                     )
+                    
+    #                 # Display plot
+    #                 st.pyplot(fig)
+                    
+    #             # Add CPU time comparison
+    #             st.subheader("Algorithm Execution Time")
+                
+    #             # Create box plot of CPU times by algorithm
+    #             fig, ax = plt.subplots(figsize=(10, 6))
+                
+    #             # Create box plot data
+    #             box_data = []
+    #             labels = []
+    #             for alg in df_results["Algorithm"].unique():
+    #                 alg_data = df_results[df_results["Algorithm"] == alg]["CPU Time"]
+    #                 box_data.append(alg_data)
+    #                 labels.append(alg)
+                
+    #             # Create the box plot
+    #             ax.boxplot(box_data, labels=labels, patch_artist=True)
+                
+    #             # Add labels
+    #             ax.set_xlabel("Algorithm")
+    #             ax.set_ylabel("CPU Time (seconds)")
+    #             ax.set_title("Distribution of Algorithm Execution Times")
+    #             ax.grid(True, linestyle="--", alpha=0.7)
+                
+    #             # Display plot
+    #             st.pyplot(fig)
+            
+    #         # Show success message
+    #         st.success(f"Analysis completed for {len(ue_list)} UE configurations with fixed BS={bs_list[0]}")
     # MARL
     elif mode == "MARL":
         ph_kpi = st.empty()
@@ -866,2021 +1318,509 @@ if run:
                 refresh_placeholder = st.empty()
                 refresh_placeholder.markdown(f"Last update: {time.time():.0f}")
                 time.sleep(0.5)  # Give UI time to update without consuming too much CPU
-        
-
-        
-# import os
-# # Disable Streamlit file watcher to avoid torch warnings
-# os.environ['STREAMLIT_SERVER_FILE_WATCHER_TYPE'] = 'none'
-
-# import asyncio
-# # Ensure there's an active event loop for Streamlit
-# try:
-#     asyncio.get_running_loop()
-# except RuntimeError:
-#     asyncio.set_event_loop(asyncio.new_event_loop())
-
-# import streamlit as st
-# import sys
-# import os
-# import threading
-# import time
-# import base64
-# import copy
-# import pandas as pd
-# import numpy as np
-# import plotly.graph_objects as go
-# from plotly.subplots import make_subplots
-
-# # Load BS icon
-# icon_path = os.path.join(os.path.dirname(__file__), "assets", "bs_icon.png")
-# with open(icon_path, "rb") as f:
-#     bs_b64 = base64.b64encode(f.read()).decode()
-
-# # Algorithm info
-# import json
-# info_path = os.path.join(os.path.dirname(__file__), "assets", "algo_info.json")
-# with open(info_path) as f:
-#     algo_info = json.load(f)
-
-# # Add project root to path
-# project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-# sys.path.insert(0, project_root)
-
-# from core.envs.custom_channel_env import NetworkEnvironment
-# from core.hybrid_trainer.metaheuristic_opt import run_metaheuristic
-# from core.hybrid_trainer.kpi_logger import KPITracker
-# from core.hybrid_trainer.marl_runner import run_marl
-
-# # --- Initialize session state defaults to avoid missing-key errors ---
-# def _init_session_state():
-#     defaults = {
-#         "run_active":        False,
-#         "mode":              None,
-#         "num_bs":            10,
-#         "num_ue":            50,
-#         "meta_algo":         "pfo",
-#         "algos":             [],
-#         "kpi_cmp":           "fitness",
-#         "marl_steps":        10,
-#         "viz_freq":          5,
-#         "thread_active":     False,
-#         "thread_start":      False,
-#         "current_solution":  None,
-#         "metrics":           {},
-#         "meta_result":       None,
-#         "comparison_results": None,
-#         "comparison_trackers": None,
-#         "comparison_envs":     None,
-#         "best_algorithm":      None,
-#         "step_counter":      0,
-#         "total_epochs":      50,
-#         "tracker":           KPITracker(),
-#         "figures":           {},
-#         "env":               None,
-#     }
-#     for k, v in defaults.items():
-#         st.session_state.setdefault(k, v)
-
-# _init_session_state()
-
-# st.set_page_config(page_title="6G Metaheuristic & MARL Dashboard", layout="wide")
-# st.title("6G Metaheuristic & MARL Dashboard")
-
-# # For flicker control of plot updates
-# for cnt in ("kpi_count", "live_count", "final_count", "topo_count", "progress_count"):
-#     st.session_state.setdefault(cnt, 0)
-
-# # --- Sidebar ---
-# with st.sidebar:
-#     if not st.session_state.run_active:
-#         mode = st.radio("Mode", ["Single Metaheuristic", "Comparison", "MARL", "Hybrid"] , index=0)
-#         num_bs = st.slider("Base Stations", 5, 50, st.session_state.num_bs)
-#         num_ue = st.slider("Users", 20, 200, st.session_state.num_ue)
-        
-#         if mode in ["Single Metaheuristic", "Hybrid"]:
-#             meta_algo = st.selectbox("Metaheuristic Algorithm", ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa", "poa", "rime", "roa", "rsa", "sto"], index=["pfo","co","coa","do","fla","gto","hba","hoa","avoa","poa","rime","roa","rsa","sto"].index(st.session_state.meta_algo))
-#         if mode == "Comparison":
-#             algos = st.multiselect("Compare Algos", ["avoa","co","coa","do","fla","gto","hba","hoa","pfo","poa","rime","roa","rsa","sto"], default=st.session_state.algos)
-#             kpi_cmp = st.selectbox("KPI to Compare", ["fitness","average_sinr","fairness"], index=["fitness","average_sinr","fairness"].index(st.session_state.kpi_cmp))
-#         if mode in ["MARL", "Hybrid"]:
-#             marl_steps = st.slider("MARL Steps/Epoch", 1, 50, st.session_state.marl_steps)
-#             viz_freq = st.slider("Visualization Frequency", 1, 20, st.session_state.viz_freq,
-#                                  help="Update topology every N steps")
-#         run = st.button("Start")
-#         if run:
-#             st.session_state.run_active = True
-#             st.session_state.mode = mode
-#             st.session_state.num_bs = num_bs
-#             st.session_state.num_ue = num_ue
-#             if mode in ["Single Metaheuristic", "Hybrid"]:
-#                 st.session_state.meta_algo = meta_algo
-#             if mode == "Comparison":
-#                 st.session_state.algos = algos
-#                 st.session_state.kpi_cmp = kpi_cmp
-#             if mode in ["MARL", "Hybrid"]:
-#                 st.session_state.marl_steps = marl_steps
-#                 st.session_state.viz_freq = viz_freq
-#             st.rerun()
-#     else:
-#         st.write(f"Running mode: **{st.session_state.mode}**")
-#         if st.button("Reset Dashboard"):
-#             for key in ["run_active","thread_active","thread_start","current_solution",
-#                         "metrics","meta_result","comparison_results","comparison_trackers",
-#                         "comparison_envs","best_algorithm","step_counter"]:
-#                 st.session_state[key] = None if key in ["current_solution","meta_result"] else False if key.endswith("active") else {} if key in ["metrics"] else [] if key in ["comparison_results","comparison_trackers","comparison_envs"] else 0
-#             st.session_state.tracker = KPITracker()
-#             st.experimental_rerun()
-
-#     # --- DEBUG PANEL ---
-#     with st.expander("🔧 DEBUG STATE", expanded=False):
-#         st.write({
-#             "run_active":       st.session_state.run_active,
-#             "thread_start":     st.session_state.thread_start,
-#             "thread_active":    st.session_state.thread_active,
-#             "step_counter":     st.session_state.step_counter,
-#             "current_solution": (st.session_state.current_solution[:5] if st.session_state.current_solution else None),
-#             "metrics":          st.session_state.metrics,
-#         })
-
-# # flicker-free plot helper
-# def clear_and_plot(ph, fig, key):
-#     # figs = st.session_state.figures
-#     figs = st.session_state["figures"]  
-#     if key in figs and figs[key] is not None:
-#         st.session_state[key] += 1
-#         figs[key] = copy.deepcopy(fig)
-#         ph.plotly_chart(fig, use_container_width=True, key=f"{key}_{st.session_state[key]}")
-#     else:
-#         ph.empty()
-#         st.session_state[key] += 1
-#         ph.plotly_chart(fig, use_container_width=True, key=f"{key}_{st.session_state[key]}")
-#         figs[key] = fig
-
-# # topology drawer
-# def render_topology(env, solution=None):
-#     bs_coords = np.array([b.position for b in env.base_stations])
-#     ue_coords = np.array([u.position for u in env.ues])
-    
-#     fig = go.Figure()
-    
-#     # BS markers + icons
-#     fig.add_trace(go.Scatter(
-#         x=bs_coords[:, 0], 
-#         y=bs_coords[:, 1], 
-#         mode='markers', 
-#         name='BS', 
-#         marker=dict(size=0, color='rgba(0,0,0,0)'), 
-#         showlegend=True
-#     ))
-    
-#     for x, y in bs_coords:
-#         fig.add_layout_image(
-#             source=f"data:image/png;base64,{bs_b64}", 
-#             xref="x", 
-#             yref="y", 
-#             x=x, 
-#             y=y,
-#             sizex=5, 
-#             sizey=5, 
-#             xanchor="center", 
-#             yanchor="middle", 
-#             layer="above"
-#         )
-    
-#     # If solution is provided, draw connection lines
-#     if solution is not None and len(solution) > 0:
-#         for i, (ux, uy) in enumerate(ue_coords):
-#             bs_id = solution[i]
-#             bx, by = bs_coords[bs_id]
-#             fig.add_trace(go.Scatter(
-#                 x=[bx, ux], 
-#                 y=[by, uy], 
-#                 mode='lines', 
-#                 line=dict(color='lightgray', width=1), 
-#                 showlegend=False
-#             ))
-#         # Add UEs with connection info
-#         custom = np.stack([np.arange(len(ue_coords)), solution], axis=1)
-#     else:
-#         # Add UEs without connection info
-#         custom = np.stack([np.arange(len(ue_coords)), [-1]*len(ue_coords)], axis=1)
-    
-#     # Add UE markers with customdata
-#     fig.add_trace(go.Scatter(
-#         x=ue_coords[:, 0], 
-#         y=ue_coords[:, 1], 
-#         mode='markers', 
-#         name='UE', 
-#         marker=dict(size=10),
-#         hovertemplate="UE %{customdata[0]}<br>Assigned BS %{customdata[1]}<extra></extra>",
-#         customdata=custom
-#     ))
-    
-#     fig.update_layout(
-#         title="Network Topology", 
-#         xaxis=dict(scaleanchor="y"), 
-#         yaxis=dict(constrain="domain")
-#     )
-    
-#     return fig
-
-# # layout containers
-# col1, col2 = st.columns([3, 1])
-# with col1:
-#     ph_topo = st.expander("Network Topology", expanded=True).empty()
-# with col2:
-#     st.markdown("### Algorithm Info")
-#     if st.session_state.run_active:
-#         mode = st.session_state.mode
-#         if mode in ["Single Metaheuristic", "Hybrid"]:
-#             meta_algo = st.session_state.meta_algo
-#             info = algo_info.get(meta_algo, {})
-#             st.write(f"**{info.get('name', meta_algo)}**")
-#             st.write(info.get("short", ""))
-#         elif mode == "MARL":
-#             info = algo_info.get("marl", {})
-#             st.write("**MARL (PPO)**")
-#             st.write(info.get("short", ""))
-#         elif mode == "Comparison":
-#             algos = st.session_state.algos
-#             for a in algos:
-#                 info = algo_info.get(a, {})
-#                 st.write(f"**{info.get('name', a)}**: {info.get('short', '')}")
                 
-# # status / KPI / live containers
-# ph_status=st.empty(); ph_progress=st.empty(); ph_kpi=st.empty(); ph_live=st.empty()
-
-# # init env
-# if not st.session_state.run_active or 'env' not in st.session_state:
-#     st.session_state.env = NetworkEnvironment({"num_bs":st.session_state.num_bs,"num_ue":st.session_state.num_ue,"episode_length":100}, log_kpis=False)
-# env = st.session_state.env
-
-# # always show initial or current topology
-# topo_fig = render_topology(env, st.session_state.current_solution)
-# clear_and_plot(ph_topo, topo_fig, "topo_count")
-# # Create status containers for various information
-# # ph_status = st.empty()
-# ph_progress = st.empty()
-# ph_kpi = st.empty()
-# ph_live_chart = st.empty()
-
-# # # Initialize environment or use existing one
-# # if "env" not in st.session_state or not st.session_state.run_active:
-# #     env = NetworkEnvironment({"num_bs": st.session_state.get("num_bs", 10), 
-# #                              "num_ue": st.session_state.get("num_ue", 50), 
-# #                              "episode_length": 100}, log_kpis=False)
-# #     st.session_state.env = env
-# # else:
-# #     env = st.session_state.env
-
-# # # Initial topology
-# # if not st.session_state.run_active:
-# #     initial_topo = render_topology(env)
-# #     ph_topo.plotly_chart(initial_topo, use_container_width=True)
-# # Always draw something before threads start producing solutions
-
-# # if st.session_state.current_solution is None:
-# #     topo_fig = render_topology(env, None)
-# #     clear_and_plot(ph_topo, topo_fig, "topo_count")
-
-
-# # Background thread functions for different modes
-# def run_meta_thread():
-#     # tracker = st.session_state.tracker
-#         # Safely grab (or create) our KPITracker inside the thread
-#     tracker = st.session_state.get("tracker")
-#     if tracker is None:
-#         tracker = KPITracker()
-#         st.session_state.tracker = tracker
-
-#     # meta_algo = st.session_state.meta_algo
-#     meta_algo = st.session_state.get("meta_algo") or "pfo"
-#     env = st.session_state.env
-    
-#     st.session_state.thread_active = True
-#     result = run_metaheuristic(env, meta_algo, epoch=0, kpi_logger=tracker, visualize_callback=None)
-#     st.session_state.meta_result = result
-#     st.session_state.current_solution = result['solution']
-#     st.session_state.metrics = result['metrics']
-#     st.session_state.thread_active = False
-
-# def run_comparison_thread():
-#     algos = st.session_state.algos
-#     kpi_cmp = st.session_state.kpi_cmp
-#     num_bs = st.session_state.num_bs
-#     num_ue = st.session_state.num_ue
-    
-#     trackers = {}
-#     results = {}
-#     env_dict = {}
-    
-#     st.session_state.thread_active = True
-    
-#     for a in algos:
-#         tr = KPITracker()
-#         trackers[a] = tr
-#         e = NetworkEnvironment({"num_bs": num_bs, "num_ue": num_ue}, log_kpis=False)
-#         env_dict[a] = e
-#         results[a] = run_metaheuristic(e, a, 0, tr, None)
-    
-#     # Store results in session state
-#     st.session_state.comparison_results = results
-#     st.session_state.comparison_trackers = trackers
-#     st.session_state.comparison_envs = env_dict
-    
-#     # Find best algorithm
-#     best_algo = None
-#     best_value = float('-inf') if kpi_cmp != 'fairness' else 0
-    
-#     for algo, result in results.items():
-#         if algo in trackers and not trackers[algo].history.empty:
-#             final_value = trackers[algo].history[kpi_cmp].iloc[-1]
-#             if final_value > best_value:
-#                 best_value = final_value
-#                 best_algo = algo
-    
-#     st.session_state.best_algorithm = best_algo
-#     st.session_state.thread_active = False
-
-# def run_marl_thread(initial_solution=None):
-#     env_cfg = {"num_bs": st.session_state.num_bs, 
-#                "num_ue": st.session_state.num_ue, 
-#                "episode_length": 100}
-#     ray_res = {"num_cpus": 4, "num_gpus": 0}
-#     marl_steps = st.session_state.marl_steps
-#     total_epochs = st.session_state.total_epochs
-#     tracker = st.session_state.tracker
-    
-#     st.session_state.thread_active = True
-#     st.session_state.step_counter = 0
-    
-#     for metrics, sol in run_marl(env_cfg, ray_res, initial_solution, marl_steps, total_epochs=total_epochs):
-#         st.session_state.step_counter += 1
-#         st.session_state.current_solution = sol
-#         st.session_state.metrics = metrics
-#         # Small sleep to give the main thread a chance to update
-#         time.sleep(0.1)
-    
-#     st.session_state.thread_active = False
-
-# def run_hybrid_thread():
-#     tracker = st.session_state.tracker
-#     meta_algo = st.session_state.meta_algo
-#     env = st.session_state.env
-    
-#     # First run metaheuristic
-#     st.session_state.hybrid_phase = "meta"
-#     st.session_state.thread_active = True
-    
-#     meta_result = run_metaheuristic(env, meta_algo, 0, tracker, None)
-#     st.session_state.meta_result = meta_result
-#     st.session_state.current_solution = meta_result['solution']
-#     st.session_state.metrics = meta_result['metrics']
-    
-#     # Now run MARL with the metaheuristic solution
-#     st.session_state.hybrid_phase = "marl"
-#     time.sleep(1)  # Give UI time to update phase
-    
-#     run_marl_thread(meta_result['solution'])
-
-# # --- Main logic flow based on current state ---
-# if st.session_state.run_active and not st.session_state.thread_start:
-#     st.session_state.thread_start = True
-#     mode = st.session_state.mode
-#     if mode=="Single Metaheuristic": threading.Thread(target=run_meta_thread,daemon=True).start()
-#     elif mode=="Comparison": threading.Thread(target=run_comparison_thread,daemon=True).start()
-#     elif mode=="MARL": threading.Thread(target=run_marl_thread,daemon=True).start()
-#     elif mode=="Hybrid": threading.Thread(target=run_hybrid_thread,daemon=True).start()
-    
-#     # Always display current solution if available (moved outside thread_active check)
-#     if st.session_state.current_solution is not None:
-#         current_topo = render_topology(env, st.session_state.current_solution)
-#         clear_and_plot(ph_topo, current_topo, "topo_count")
-    
-#     # Always display progress bar for MARL-based modes (moved outside thread_active check)
-#     if mode in ["MARL", "Hybrid"] and st.session_state.step_counter > 0:
-#         progress_value = min(st.session_state.step_counter / st.session_state.total_epochs, 1.0)
-#         ph_progress.progress(progress_value)
+    elif mode == "Wilcoxon Test":
+        st.header("Statistical Algorithm Comparison")
         
-#         # Display phase indicator for hybrid mode
-#         if mode == "Hybrid":
-#             phase = st.session_state.get("hybrid_phase", "")
-#             if phase == "meta":
-#                 ph_status.info("Running metaheuristic warm-start...")
-#             elif phase == "marl":
-#                 ph_status.info(f"MARL refinement phase: Step {st.session_state.step_counter}/{st.session_state.total_epochs}")
-    
-#     # Always display KPI charts based on mode (moved outside thread_active check)
-#     tracker = st.session_state.tracker
-#     h = tracker.history
-    
-#     if not h.empty:
-#         if mode == "Single Metaheuristic":
-#             fig = make_subplots(rows=3, cols=1, shared_xaxes=True, subplot_titles=["Fitness", "SINR", "Fairness"])
-#             fig.update_layout(height=600, margin=dict(t=50, b=40, l=40, r=40))
-#             for i in (1, 2, 3): 
-#                 fig.update_yaxes(showgrid=True, gridwidth=1, row=i, col=1)
-#                 fig.update_xaxes(showgrid=True, gridwidth=1, row=i, col=1)
-#             fig.add_trace(go.Scatter(x=h.index, y=h.fitness, name="Fitness", line=dict(width=2)), row=1, col=1)
-#             fig.add_trace(go.Scatter(x=h.index, y=h.average_sinr, name="SINR", line=dict(width=2)), row=2, col=1)
-#             fig.add_trace(go.Scatter(x=h.index, y=h.fairness, name="Fairness", line=dict(width=2)), row=3, col=1)
-#             clear_and_plot(ph_kpi, fig, "kpi_count")
+        # Configure test parameters
+        iterations = st.slider("Iterations per run", 10, 100, 30)
+        n_seeds = st.slider("Number of seeds (samples)", 5, 30, 10)
+        
+        # Choose baseline algorithm (default to PFO)
+        baseline_algo = st.selectbox(
+            "Baseline Algorithm", 
+            ["pfo", "avoa", "aqua", "co", "coa", "do", "fla", "gto", "hba", "hoa", "poa", "rime", "roa", "rsa", "sto"],
+            index=0  # Default to PFO
+        )
+        
+        # Choose algorithms to compare against baseline
+        comparison_algos = st.multiselect(
+            "Algorithms to Compare Against Baseline", 
+            [algo for algo in ["avoa", "aqua", "co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"] if algo != baseline_algo],
+            default=["co", "rime"]  # Default selection
+        )
+        
+        # Add option to compare all algorithms against baseline
+        if st.checkbox("Compare All Algorithms Against Baseline", value=False):
+            comparison_algos = [algo for algo in ["avoa", "aqua", "co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"] 
+                            if algo != baseline_algo]
+            st.info(f"Comparing {baseline_algo.upper()} against {len(comparison_algos)} algorithms")
+        
+        # Choose KPI to compare
+        kpi_to_compare = st.selectbox(
+            "KPI to Compare", 
+            ["fitness", "average_sinr", "fairness", "energy_efficiency", "spectral_efficiency", "coverage", "load_balance"],
+            index=0
+        )
+        
+        # Select scenario
+        scenario_name = st.selectbox("Scenario", list(SCENARIOS.keys()), key="wilcoxon_scenario")
+        ue_list = SCENARIOS[scenario_name]["UE"]
+        bs_list = SCENARIOS[scenario_name]["BS"]
+        
+        # Choose specific UE/BS config for the test
+        selected_ue = st.selectbox("UE Configuration", ue_list, index=0)
+        selected_bs = st.selectbox("BS Configuration", bs_list, index=0)
+        
+        # Run button
+        if st.button("Run Wilcoxon Test"):
+            # Import required packages
+            from scipy import stats
+            import numpy as np
+            import pandas as pd
+            import matplotlib.pyplot as plt
+            import seaborn as sns
             
-#         elif mode in ["MARL", "Hybrid"]:
-#             # Display different metrics for MARL modes
-#             if "reward_mean" in h:
-#                 fig = make_subplots(rows=3, cols=1, shared_xaxes=True, subplot_titles=["Mean Reward", "Min Reward", "Max Reward"])
-#                 fig.update_layout(height=600, margin=dict(t=50, b=40, l=40, r=40))
-#                 for i in (1, 2, 3): 
-#                     fig.update_yaxes(showgrid=True, gridwidth=1, row=i, col=1)
-#                     fig.update_xaxes(showgrid=True, gridwidth=1, row=i, col=1)
-#                 fig.add_trace(go.Scatter(x=h.index, y=h.reward_mean, name="Mean", line=dict(width=2)), row=1, col=1)
-#                 fig.add_trace(go.Scatter(x=h.index, y=h.reward_min, name="Min", line=dict(width=2)), row=2, col=1)
-#                 fig.add_trace(go.Scatter(x=h.index, y=h.reward_max, name="Max", line=dict(width=2)), row=3, col=1)
-#                 clear_and_plot(ph_kpi, fig, "kpi_count")
-    
-#     # Always display live comparison chart (moved outside thread_active check)
-#     if mode == "Comparison" and "comparison_trackers" in st.session_state:
-#         trackers = st.session_state.comparison_trackers
-#         kpi_cmp = st.session_state.kpi_cmp
-        
-#         fig_live = make_subplots(rows=1, cols=1)
-#         for a, tr in trackers.items():
-#             h = tr.history
-#             if not h.empty and kpi_cmp in h:
-#                 fig_live.add_trace(go.Scatter(x=h.index, y=h[kpi_cmp], name=a))
-#         clear_and_plot(ph_live_chart, fig_live, "live_count")
-        
-#         # Show final comparison results if available
-#         if "comparison_results" in st.session_state and not st.session_state.thread_active:
-#             results = st.session_state.comparison_results
-#             c1, _, c3 = st.columns([4, 1, 3])
-#             with c1:
-#                 st.subheader(f"Final {kpi_cmp.replace('_', ' ').title()}")
-#                 df = pd.DataFrame([{"alg": a, kpi_cmp: r["metrics"][kpi_cmp]} for a, r in results.items()]).set_index("alg")
-#                 st.plotly_chart(go.Figure(data=[go.Bar(x=df.index, y=df[kpi_cmp])]), use_container_width=True)
+            # Create progress indicators
+            progress_bar = st.progress(0)
+            status_text = st.empty()
             
-#             with c3:
-#                 st.subheader("Final KPI Summary")
-#                 for a, r in results.items():
-#                     st.markdown(f"### {a.upper()}")
-#                     st.write(f"{r['metrics'][kpi_cmp]:.3f}")
+            # Calculate total runs
+            total_runs = (len(comparison_algos) + 1) * n_seeds  # +1 for baseline
+            completed_runs = 0
             
-#             # Show best algorithm topology
-#             best_algo = st.session_state.best_algorithm
-#             if best_algo and "comparison_envs" in st.session_state:
-#                 env_dict = st.session_state.comparison_envs
-#                 best_value = results[best_algo]["metrics"][kpi_cmp]
-#                 st.write(f"Showing topology for best algorithm: **{best_algo}** (best {kpi_cmp}: {best_value:.4f})")
-#                 best_topo = render_topology(env_dict[best_algo], results[best_algo]['solution'])
-#                 clear_and_plot(ph_topo, best_topo, "topo_count")
-    
-#     # Display final KPIs for metaheuristic if done
-#     mr = st.session_state.get("meta_result")
-#     if mode == "Single Metaheuristic" and mr and not st.session_state.thread_active:
-#         metrics = mr["metrics"]
-#         st.markdown("### Final KPIs Summary")
-#         kpi_labels = {
-#             "fitness": ("Fitness Score", ""),
-#             "average_sinr": ("Avg SINR", "dB"),
-#             "fairness": ("Fairness Index", "")
-#         }
-#         cols = st.columns(3)
-#         for i, (kpi, (label, unit)) in enumerate(kpi_labels.items()):
-#             val = metrics.get(kpi, 0)
-#             cols[i].metric(label, f"{val:.3f} {unit}")
-#         ph_status.success("Metaheuristic done")
-    
-#     # Start threads if needed
-#     if not "thread_start" in st.session_state:
-#         st.session_state.thread_start = True
-        
-#         if mode == "Single Metaheuristic":
-#             thread = threading.Thread(target=run_meta_thread, daemon=True)
-#             thread.start()
-#         elif mode == "Comparison":
-#             thread = threading.Thread(target=run_comparison_thread, daemon=True)
-#             thread.start()
-#         elif mode == "MARL":
-#             thread = threading.Thread(target=run_marl_thread, daemon=True)
-#             thread.start()
-#         elif mode == "Hybrid":
-#             thread = threading.Thread(target=run_hybrid_thread, daemon=True)
-#             thread.start()
+            # Dictionary to store results
+            all_results = {baseline_algo: []}
+            for algo in comparison_algos:
+                all_results[algo] = []
             
-#         # Force a rerun to start displaying initial state
-#         time.sleep(0.1)  # Small delay to ensure thread has started
-#         st.rerun()
-    
-    # # Refresh page while thread is active
-    # if st.session_state.thread_active:
-    #     time.sleep(0.5)  # Short delay
-    #     st.rerun()
-
-# import asyncio 
-# # Ensure there's an active event loop for Streamlit
-# try:
-#     asyncio.get_running_loop()
-# except RuntimeError:
-#     asyncio.set_event_loop(asyncio.new_event_loop())
-
-# import streamlit as st
-# import sys, os, threading, time, base64
-# import pandas as pd
-# import numpy as np
-# import plotly.graph_objects as go
-# from plotly.subplots import make_subplots
-# import copy
-# import ray
-# from collections import OrderedDict
-# import logging
-# import gymnasium as gym
-# import torch
-# import torch.nn as nn
-# import plotly.express as px
-# from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
-# from ray.rllib.models import ModelCatalog
-# from ray.rllib.algorithms.ppo import PPOConfig
-# from typing import Dict
-# import json
-# # --- Load Base Station icon (before any plotting) ---
-# icon_path = os.path.join(os.path.dirname(__file__), "assets", "bs_icon.png")
-# with open(icon_path, "rb") as f:
-#     bs_b64 = base64.b64encode(f.read()).decode()
-    
-# # --- Load algorithm info ---
-# info_path = os.path.join(os.path.dirname(__file__), "assets", "algo_info.json")
-# with open(info_path) as f:
-#     algo_info = json.load(f)
-
-# # Add MARL info to algo_info if not present
-# if "marl" not in algo_info:
-#     algo_info["marl"] = {
-#         "name": "Multi-Agent Reinforcement Learning",
-#         "short": "Deep RL approach for distributed user association",
-#         "long": """
-#         Multi-Agent Reinforcement Learning (MARL) is a machine learning approach where multiple autonomous agents 
-#         learn to interact with an environment and each other. In this 6G network optimization context, each UE is an 
-#         agent making its own decisions about which BS to connect to, based on local observations.
-        
-#         Key features:
-#         - Distributed decision-making: Each UE decides independently
-#         - Adaptive learning: Agents adjust to changing network conditions
-#         - Coordination: Implicit coordination emerges through shared environment
-#         - Scalability: Parameter sharing allows handling of large networks
-#         """,
-#         "image": "assets/bs_icon.png"  # You may need to create this image
-#     }
-
-# # --- Page config ---
-# st.set_page_config(page_title="6G Metaheuristic & MARL Dashboard", layout="wide")
-
-# # --- Session-state initialization ---
-# st.session_state.setdefault("cmp", {})
-# for cnt in ("kpi_count", "live_count", "final_count", "topo_single_count", "marl_topo_count", "marl_kpi_count", "hybrid_topo_count"):  
-#     st.session_state.setdefault(cnt, 0)
-# if "figures" not in st.session_state:
-#     st.session_state.figures = {
-#         "topo": None,
-#         "kpi": None,
-#         "live": None,
-#         "marl_topo": None,
-#         "marl_kpi": None
-#     }
-
-# # Project path setup
-# project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-# sys.path.insert(0, project_root)
-# from core.envs.custom_channel_env import NetworkEnvironment
-# from core.hybrid_trainer.metaheuristic_opt import run_metaheuristic
-# from core.hybrid_trainer.kpi_logger import KPITracker
-
-# # --- Import the MetaPolicy model ---
-# # This assumes your MetaPolicy class is in a module within the project structure
-# # If it's not, you'll need to ensure it's imported correctly
-# # from core.models.meta_policy import MetaPolicy
-
-# # Define MetaPolicy here to ensure it's available
-# class MetaPolicy(TorchModelV2, nn.Module):
-#     def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
-#         nn.Module.__init__(self)
-#         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
-        
-#         # Extract config parameters
-#         custom_config = model_config.get("custom_model_config", {})
-#         self.initial_weights = custom_config.get("initial_weights", [])
-#         self.num_bs = custom_config.get("num_bs", 5)
-#         self.num_ue = custom_config.get("num_ue", 20)
-        
-#         # Calculate input size - one UE's observation size
-#         if isinstance(obs_space, gym.spaces.Dict):
-#             # For Dict space, we need the size of a single agent's observation
-#             # This should be 2*num_bs+1
-#             input_size = 2 * self.num_bs + 1
-#         else:
-#             input_size = np.prod(obs_space.shape)
+            # Run baseline algorithm first
+            status_text.text(f"Running baseline {baseline_algo.upper()} algorithm...")
             
-#         print(f"Calculated input size: {input_size}")
-        
-#         # Enhanced network architecture for better performance
-#         hidden_size = 64  # Add a hidden layer for more expressive policy
-        
-#         # Policy network for actions - each UE chooses from num_bs actions
-#         self.policy_network = nn.Sequential(
-#             nn.Linear(input_size, hidden_size),
-#             nn.ReLU(),
-#             nn.Linear(hidden_size, self.num_bs)  # Output should match number of BS options
-#         )
-        
-#         # Value network (critic) - also with a hidden layer
-#         self.value_network = nn.Sequential(
-#             nn.Linear(input_size, hidden_size),
-#             nn.ReLU(),
-#             nn.Linear(hidden_size, 1)
-#         )
-        
-#         # Store current value function output
-#         self._cur_value = None
-        
-#         # Initialize weights using metaheuristic solution if available
-#         if self.initial_weights:
-#             self._apply_initial_weights()
-            
-#     def _apply_initial_weights(self):
-#         """Apply initial weights to bias the policy"""
-#         # Each UE should have its own policy preferences
-#         with torch.no_grad():
-#             # Get the last layer of the policy network
-#             policy_output_layer = self.policy_network[-1]
-            
-#             # Initialize with small random weights for exploration
-#             policy_output_layer.weight.data.normal_(0.0, 0.01)
-#             policy_output_layer.bias.data.fill_(0.0)
-            
-#             # If we have initial weights from metaheuristic
-#             if isinstance(self.initial_weights, list) and len(self.initial_weights) > 0:
-#                 # Determine which UE this policy is for based on available context
-#                 # In MARL with parameter sharing, we can't know for sure,
-#                 # so we use a more general approach
+            for seed in range(1, n_seeds + 1):
+                # Update status
+                status_text.text(f"Running {baseline_algo.upper()} (seed {seed}/{n_seeds})")
                 
-#                 # Count the frequency of each BS in the solution
-#                 bs_counts = np.zeros(self.num_bs)
-#                 for bs_idx in self.initial_weights:
-#                     if 0 <= bs_idx < self.num_bs:
-#                         bs_counts[bs_idx] += 1
+                # Set random seed for reproducibility
+                np.random.seed(seed)
                 
-#                 # Bias toward less congested BSs
-#                 total_ues = sum(bs_counts)
-#                 if total_ues > 0:
-#                     for bs_idx in range(self.num_bs):
-#                         # Lower allocation ratio = higher bias
-#                         congestion_factor = 1.0 - (bs_counts[bs_idx] / total_ues)
-#                         policy_output_layer.bias.data[bs_idx] = congestion_factor * 1.0 # Stronger bias toward less congested BSs
+                # Create environment and tracker
+                env = NetworkEnvironment({"num_ue": selected_ue, "num_bs": selected_bs})
+                tracker = KPITracker()
                 
-#                 print(f"Applied metaheuristic bias based on BS congestion")
+                # Run algorithm
+                result = run_metaheuristic(
+                    env=env,
+                    algorithm=baseline_algo,
+                    epoch=iterations,
+                    kpi_logger=tracker,
+                    visualize_callback=None,
+                    iterations=iterations
+                )
                 
-#     def forward(self, input_dict, state, seq_lens):
-#         # Get observation from input dict
-#         obs = input_dict["obs"]
-        
-#         # Debug: Check observation shape and values
-#         # print(f"Forward input shape: {obs.shape if hasattr(obs, 'shape') else 'dict'}")
-        
-#         # Handle different input types
-#         if isinstance(obs, dict) or isinstance(obs, OrderedDict):
-#             # In MARL, each agent should only receive its own observation
-#             # Convert all values to tensors and flatten if needed
-#             x = torch.cat([torch.tensor(v).flatten() for v in obs.values()])
-#         else:
-#             # Already a tensor
-#             x = obs.float() if isinstance(obs, torch.Tensor) else torch.FloatTensor(obs)
+                # Extract the KPI value for this run
+                kpi_value = result["metrics"].get(kpi_to_compare, 0)
+                if kpi_value is None:
+                    kpi_value = 0
+                
+                # Store result
+                all_results[baseline_algo].append({
+                    "algorithm": baseline_algo.upper(),
+                    "seed": seed,
+                    "kpi_value": kpi_value,
+                    "cpu_time": result["metrics"].get("cpu_time", 0)
+                })
+                
+                # Update progress
+                completed_runs += 1
+                progress_bar.progress(completed_runs / total_runs)
             
-#         # Ensure batch dimension
-#         if x.dim() == 1:
-#             x = x.unsqueeze(0)
-        
-#         # Forward passes
-#         logits = self.policy_network(x)
-#         self._cur_value = self.value_network(x).squeeze(-1)
-        
-#         return logits, state
-
-#     def value_function(self):
-#         """Return value function output for current observation"""
-#         # This is required for PPO training
-#         assert self._cur_value is not None, "value function not calculated"
-#         return self._cur_value
-
-# # Register the custom model
-# ModelCatalog.register_custom_model("meta_policy", MetaPolicy)
-
-# # --- HybridTraining class ---
-# class HybridTraining:
-#     def __init__(self, config: Dict):
-#         # Initialize Ray if not already initialized
-#         if not ray.is_initialized():
-#             ray.init(
-#                 runtime_env={
-#                     "env_vars": {"PYTHONPATH": project_root},
-#                     "working_dir": project_root
-#                 },
-#                 logging_level=logging.INFO,
-#                 log_to_driver=True,
-#                 **config.get("ray_resources", {})
-#             )
-        
-#         self.config = config
-#         self.env = NetworkEnvironment(config["env_config"])
-#         self.obs_space = self.env.observation_space
-#         self.act_space = self.env.action_space
-#         self.kpi_logger = KPITracker(enabled=config.get("logging", {}).get("enabled", True))
-#         self.current_epoch = 0
-#         self.metaheuristic_runs = 0
-#         self.max_metaheuristic_runs = 1
-#         self.visualize_callback = config.get("visualize_callback", None)
-        
-#         # Create log directory if needed
-#         if config.get("logging", {}).get("enabled", False):
-#             os.makedirs(config.get("logging", {}).get("log_dir", "./logs"), exist_ok=True)
-            
-#     def _execute_marl_phase(self, initial_policy: Dict=None):
-#         """Execute MARL training phase with visualization callback"""
-#         print(f"\nStarting {self.config.get('marl_algorithm', 'PPO').upper()} training...")
-        
-#         # Extract initial solution safely
-#         initial_weights = []
-#         if initial_policy is not None:
-#             initial_weights = initial_policy.tolist() if hasattr(initial_policy, 'tolist') else list(initial_policy)
-#             assert len(initial_weights) == self.config["env_config"]["num_ue"]
-        
-#         env_config = {
-#             **self.config["env_config"]
-#         }
-        
-#         # MARL configuration
-#         marl_config = (
-#             PPOConfig()
-#             .environment(
-#                 "NetworkEnv",
-#                 env_config=env_config
-#             )
-#             .training(
-#                 model={
-#                     "custom_model": "meta_policy",
-#                     "custom_model_config": {
-#                         "initial_weights": initial_weights,
-#                         "num_bs": self.config["env_config"]["num_bs"],
-#                         "num_ue": self.config["env_config"]["num_ue"]
-#                     }
-#                 },
-#                 gamma=0.99,
-#                 lr=0.0005,
-#                 lr_schedule=[(0, 0.00005), (1000, 0.0001), (10000, 0.0005)],
-#                 entropy_coeff=0.01,
-#                 kl_coeff=0.2,
-#                 train_batch_size=4000,
-#                 sgd_minibatch_size=128,
-#                 num_sgd_iter=10,
-#                 clip_param=0.2,
-#             )
-#             .env_runners(
-#                 sample_timeout_s=3600,
-#                 rollout_fragment_length=25
-#             )
-#             .multi_agent(
-#                 policies={
-#                     f"ue_{i}": (None, self.obs_space[f"ue_{i}"], self.act_space[f"ue_{i}"], {})
-#                     for i in range(self.config["env_config"]["num_ue"])
-#                 },
-#                 policy_mapping_fn=lambda agent_id, episode=None, worker=None, **kwargs: agent_id
-#             )
-#         )
-        
-#         analysis = ray.tune.run(
-#             "PPO",
-#             config=marl_config.to_dict(),
-#             stop={"training_iteration": self.config.get("marl_steps_per_phase", 10)},
-#             checkpoint_at_end=True,
-#             callbacks=[self._create_marl_callback()]
-#         )
-#         print("Trial ended with status:", analysis.trials[0].status)
-        
-#         # Get the best checkpoint
-#         best_trial = analysis.get_best_trial("env_runners/episode_return_mean", mode="max")
-#         if best_trial:
-#             best_checkpoint = analysis.get_best_checkpoint(best_trial, "env_runners/episode_return_mean", mode="max")
-#             print(f"Best checkpoint: {best_checkpoint}")
-            
-#             # Extract the final policy
-#             if best_checkpoint:
-#                 # TODO: Logic to extract trained policy for visualization
-#                 pass
-        
-#         return analysis
-    
-#     def _create_marl_callback(self):
-#         """Create a Ray Tune callback for tracking training progress"""
-        
-#         class MARLCallback(ray.tune.Callback):
-#             def __init__(self, parent):
-#                 self.parent = parent
-                
-#             def on_trial_result(self, iteration, trials, trial, result, **info):
-#                 # Get reward values from result dictionary
-#                 reward_mean = result.get("env_runners/episode_return_mean", 0)
-#                 reward_min = result.get("env_runners/episode_return_min", 0)
-#                 reward_max = result.get("env_runners/episode_return_max", 0)
-#                 episode_len = result.get("env_runners/episode_len_mean", 0)
-                
-#                 # Extract current policy's decisions (user associations)
-#                 # This requires additional logic to get the associations from the training
-#                 # Let's use a placeholder for now
-#                 current_associations = None
-                
-#                 # Try to extract user associations if available
-#                 env_info = result.get("custom_metrics", {}).get("env_info", None)
-#                 if env_info and "user_associations" in env_info:
-#                     current_associations = env_info["user_associations"]
-                
-#                 print(f"[Trial {trial.trial_id}] Iter {result['training_iteration']} | "
-#                       f"Reward: {reward_mean:.3f} | Length: {episode_len:.1f}")
-                
-#                 if self.parent.kpi_logger and self.parent.kpi_logger.enabled:
-#                     metrics = {
-#                         "iteration": self.parent.current_epoch * self.parent.config.get("marl_steps_per_phase", 10) + 
-#                                 result["training_iteration"],
-#                         "reward_mean": reward_mean,
-#                         "reward_min": reward_min, 
-#                         "reward_max": reward_max,
-#                         "episode_length": episode_len
-#                     }
+            # Run comparison algorithms
+            for algo in comparison_algos:
+                for seed in range(1, n_seeds + 1):
+                    # Update status
+                    status_text.text(f"Running {algo.upper()} (seed {seed}/{n_seeds})")
                     
-#                     # Add SINR and fairness metrics if available
-#                     if "average_sinr" in result.get("custom_metrics", {}):
-#                         metrics["average_sinr"] = result["custom_metrics"]["average_sinr"]
-#                     if "fairness" in result.get("custom_metrics", {}):
-#                         metrics["fairness"] = result["custom_metrics"]["fairness"]
+                    # Set random seed for reproducibility
+                    np.random.seed(seed)
                     
-#                     self.parent.kpi_logger.log_metrics(
-#                         phase="marl",
-#                         algorithm="PPO",
-#                         metrics=metrics,
-#                         episode=result.get("training_iteration", 0)
-#                     )
-                
-#                 # Call visualization callback if provided
-#                 if self.parent.visualize_callback and current_associations is not None:
-#                     self.parent.visualize_callback(metrics, current_associations)
-                
-#         return MARLCallback(self)
-        
-#     def run_hybrid_training(self, initial_metaheuristic=None):
-#         """Run a complete hybrid training cycle with optional initial metaheuristic"""
-        
-#         # Start with metaheuristic optimization if requested
-#         metaheuristic_solution = None
-#         if initial_metaheuristic:
-#             print(f"Running initial metaheuristic optimization with {initial_metaheuristic}...")
-#             meta_result = run_metaheuristic(
-#                 env=self.env,
-#                 algorithm=initial_metaheuristic,
-#                 epoch=0,
-#                 kpi_logger=self.kpi_logger,
-#                 visualize_callback=self.visualize_callback
-#             )
-#             metaheuristic_solution = meta_result.get("solution")
-#             print(f"Metaheuristic optimization complete. Solution: {metaheuristic_solution}")
-        
-#         # Execute MARL training with the initial policy from metaheuristic
-#         print("Starting MARL training phase...")
-#         marl_result = self._execute_marl_phase(initial_policy=metaheuristic_solution)
-        
-#         return {
-#             "metaheuristic_result": meta_result if initial_metaheuristic else None,
-#             "marl_result": marl_result,
-#             "final_metrics": self.kpi_logger.history.iloc[-1].to_dict() if not self.kpi_logger.history.empty else {}
-#         }
-
-# st.title("6G Metaheuristic & MARL Dashboard")
-
-# # Helper: clear & plot
-# def clear_and_plot(ph, fig, counter_name, force_redraw=False):
-#     # Only clears and redraws the given placeholder
-#     if not force_redraw and counter_name in st.session_state.figures and st.session_state.figures[counter_name] is not None:
-#         st.session_state[counter_name] += 1
-#         st.session_state.figures[counter_name] = copy.deepcopy(fig)
-#         ph.plotly_chart(fig, use_container_width=True, key=f"{counter_name}_{st.session_state[counter_name]}")
-#     else:
-#         ph.empty()
-#         st.session_state[counter_name] += 1
-#         ph.plotly_chart(fig, use_container_width=True, key=f"{counter_name}_{st.session_state[counter_name]}")
-#         st.session_state.figures[counter_name] = copy.deepcopy(fig)
-
-# # Sidebar controls
-# with st.sidebar:
-#     mode = st.radio("Mode", ["Single Metaheuristic", "Comparison", "MARL", "Hybrid"])
-#     num_bs = st.slider("Base Stations", 5, 50, 10)
-#     num_ue = st.slider("Users", 20, 200, 50)
-    
-#     if mode in ["Single Metaheuristic", "Hybrid"]:
-#         metaheuristic_algorithm = st.selectbox(
-#             "Metaheuristic Algorithm", 
-#             ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa", "poa", "rime", "roa", "rsa", "sto"]
-#         )
-    
-#     if mode == "Comparison":
-#         algorithms = st.multiselect(
-#             "Compare Algorithms", 
-#             ["avoa", "co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], 
-#             default=["pfo", "co"]
-#         )
-#         kpi_to_compare = st.selectbox("KPI to Compare", ["fitness", "average_sinr", "fairness"], index=0)
-    
-#     if mode in ["MARL", "Hybrid"]:
-#         marl_steps = st.slider("MARL Training Steps", 5, 50, 10)
-        
-#     run = st.button("Start")
-
-# # Top row: topology + info
-# col_topo, col_info = st.columns([3, 1])
-# with col_topo:
-#     st.markdown("---")
-#     ph_topo = st.expander("Network Topology", expanded=True).empty()
-#     topo_env = NetworkEnvironment({"num_bs": num_bs, "num_ue": num_ue}, log_kpis=False)
-#     bs_coords = np.array([b.position for b in topo_env.base_stations])
-#     ue_coords = np.array([u.position for u in topo_env.ues])
-    
-#     # Initial topology plot
-#     fig_topo = go.Figure()
-#     fig_topo.add_trace(go.Scatter(
-#         x=bs_coords[:, 0], 
-#         y=bs_coords[:, 1], 
-#         mode='markers', 
-#         name='BS', 
-#         marker=dict(size=0, color='rgba(0,0,0,0)'), 
-#         showlegend=True
-#     ))
-    
-#     # Add BS icons
-#     for x, y in bs_coords:
-#         fig_topo.add_layout_image(
-#             source=f"data:image/png;base64,{bs_b64}", 
-#             xref="x", 
-#             yref="y", 
-#             x=x, 
-#             y=y,
-#             sizex=5, 
-#             sizey=5, 
-#             xanchor="center", 
-#             yanchor="middle", 
-#             layer="above"
-#         )
-        
-#     # Add UEs
-#     fig_topo.add_trace(go.Scatter(
-#         x=ue_coords[:, 0], 
-#         y=ue_coords[:, 1], 
-#         mode='markers', 
-#         name='UE', 
-#         marker=dict(size=10),
-#         hovertemplate="UE %{customdata[0]}<br>Assigned BS %{customdata[1]}<extra></extra>",
-#         customdata=np.stack([np.arange(len(ue_coords)), [-1]*len(ue_coords)], axis=1)
-#     ))
-    
-#     ph_topo.plotly_chart(fig_topo, use_container_width=True)
-#     st.markdown("---")
-    
-# with col_info:
-#     with st.expander("Algorithm Info"):
-#         if mode == "Single Metaheuristic":
-#             info = algo_info.get(metaheuristic_algorithm, {})
-#             st.markdown(f"## {info.get('name', metaheuristic_algorithm)}")
-#             st.image(info.get("image"), use_container_width=True)
-#             st.write(info.get("long", "No description available."))
-#         elif mode == "MARL":
-#             info = algo_info.get("marl", {})
-#             st.markdown(f"## {info.get('name', 'MARL')}")
-#             st.image(info.get("image"), use_container_width=True)
-#             st.write(info.get("long", "No description available."))
-#         elif mode == "Hybrid":
-#             meta_info = algo_info.get(metaheuristic_algorithm, {})
-#             marl_info = algo_info.get("marl", {})
-#             st.markdown(f"## Hybrid: {meta_info.get('name', metaheuristic_algorithm)} + {marl_info.get('name', 'MARL')}")
-#             st.write("This approach combines metaheuristic optimization for initial solution with MARL for dynamic adaptation.")
-#             st.write(meta_info.get("short", ""))
-#             st.write(marl_info.get("short", ""))
-#         else:  # Comparison
-#             for alg in algorithms:
-#                 info = algo_info.get(alg, {})
-#                 st.markdown(f"**{info.get('name', alg)}**: {info.get('short','')}")
-
-# # SINGLE METAHEURISTIC MODE
-# if run and mode == "Single Metaheuristic":
-#     ph_kpi = st.empty()
-#     tracker = KPITracker()
-#     env = topo_env
-    
-#     def visualize(metrics, solution):
-#         # Visualize KPI history
-#         hist = tracker.history
-#         if not hist.empty:
-#             fig_kpi = make_subplots(rows=3, cols=1, shared_xaxes=True, subplot_titles=["Fitness", "SINR", "Fairness"])
-#             fig_kpi.update_layout(height=600, margin=dict(t=50, b=40, l=40, r=40))
-            
-#             for i in (1, 2, 3): 
-#                 fig_kpi.update_yaxes(showgrid=True, gridwidth=1, row=i, col=1)
-#                 fig_kpi.update_xaxes(showgrid=True, gridwidth=1, row=i, col=1)
-                
-#             fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['fitness'], name='Fitness', line=dict(width=2)), row=1, col=1)
-#             fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['average_sinr'], name='SINR', line=dict(width=2)), row=2, col=1)
-#             fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['fairness'], name='Fairness', line=dict(width=2)), row=3, col=1)
-            
-#             clear_and_plot(ph_kpi, fig_kpi, "kpi_count")
-        
-#         # Visualize network topology with connections
-#         bs_coords = np.array([b.position for b in env.base_stations])
-#         ue_coords = np.array([u.position for u in env.ues])
-        
-#         fig = go.Figure()
-#         fig.add_trace(go.Scatter(
-#             x=bs_coords[:, 0], 
-#             y=bs_coords[:, 1], 
-#             mode='markers', 
-#             name='BS', 
-#             marker=dict(size=0, color='rgba(0,0,0,0)'), 
-#             showlegend=True
-#         ))
-        
-#         # Add BS icons
-#         for x, y in bs_coords: 
-#             fig.add_layout_image(
-#                 source=f"data:image/png;base64,{bs_b64}", 
-#                 xref="x", 
-#                 yref="y", 
-#                 x=x, 
-#                 y=y, 
-#                 sizex=5, 
-#                 sizey=5, 
-#                 xanchor="center", 
-#                 yanchor="middle", 
-#                 layer="above"
-#             )
-        
-#         # Add connection lines between UEs and BSs
-#         for i, (ux, uy) in enumerate(ue_coords): 
-#             if i < len(solution):  # Safety check
-#                 bs_idx = solution[i]
-#                 if 0 <= bs_idx < len(bs_coords):  # Safety check
-#                     bx, by = bs_coords[bs_idx]
-#                     fig.add_trace(go.Scatter(
-#                         x=[bx, ux],
-#                         y=[by, uy],
-#                         mode='lines',
-#                         line=dict(color='lightgray', width=1),
-#                         showlegend=False
-#                     ))
-        
-#         # Add UEs with custom data for hover
-#         custom = np.stack([np.arange(len(ue_coords)), solution], axis=1)
-#         fig.add_trace(go.Scatter(
-#             x=ue_coords[:, 0],
-#             y=ue_coords[:, 1],
-#             mode='markers',
-#             name='UE',
-#             marker=dict(size=10),
-#             hovertemplate="UE %{customdata[0]}<br>BS %{customdata[1]}<extra></extra>",
-#             customdata=custom
-#         ))
-        
-#         clear_and_plot(ph_topo, fig, "topo_single_count")
-    
-#     # Run metaheuristic optimization
-#     res = run_metaheuristic(
-#         env=env, 
-#         algorithm=metaheuristic_algorithm, 
-#         epoch=0, 
-#         kpi_logger=tracker, 
-#         visualize_callback=visualize
-#     )
-    
-#     metrics = res["metrics"]
-#     st.success("Single optimization complete!")
-#     st.markdown("### Final KPIs Summary")
-
-#     kpi_labels = {
-#         "fitness": ("Fitness Score", ""),
-#         "average_sinr": ("Avg SINR", "dB"),
-#         "fairness": ("Fairness Index", "")
-#     }
-    
-#     cols = st.columns(3)
-#     for i, (kpi, (label, unit)) in enumerate(kpi_labels.items()):
-#         val = metrics.get(kpi, 0)
-#         cols[i].metric(label, f"{val:.3f} {unit}")
-
-# # MARL MODE
-# elif run and mode == "MARL":
-#     ph_marl_kpi = st.empty()
-#     ph_marl_topo = ph_topo  # Use the same topology placeholder
-    
-#     tracker = KPITracker()
-#     env = topo_env
-    
-#     def visualize_marl(metrics, solution):
-#         # Visualize KPI history
-#         hist = tracker.history
-#         if not hist.empty:
-#             fig_kpi = make_subplots(rows=3, cols=1, shared_xaxes=True, 
-#                                 subplot_titles=["Reward", "SINR", "Fairness"])
-#             fig_kpi.update_layout(height=600, margin=dict(t=50, b=40, l=40, r=40))
-            
-#             for i in (1, 2, 3): 
-#                 fig_kpi.update_yaxes(showgrid=True, gridwidth=1, row=i, col=1)
-#                 fig_kpi.update_xaxes(showgrid=True, gridwidth=1, row=i, col=1)
-            
-#             # Plot available metrics
-#             if 'reward_mean' in hist.columns:
-#                 fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['reward_mean'], name='Reward', line=dict(width=2)), 
-#                                 row=1, col=1)
-#             if 'average_sinr' in hist.columns:
-#                 fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['average_sinr'], name='SINR', line=dict(width=2)), 
-#                                 row=2, col=1)
-#             if 'fairness' in hist.columns:
-#                 fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['fairness'], name='Fairness', line=dict(width=2)), 
-#                                 row=3, col=1)
-            
-#             clear_and_plot(ph_marl_kpi, fig_kpi, "marl_kpi_count")
-        
-#         # Visualize network topology with connections
-#         if solution is not None:
-#             bs_coords = np.array([b.position for b in env.base_stations])
-#             ue_coords = np.array([u.position for u in env.ues])
-            
-#             fig = go.Figure()
-            
-#             # Add base stations (as icons)
-#             fig.add_trace(go.Scatter(
-#                 x=bs_coords[:, 0], 
-#                 y=bs_coords[:, 1], 
-#                 mode='markers', 
-#                 name='BS', 
-#                 marker=dict(size=0, color='rgba(0,0,0,0)'), 
-#                 showlegend=True
-#             ))
-            
-#             # Add BS icons
-#             for i, (x, y) in enumerate(bs_coords):
-#                 fig.add_layout_image(
-#                     source=f"data:image/png;base64,{bs_b64}", 
-#                     xref="x", 
-#                     yref="y", 
-#                     x=x, 
-#                     y=y, 
-#                     sizex=5, 
-#                     sizey=5, 
-#                     xanchor="center", 
-#                     yanchor="middle", 
-#                     layer="above"
-#                 )
-                
-#                 # Add BS load indicators
-#                 bs = env.base_stations[i]
-#                 if hasattr(bs, 'load') and hasattr(bs, 'capacity'):
-#                     load_pct = bs.load / bs.capacity if bs.capacity > 0 else 0
-#                     fig.add_trace(go.Scatter(
-#                         x=[x],
-#                         y=[y+3],  # Position above the BS icon
-#                         mode='markers',
-#                         marker=dict(
-#                             size=12,
-#                             color=f'rgba({int(255*load_pct)}, {int(255*(1-load_pct))}, 0, 0.7)',
-#                             line=dict(width=1, color='black')
-#                         ),
-#                         text=[f"BS {i}: {load_pct*100:.1f}%"],
-#                         hoverinfo="text",
-#                         showlegend=False
-#                     ))
-            
-#             # Add connection lines between UEs and BSs
-#             for i, ue in enumerate(env.ues):
-#                 if ue.associated_bs is not None:
-#                     bs_idx = ue.associated_bs
-#                     if 0 <= bs_idx < len(bs_coords):  # Safety check
-#                         ux, uy = ue_coords[i]
-#                         bx, by = bs_coords[bs_idx]
-#                         fig.add_trace(go.Scatter(
-#                             x=[bx, ux],
-#                             y=[by, uy],
-#                             mode='lines',
-#                             line=dict(
-#                                 color=f'rgba(100, 100, 255, {max(0.2, min(1.0, (ue.sinr+30)/60))})',
-#                                 width=1
-#                             ),
-#                             showlegend=False
-#                         ))
-            
-#             # Add UEs
-#             custom_data = []
-#             for i, ue in enumerate(env.ues):
-#                 bs_id = ue.associated_bs if ue.associated_bs is not None else -1
-#                 sinr = ue.sinr if ue.sinr != -np.inf else -30
-#                 custom_data.append([i, bs_id, f"{sinr:.2f}"])
-            
-#             fig.add_trace(go.Scatter(
-#                 x=ue_coords[:, 0],
-#                 y=ue_coords[:, 1],
-#                 mode='markers',
-#                 name='UE',
-#                 marker=dict(
-#                     size=10,
-#                     color=[
-#                         'red' if ue.associated_bs is None else 
-#                         f'rgba(0, {min(255, int(128 + 128*(ue.sinr+30)/60))}, 0, 0.8)' 
-#                         for ue in env.ues
-#                     ]
-#                 ),
-#                 hovertemplate="UE %{customdata[0]}<br>BS %{customdata[1]}<br>SINR %{customdata[2]}dB<extra></extra>",
-#                 customdata=custom_data
-#             ))
-            
-#             clear_and_plot(ph_marl_topo, fig, "marl_topo_count")
-
-# # --- IMPLEMENTATION FOR COMPARISON MODE ---
-# elif run and mode == "Comparison":
-#     # Create placeholders for comparison visualizations
-#     ph_comparison = st.empty()
-    
-#     # Dictionary to store results for each algorithm
-#     comparison_results = {}
-#     progress_bar = st.progress(0)
-#     status_text = st.empty()
-    
-#     # Setup tracker and environment
-#     tracker = KPITracker()
-#     env = topo_env
-    
-#     # Run each selected algorithm
-#     for i, algorithm in enumerate(algorithms):
-#         status_text.text(f"Running {algorithm}... ({i+1}/{len(algorithms)})")
-        
-#         if algorithm == "marl":
-#             # Run MARL for comparison
-#             hybrid = HybridTraining({
-#                 "env_config": {
-#                     "num_bs": num_bs,
-#                     "num_ue": num_ue,
-#                     "log_kpis": True
-#                 },
-#                 "marl_algorithm": "PPO",
-#                 "marl_steps_per_phase": 10,
-#                 "logging": {"enabled": True},
-#                 "ray_resources": {"num_cpus": 2}
-#             })
-            
-#             # Execute MARL without initial metaheuristic
-#             marl_result = hybrid._execute_marl_phase()
-            
-#             # Extract the relevant metrics
-#             best_trial = marl_result.get_best_trial("env_runners/episode_return_mean", mode="max")
-#             if best_trial:
-#                 metrics = best_trial.last_result
-#                 comparison_results["marl"] = {
-#                     "fitness": metrics.get("env_runners/episode_return_mean", 0),
-#                     "average_sinr": metrics.get("custom_metrics", {}).get("average_sinr", 0),
-#                     "fairness": metrics.get("custom_metrics", {}).get("fairness", 0),
-#                     "iterations": list(range(1, metrics.get("training_iteration", 10) + 1)),
-#                     "history": {
-#                         "fitness": [r.get("env_runners/episode_return_mean", 0) for r in best_trial.metric_analysis["env_runners/episode_return_mean"]["hist"]],
-#                         "average_sinr": [r.get("custom_metrics", {}).get("average_sinr", 0) for r in best_trial.metric_analysis["env_runners/episode_return_mean"]["hist"]],
-#                         "fairness": [r.get("custom_metrics", {}).get("fairness", 0) for r in best_trial.metric_analysis["env_runners/episode_return_mean"]["hist"]]
-#                     }
-#                 }
-#         else:
-#             # Run metaheuristic for comparison
-#             result = run_metaheuristic(
-#                 env=env,
-#                 algorithm=algorithm,
-#                 epoch=0,
-#                 kpi_logger=tracker,
-#                 visualize_callback=None  # Don't visualize individual runs
-#             )
-            
-#             # Store the results
-#             metrics = result["metrics"]
-#             history = tracker.history.copy()
-            
-#             comparison_results[algorithm] = {
-#                 "fitness": metrics.get("fitness", 0),
-#                 "average_sinr": metrics.get("average_sinr", 0),
-#                 "fairness": metrics.get("fairness", 0),
-#                 "iterations": list(range(1, len(history) + 1)),
-#                 "history": {
-#                     "fitness": history["fitness"].tolist() if "fitness" in history else [],
-#                     "average_sinr": history["average_sinr"].tolist() if "average_sinr" in history else [],
-#                     "fairness": history["fairness"].tolist() if "fairness" in history else []
-#                 }
-#             }
-            
-#             # Reset the tracker for the next algorithm
-#             tracker = KPITracker()
-        
-#         # Update progress
-#         progress_bar.progress((i + 1) / len(algorithms))
-    
-#     # Create comparison visualization
-#     status_text.text("Creating comparison visualizations...")
-    
-#     # Plot the comparison results
-#     fig_comparison = make_subplots(rows=1, cols=1, subplot_titles=[f"{kpi_to_compare.replace('_', ' ').title()} Comparison"])
-#     fig_comparison.update_layout(height=500, margin=dict(t=50, b=40, l=40, r=40))
-    
-#     # Add traces for each algorithm
-#     colors = px.colors.qualitative.Plotly
-#     for i, (alg, results) in enumerate(comparison_results.items()):
-#         color = colors[i % len(colors)]
-        
-#         # Get the KPI history
-#         kpi_history = results["history"].get(kpi_to_compare, [])
-#         iterations = results["iterations"]
-        
-#         if kpi_history:
-#             fig_comparison.add_trace(
-#                 go.Scatter(
-#                     x=iterations[:len(kpi_history)],
-#                     y=kpi_history,
-#                     name=algo_info.get(alg, {}).get("name", alg),
-#                     line=dict(width=2, color=color)
-#                 )
-#             )
-    
-#     # Update axis labels
-#     fig_comparison.update_xaxes(title="Iteration")
-#     fig_comparison.update_yaxes(title=kpi_to_compare.replace("_", " ").title())
-    
-#     # Display the comparison plot
-#     clear_and_plot(ph_comparison, fig_comparison, "cmp_count")
-    
-#     # Display final metrics
-#     st.markdown("### Final KPI Comparison")
-    
-#     # Create a DataFrame for the final metrics
-#     final_metrics = {
-#         "Algorithm": [],
-#         "Fitness": [],
-#         "Average SINR (dB)": [],
-#         "Fairness": []
-#     }
-    
-#     for alg, results in comparison_results.items():
-#         final_metrics["Algorithm"].append(algo_info.get(alg, {}).get("name", alg))
-#         final_metrics["Fitness"].append(f"{results.get('fitness', 0):.3f}")
-#         final_metrics["Average SINR (dB)"].append(f"{results.get('average_sinr', 0):.3f}")
-#         final_metrics["Fairness"].append(f"{results.get('fairness', 0):.3f}")
-    
-#     # Display as a table
-#     df_final = pd.DataFrame(final_metrics)
-#     st.table(df_final)
-    
-#     status_text.text("Comparison complete!")
-
-# # --- IMPLEMENTATION FOR MARL MODE ---
-# elif run and mode == "MARL":
-#     # Create placeholders for MARL visualizations
-#     ph_marl_kpi = st.empty()
-#     ph_marl_topo = ph_topo  # Use the same topology placeholder
-    
-#     # Setup tracker and environment
-#     tracker = KPITracker()
-#     env = topo_env
-    
-#     # Visualization callback for MARL
-#     def visualize_marl(metrics, solution):
-#         # Visualize KPI history
-#         hist = tracker.history
-#         if not hist.empty:
-#             fig_kpi = make_subplots(rows=3, cols=1, shared_xaxes=True, 
-#                                   subplot_titles=["Reward", "SINR", "Fairness"])
-#             fig_kpi.update_layout(height=600, margin=dict(t=50, b=40, l=40, r=40))
-            
-#             for i in (1, 2, 3): 
-#                 fig_kpi.update_yaxes(showgrid=True, gridwidth=1, row=i, col=1)
-#                 fig_kpi.update_xaxes(showgrid=True, gridwidth=1, row=i, col=1)
-            
-#             # Plot available metrics
-#             if 'reward_mean' in hist.columns:
-#                 fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['reward_mean'], 
-#                                            name='Reward', line=dict(width=2)), 
-#                                 row=1, col=1)
-#             if 'average_sinr' in hist.columns:
-#                 fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['average_sinr'], 
-#                                            name='SINR', line=dict(width=2)), 
-#                                 row=2, col=1)
-#             if 'fairness' in hist.columns:
-#                 fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['fairness'], 
-#                                            name='Fairness', line=dict(width=2)), 
-#                                 row=3, col=1)
-            
-#             clear_and_plot(ph_marl_kpi, fig_kpi, "marl_kpi_count")
-        
-#         # Visualize network topology with connections
-#         if solution is not None:
-#             bs_coords = np.array([b.position for b in env.base_stations])
-#             ue_coords = np.array([u.position for u in env.ues])
-            
-#             fig = go.Figure()
-            
-#             # Add base stations (as icons)
-#             fig.add_trace(go.Scatter(
-#                 x=bs_coords[:, 0], 
-#                 y=bs_coords[:, 1], 
-#                 mode='markers', 
-#                 name='BS', 
-#                 marker=dict(size=0, color='rgba(0,0,0,0)'), 
-#                 showlegend=True
-#             ))
-            
-#             # Add BS icons
-#             for i, (x, y) in enumerate(bs_coords):
-#                 fig.add_layout_image(
-#                     source=f"data:image/png;base64,{bs_b64}", 
-#                     xref="x", 
-#                     yref="y", 
-#                     x=x, 
-#                     y=y, 
-#                     sizex=5, 
-#                     sizey=5, 
-#                     xanchor="center", 
-#                     yanchor="middle", 
-#                     layer="above"
-#                 )
-                
-#                 # Add BS load indicators
-#                 bs = env.base_stations[i]
-#                 if hasattr(bs, 'load') and hasattr(bs, 'capacity'):
-#                     load_pct = bs.load / bs.capacity if bs.capacity > 0 else 0
-#                     fig.add_trace(go.Scatter(
-#                         x=[x],
-#                         y=[y+3],  # Position above the BS icon
-#                         mode='markers',
-#                         marker=dict(
-#                             size=12,
-#                             color=f'rgba({int(255*load_pct)}, {int(255*(1-load_pct))}, 0, 0.7)',
-#                             line=dict(width=1, color='black')
-#                         ),
-#                         text=[f"BS {i}: {load_pct*100:.1f}%"],
-#                         hoverinfo="text",
-#                         showlegend=False
-#                     ))
-            
-#             # Add connection lines between UEs and BSs
-#             for i, ue in enumerate(env.ues):
-#                 if hasattr(ue, 'associated_bs') and ue.associated_bs is not None:
-#                     bs_idx = ue.associated_bs
-#                     if 0 <= bs_idx < len(bs_coords):  # Safety check
-#                         ux, uy = ue_coords[i]
-#                         bx, by = bs_coords[bs_idx]
-#                         sinr = getattr(ue, 'sinr', 0)
-#                         fig.add_trace(go.Scatter(
-#                             x=[bx, ux],
-#                             y=[by, uy],
-#                             mode='lines',
-#                             line=dict(
-#                                 color=f'rgba(100, 100, 255, {max(0.2, min(1.0, (sinr+30)/60))})',
-#                                 width=1
-#                             ),
-#                             showlegend=False
-#                         ))
-            
-#             # Add UEs
-#             custom_data = []
-#             for i, ue in enumerate(env.ues):
-#                 bs_id = getattr(ue, 'associated_bs', -1)
-#                 sinr = getattr(ue, 'sinr', -30)
-#                 if sinr == -np.inf:
-#                     sinr = -30
-#                 custom_data.append([i, bs_id, f"{sinr:.2f}"])
-            
-#             fig.add_trace(go.Scatter(
-#                 x=ue_coords[:, 0],
-#                 y=ue_coords[:, 1],
-#                 mode='markers',
-#                 name='UE',
-#                 marker=dict(
-#                     size=10,
-#                     color=[
-#                         'red' if not hasattr(ue, 'associated_bs') or ue.associated_bs is None else 
-#                         f'rgba(0, {min(255, int(128 + 128*(getattr(ue, "sinr", -30)+30)/60))}, 0, 0.8)' 
-#                         for ue in env.ues
-#                     ]
-#                 ),
-#                 hovertemplate="UE %{customdata[0]}<br>BS %{customdata[1]}<br>SINR %{customdata[2]}dB<extra></extra>",
-#                 customdata=custom_data
-#             ))
-            
-#             clear_and_plot(ph_marl_topo, fig, "marl_topo_count")
-    
-#     # Initialize HybridTraining class with MARL only
-#     status_text = st.empty()
-#     status_text.text("Initializing MARL training...")
-    
-#     hybrid = HybridTraining({
-#         "env_config": {
-#             "num_bs": num_bs,
-#             "num_ue": num_ue,
-#             "log_kpis": True
-#         },
-#         "marl_algorithm": "PPO",
-#         "marl_steps_per_phase": marl_steps,
-#         "logging": {"enabled": True},
-#         "visualize_callback": visualize_marl,
-#         "ray_resources": {"num_cpus": 2}
-#     })
-    
-#     # Execute MARL without initial metaheuristic
-#     status_text.text("Running MARL training...")
-#     marl_result = hybrid._execute_marl_phase()
-    
-#     # Extract metrics from the best trial
-#     best_trial = marl_result.get_best_trial("env_runners/episode_return_mean", mode="max")
-#     if best_trial:
-#         final_metrics = best_trial.last_result
-        
-#         # Display final metrics
-#         st.markdown("### Final MARL Metrics")
-        
-#         metric_cols = st.columns(3)
-#         metric_cols[0].metric("Reward", f"{final_metrics.get('env_runners/episode_return_mean', 0):.3f}")
-#         metric_cols[1].metric("Average SINR", f"{final_metrics.get('custom_metrics', {}).get('average_sinr', 0):.3f} dB")
-#         metric_cols[2].metric("Fairness", f"{final_metrics.get('custom_metrics', {}).get('fairness', 0):.3f}")
-        
-#         status_text.text("MARL training complete!")
-#     else:
-#         status_text.text("MARL training failed to produce results.")
-
-# # --- IMPLEMENTATION FOR HYBRID MODE ---
-# elif run and mode == "Hybrid":
-#     # Create placeholders for hybrid visualizations
-#     ph_hybrid_kpi = st.empty()
-#     ph_hybrid_topo = ph_topo  # Use the same placeholder for topology
-    
-#     # Setup tracker and environment
-#     tracker = KPITracker()
-#     env = topo_env
-    
-#     # Visualization callback for hybrid approach
-#     def visualize_hybrid(metrics, solution):
-#         # Visualize KPI history
-#         hist = tracker.history
-#         if not hist.empty:
-#             # Filter to only show MARL or the metaheuristic based on phase
-#             meta_hist = hist[hist['phase'] == 'metaheuristic'] if 'phase' in hist.columns else pd.DataFrame()
-#             marl_hist = hist[hist['phase'] == 'marl'] if 'phase' in hist.columns else pd.DataFrame()
-            
-#             fig_kpi = make_subplots(rows=3, cols=1, shared_xaxes=True, 
-#                                   subplot_titles=["Performance", "SINR", "Fairness"])
-#             fig_kpi.update_layout(height=600, margin=dict(t=50, b=40, l=40, r=40))
-            
-#             for i in (1, 2, 3): 
-#                 fig_kpi.update_yaxes(showgrid=True, gridwidth=1, row=i, col=1)
-#                 fig_kpi.update_xaxes(showgrid=True, gridwidth=1, row=i, col=1)
-                
-#             # Plot metaheuristic metrics if available
-#             if not meta_hist.empty:
-#                 if 'fitness' in meta_hist.columns:
-#                     fig_kpi.add_trace(go.Scatter(
-#                         x=meta_hist.index, 
-#                         y=meta_hist['fitness'],
-#                         name='Meta Fitness', 
-#                         line=dict(width=2, color='blue')
-#                     ), row=1, col=1)
-                
-#                 if 'average_sinr' in meta_hist.columns:
-#                     fig_kpi.add_trace(go.Scatter(
-#                         x=meta_hist.index, 
-#                         y=meta_hist['average_sinr'],
-#                         name='Meta SINR', 
-#                         line=dict(width=2, color='blue')
-#                     ), row=2, col=1)
+                    # Create environment and tracker
+                    env = NetworkEnvironment({"num_ue": selected_ue, "num_bs": selected_bs})
+                    tracker = KPITracker()
                     
-#                 if 'fairness' in meta_hist.columns:
-#                     fig_kpi.add_trace(go.Scatter(
-#                         x=meta_hist.index, 
-#                         y=meta_hist['fairness'],
-#                         name='Meta Fairness', 
-#                         line=dict(width=2, color='blue')
-#                     ), row=3, col=1)
-            
-#             # Plot MARL metrics if available  
-#             if not marl_hist.empty:
-#                 if 'reward_mean' in marl_hist.columns:
-#                     # Offset MARL indices to continue after metaheuristic
-#                     offset = len(meta_hist) if not meta_hist.empty else 0
-#                     marl_x = [offset + i for i in range(len(marl_hist))]
+                    # Run algorithm
+                    result = run_metaheuristic(
+                        env=env,
+                        algorithm=algo,
+                        epoch=iterations,
+                        kpi_logger=tracker,
+                        visualize_callback=None,
+                        iterations=iterations
+                    )
                     
-#                     fig_kpi.add_trace(go.Scatter(
-#                         x=marl_x, 
-#                         y=marl_hist['reward_mean'],
-#                         name='MARL Reward', 
-#                         line=dict(width=2, color='green')
-#                     ), row=1, col=1)
+                    # Extract the KPI value for this run
+                    kpi_value = result["metrics"].get(kpi_to_compare, 0)
+                    if kpi_value is None:
+                        kpi_value = 0
+                    
+                    # Store result
+                    all_results[algo].append({
+                        "algorithm": algo.upper(),
+                        "seed": seed,
+                        "kpi_value": kpi_value,
+                        "cpu_time": result["metrics"].get("cpu_time", 0)
+                    })
+                    
+                    # Update progress
+                    completed_runs += 1
+                    progress_bar.progress(completed_runs / total_runs)
+            
+            # Test complete - create DataFrame with all results
+            records = []
+            for algo, results in all_results.items():
+                records.extend(results)
+            
+            results_df = pd.DataFrame(records)
+            
+            # Display raw results if requested
+            if st.checkbox("Show raw results", value=False):
+                st.dataframe(results_df)
+            
+            # Perform Wilcoxon signed-rank test for each algorithm against baseline
+            st.subheader(f"Wilcoxon Signed-Rank Test Results (vs. {baseline_algo.upper()})")
+            
+            wilcoxon_results = []
+            baseline_values = np.array([r["kpi_value"] for r in all_results[baseline_algo]])
+            
+            for algo in comparison_algos:
+                algo_values = np.array([r["kpi_value"] for r in all_results[algo]])
                 
-#                 if 'average_sinr' in marl_hist.columns:
-#                     offset = len(meta_hist) if not meta_hist.empty else 0
-#                     marl_x = [offset + i for i in range(len(marl_hist))]
-                    
-#                     fig_kpi.add_trace(go.Scatter(
-#                         x=marl_x, 
-#                         y=marl_hist['average_sinr'],
-#                         name='MARL SINR', 
-#                         line=dict(width=2, color='green')
-#                     ), row=2, col=1)
-                    
-#                 if 'fairness' in marl_hist.columns:
-#                     offset = len(meta_hist) if not meta_hist.empty else 0
-#                     marl_x = [offset + i for i in range(len(marl_hist))]
-                    
-#                     fig_kpi.add_trace(go.Scatter(
-#                         x=marl_x, 
-#                         y=marl_hist['fairness'],
-#                         name='MARL Fairness', 
-#                         line=dict(width=2, color='green')
-#                     ), row=3, col=1)
+                # Perform Wilcoxon test
+                w_stat, p_value = stats.wilcoxon(baseline_values, algo_values)
                 
-#             # Display the KPI plot
-#             clear_and_plot(ph_hybrid_kpi, fig_kpi, "hybrid_kpi_count")
-        
-#         # Visualize network topology with connections
-#         if solution is not None:
-#             bs_coords = np.array([b.position for b in env.base_stations])
-#             ue_coords = np.array([u.position for u in env.ues])
-            
-#             fig = go.Figure()
-            
-#             # Add base stations (as icons)
-#             fig.add_trace(go.Scatter(
-#                 x=bs_coords[:, 0], 
-#                 y=bs_coords[:, 1], 
-#                 mode='markers', 
-#                 name='BS', 
-#                 marker=dict(size=0, color='rgba(0,0,0,0)'), 
-#                 showlegend=True
-#             ))
-            
-#             # Add BS icons
-#             for i, (x, y) in enumerate(bs_coords):
-#                 fig.add_layout_image(
-#                     source=f"data:image/png;base64,{bs_b64}", 
-#                     xref="x", 
-#                     yref="y", 
-#                     x=x, 
-#                     y=y, 
-#                     sizex=5, 
-#                     sizey=5, 
-#                     xanchor="center", 
-#                     yanchor="middle", 
-#                     layer="above"
-#                 )
+                # Calculate effect size - Cliff's Delta is a good non-parametric effect size
+                # (simplified calculation here)
+                mean_diff = np.mean(algo_values) - np.mean(baseline_values)
+                pooled_std = np.sqrt((np.std(baseline_values)**2 + np.std(algo_values)**2) / 2)
+                effect_size = mean_diff / pooled_std if pooled_std != 0 else 0
                 
-#                 # Add BS load indicators if available
-#                 bs = env.base_stations[i]
-#                 if hasattr(bs, 'load') and hasattr(bs, 'capacity'):
-#                     load_pct = bs.load / bs.capacity if bs.capacity > 0 else 0
-#                     fig.add_trace(go.Scatter(
-#                         x=[x],
-#                         y=[y+3],  # Position above the BS icon
-#                         mode='markers',
-#                         marker=dict(
-#                             size=12,
-#                             color=f'rgba({int(255*load_pct)}, {int(255*(1-load_pct))}, 0, 0.7)',
-#                             line=dict(width=1, color='black')
-#                         ),
-#                         text=[f"BS {i}: {load_pct*100:.1f}%"],
-#                         hoverinfo="text",
-#                         showlegend=False
-#                     ))
+                # Determine significance level
+                if p_value < 0.01:
+                    sig_level = "*** (p<0.01)"
+                elif p_value < 0.05:
+                    sig_level = "** (p<0.05)"
+                elif p_value < 0.1:
+                    sig_level = "* (p<0.1)"
+                else:
+                    sig_level = "ns"
+                
+                # Determine which algorithm is better
+                baseline_mean = np.mean(baseline_values)
+                algo_mean = np.mean(algo_values)
+                
+                # For fairness and most KPIs, higher is better, but note this might need adjustment
+                # for KPIs where lower is better
+                comparison = "better" if algo_mean > baseline_mean else "worse"
+                if abs(algo_mean - baseline_mean) / max(baseline_mean, 1e-10) < 0.01:  # 1% threshold
+                    comparison = "similar"
+                    
+                # Add to results
+                wilcoxon_results.append({
+                    "Algorithm": algo.upper(),
+                    "vs. Baseline": baseline_algo.upper(),
+                    "Mean Difference": algo_mean - baseline_mean,
+                    "% Difference": ((algo_mean - baseline_mean) / max(baseline_mean, 1e-10)) * 100,
+                    "p-value": p_value,
+                    "Significance": sig_level,
+                    "Effect Size": effect_size,
+                    "Comparison": comparison
+                })
             
-#             # Add connection lines between UEs and BSs based on current solution
-#             if isinstance(solution, list):
-#                 # If solution is a list of BS assignments (metaheuristic style)
-#                 for i, bs_idx in enumerate(solution):
-#                     if i < len(ue_coords) and 0 <= bs_idx < len(bs_coords):
-#                         ux, uy = ue_coords[i]
-#                         bx, by = bs_coords[bs_idx]
-#                         fig.add_trace(go.Scatter(
-#                             x=[bx, ux],
-#                             y=[by, uy],
-#                             mode='lines',
-#                             line=dict(color='lightgray', width=1),
-#                             showlegend=False
-#                         ))
-#             else:
-#                 # If solution is based on UE objects with associated_bs attribute (MARL style)
-#                 for i, ue in enumerate(env.ues):
-#                     if hasattr(ue, 'associated_bs') and ue.associated_bs is not None:
-#                         bs_idx = ue.associated_bs
-#                         if i < len(ue_coords) and 0 <= bs_idx < len(bs_coords):
-#                             ux, uy = ue_coords[i]
-#                             bx, by = bs_coords[bs_idx]
-#                             sinr = getattr(ue, 'sinr', 0)
-#                             fig.add_trace(go.Scatter(
-#                                 x=[bx, ux],
-#                                 y=[by, uy],
-#                                 mode='lines',
-#                                 line=dict(
-#                                     color=f'rgba(100, 100, 255, {max(0.2, min(1.0, (sinr+30)/60))})',
-#                                     width=1
-#                                 ),
-#                                 showlegend=False
-#                             ))
+            # Create and display Wilcoxon test results table
+            wilcoxon_df = pd.DataFrame(wilcoxon_results)
+            st.dataframe(wilcoxon_df)
             
-#             # Add UEs with custom data for hover
-#             custom_data = []
-#             for i, ue in enumerate(env.ues):
-#                 if isinstance(solution, list) and i < len(solution):
-#                     bs_id = solution[i]
-#                     sinr = -30  # Default if not available
-#                     if hasattr(ue, 'sinr'):
-#                         sinr = ue.sinr if ue.sinr != -np.inf else -30
-#                 else:
-#                     bs_id = getattr(ue, 'associated_bs', -1)
-#                     sinr = getattr(ue, 'sinr', -30)
-#                     if sinr == -np.inf:
-#                         sinr = -30
-#                 custom_data.append([i, bs_id, f"{sinr:.2f}"])
+            # Create summary visualization
+            st.subheader(f"Statistical Comparison for {kpi_to_compare.replace('_', ' ').title()}")
             
-#             # Plot UEs with color based on SINR if available
-#             fig.add_trace(go.Scatter(
-#                 x=ue_coords[:, 0],
-#                 y=ue_coords[:, 1],
-#                 mode='markers',
-#                 name='UE',
-#                 marker=dict(
-#                     size=10,
-#                     color=[
-#                         'red' if len(custom_data) <= i or custom_data[i][1] == -1 else 
-#                         f'rgba(0, {min(255, int(128 + 128*(float(custom_data[i][2])+30)/60))}, 0, 0.8)' 
-#                         for i in range(len(ue_coords))
-#                     ]
-#                 ),
-#                 hovertemplate="UE %{customdata[0]}<br>BS %{customdata[1]}<br>SINR %{customdata[2]}dB<extra></extra>",
-#                 customdata=custom_data
-#             ))
+            # Boxplot comparison
+            fig, ax = plt.subplots(figsize=(12, 6))
             
-#             clear_and_plot(ph_hybrid_topo, fig, "hybrid_topo_count")
-    
-#     # Initialize and run hybrid training
-#     status_text = st.empty()
-#     status_text.text(f"Initializing hybrid training with {metaheuristic_algorithm} and MARL...")
-    
-#     hybrid = HybridTraining({
-#         "env_config": {
-#             "num_bs": num_bs,
-#             "num_ue": num_ue,
-#             "log_kpis": True
-#         },
-#         "marl_algorithm": "PPO",
-#         "marl_steps_per_phase": marl_steps,
-#         "logging": {"enabled": True},
-#         "visualize_callback": visualize_hybrid,
-#         "ray_resources": {"num_cpus": 2}
-#     })
-    
-#     # Run the hybrid training process
-#     status_text.text(f"Running hybrid training: {metaheuristic_algorithm} + MARL...")
-#     result = hybrid.run_hybrid_training(initial_metaheuristic=metaheuristic_algorithm)
-    
-#     # Extract final metrics
-#     final_metrics = result.get("final_metrics", {})
-    
-#     # Display final metrics
-#     st.markdown("### Final Hybrid Training Metrics")
-    
-#     metric_cols = st.columns(3)
-#     if "reward_mean" in final_metrics:
-#         metric_cols[0].metric("Reward", f"{final_metrics.get('reward_mean', 0):.3f}")
-#     else:
-#         metric_cols[0].metric("Fitness", f"{final_metrics.get('fitness', 0):.3f}")
-        
-#     metric_cols[1].metric("Average SINR", f"{final_metrics.get('average_sinr', 0):.3f} dB")
-#     metric_cols[2].metric("Fairness", f"{final_metrics.get('fairness', 0):.3f}")
-    
-#     # Add phase comparison if available
-#     if result.get("metaheuristic_result") and result.get("marl_result"):
-#         st.markdown("### Performance Comparison")
-        
-#         meta_metrics = result["metaheuristic_result"].get("metrics", {})
-#         marl_metrics = result["marl_result"].get_best_trial("env_runners/episode_return_mean", mode="max").last_result if result["marl_result"] else {}
-        
-#         compare_df = pd.DataFrame({
-#             "Metric": ["Performance", "SINR (dB)", "Fairness"],
-#             "Metaheuristic": [
-#                 f"{meta_metrics.get('fitness', 0):.3f}",
-#                 f"{meta_metrics.get('average_sinr', 0):.3f}",
-#                 f"{meta_metrics.get('fairness', 0):.3f}"
-#             ],
-#             "MARL": [
-#                 f"{marl_metrics.get('env_runners/episode_return_mean', 0):.3f}",
-#                 f"{marl_metrics.get('custom_metrics', {}).get('average_sinr', 0):.3f}",
-#                 f"{marl_metrics.get('custom_metrics', {}).get('fairness', 0):.3f}"
-#             ]
-#         })
-        
-#         st.table(compare_df)
-    
-#     status_text.text("Hybrid training complete!")
-
-
-
-
-# ____________________________________________________________________________________________________________________________________________
-
-
-
-
-# # Add these lines before importing torch
-# # Add this before any other imports
-# # import os
-# # os.environ['STREAMLIT_SERVER_FILE_WATCHER_TYPE'] = 'none'
-# import asyncio
-# # Ensure there's an active event loop for Streamlit
-# try:
-#     asyncio.get_running_loop()
-# except RuntimeError:
-#     asyncio.set_event_loop(asyncio.new_event_loop())
-
-# import streamlit as st
-# import sys, os, threading, time, base64
-# import pandas as pd
-# import numpy as np
-# import plotly.graph_objects as go
-# from plotly.subplots import make_subplots
-# import copy
-
-# # --- Load Base Station icon (before any plotting) ---
-# icon_path = os.path.join(os.path.dirname(__file__), "assets", "bs_icon.png")
-# with open(icon_path, "rb") as f:
-#     bs_b64 = base64.b64encode(f.read()).decode()
-    
-# # # --- Algorithm info folder setup ---
-# # algo_info_dir = os.path.join(os.path.dirname(__file__), "algo_info")  # markdown files here
-# # algo_image_dir = os.path.join(os.path.dirname(__file__), "assets", "algo_images")  # images per algorithm
-
-# import json
-
-# info_path = os.path.join(os.path.dirname(__file__), "assets", "algo_info.json")
-# with open(info_path) as f:
-#     algo_info = json.load(f)
-
-
-# # --- Page config ---
-# st.set_page_config(page_title="6G Metaheuristic Dashboard", layout="wide")
-
-# # --- Session-state initialization ---
-# st.session_state.setdefault("cmp", {})
-# for cnt in ("kpi_count","live_count","final_count","topo_single_count"):  
-#     st.session_state.setdefault(cnt, 0)
-# if "figures" not in st.session_state:
-#     st.session_state.figures = {
-#         "topo": None,
-#         "kpi": None,
-#         "live": None
-#     }
-# # Project path setup
-# project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-# sys.path.insert(0, project_root)
-# from core.envs.custom_channel_env import NetworkEnvironment
-# from core.hybrid_trainer.metaheuristic_opt import run_metaheuristic
-# from core.hybrid_trainer.kpi_logger import KPITracker
-
-# st.title("6G Metaheuristic Dashboard")
-
-# # Sidebar controls
-# with st.sidebar:
-#     mode   = st.radio("Mode", ["Single","Comparison"] )
-#     num_bs = st.slider("Base Stations", 5,50,10)
-#     num_ue = st.slider("Users", 20,200,50)
-#     if mode=="Single":
-#         algorithm = st.selectbox("Algorithm", ["pfo","co","coa","do","fla","gto","hba","hoa","avoa","poa","rime","roa","rsa","sto"])
-#     else:
-#         algorithm = st.multiselect("Compare Algos", ["avoa","co","coa","do","fla","gto","hba","hoa","pfo","poa","rime","roa","rsa","sto"], default=["pfo","co"] )
-#         kpi_to_compare = st.selectbox("KPI to Compare", ["fitness","average_sinr","fairness"], index=0)
-#     run = st.button("Start")
-
-# # Helper: clear & plot
-# def clear_and_plot(ph, fig, counter_name, force_redraw=False):
-#     # Only clears and redraws the given placeholder (used for KPI and live charts)
-#     if not force_redraw and counter_name in st.session_state.figures and st.session_state.figures[counter_name] is not None:
-#         st.session_state[counter_name] += 1
-#         st.session_state.figures[counter_name] = copy.deepcopy(fig)
-#         ph.plotly_chart(fig, use_container_width=True, key=f"{counter_name}_{st.session_state[counter_name]}")
-#     else:
-#         ph.empty()
-#         st.session_state[counter_name] += 1
-#         ph.plotly_chart(fig, use_container_width=True, key=f"{counter_name}_{st.session_state[counter_name]}")
-#         st.session_state.figures[counter_name] = copy.deepcopy(fig)
-
-# # Top row: topology + info
-# col_topo, col_info = st.columns([3,1])
-# with col_topo:
-#     st.markdown("---")
-#     ph_topo = st.expander("Network Topology", expanded=True).empty()
-#     topo_env = NetworkEnvironment({"num_bs":num_bs, "num_ue":num_ue}, log_kpis=False)
-#     bs_coords = np.array([b.position for b in topo_env.base_stations])
-#     ue_coords = np.array([u.position for u in topo_env.ues])
-#     fig_topo = go.Figure()
-#     fig_topo.add_trace(go.Scatter(x=bs_coords[:,0], y=bs_coords[:,1], mode='markers', name='BS', marker=dict(size=0, color='rgba(0,0,0,0)'), showlegend=True))
-#     for x,y in bs_coords:
-#         fig_topo.add_layout_image(source=f"data:image/png;base64,{bs_b64}", xref="x", yref="y", x=x, y=y,
-#                                   sizex=5, sizey=5, xanchor="center", yanchor="middle", layer="above")
-#     fig_topo.add_trace(go.Scatter(x=ue_coords[:,0], y=ue_coords[:,1], mode='markers', name='UE', marker=dict(size=10),
-#                                   hovertemplate="UE %{customdata[0]}<br>Assigned BS %{customdata[1]}<extra></extra>",
-#                                   customdata=np.stack([np.arange(len(ue_coords)), [-1]*len(ue_coords)], axis=1)))
-#     ph_topo.plotly_chart(fig_topo, use_container_width=True)
-#     st.markdown("---")
-# with col_info:
-#     # with st.expander("Algorithm Info", expanded=False):
-#     #     if mode=="Single":
-#     #         st.write(f"**Algorithm:** {algorithm}")
-#     #         st.info(f"Details about {algorithm} go here.")
-#     #     else:
-#     #         st.write("**Comparing:**")
-#     #         for a in algorithm:
-#     #             st.write(f"- **{a}**: description...")
-#     #         st.info("Comparison based on selected KPI.")
-    # with st.expander("Algorithm Info"):
-    #     if mode == "Single":
-    #         info = algo_info.get(algorithm, {})
-    #         st.markdown(f"## {info.get('name', algorithm)}")
-    #         st.image(info.get("image"), use_container_width=True)
-    #         st.write(info.get("long", "No description available."))
-    #     else:
-    #         for alg in algorithm:
-    #             info = algo_info.get(alg, {})
-    #             st.markdown(f"**{info.get('name', alg)}**: {info.get('short','')}")
-    
-# # SINGLE MODE
-# if run and mode=="Single":
-#     ph_kpi = st.empty()
-#     tracker = KPITracker()
-#     env = topo_env
-#     def visualize(metrics, solution):
-#         hist = tracker.history
-#         if not hist.empty:
-#             fig_kpi = make_subplots(rows=3, cols=1, shared_xaxes=True, subplot_titles=["Fitness","SINR","Fairness"])
-#             fig_kpi.update_layout(height=600, margin=dict(t=50,b=40,l=40,r=40))
-#             for i in (1,2,3): fig_kpi.update_yaxes(showgrid=True, gridwidth=1, row=i, col=1); fig_kpi.update_xaxes(showgrid=True, gridwidth=1, row=i, col=1)
-#             fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['fitness'], name='Fitness', line=dict(width=2)), row=1, col=1)
-#             fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['average_sinr'], name='SINR', line=dict(width=2)), row=2, col=1)
-#             fig_kpi.add_trace(go.Scatter(x=hist.index, y=hist['fairness'], name='Fairness', line=dict(width=2)), row=3, col=1)
-#             clear_and_plot(ph_kpi, fig_kpi, "kpi_count")
-#         bs_coords = np.array([b.position for b in env.base_stations])
-#         ue_coords = np.array([u.position for u in env.ues])
-#         fig = go.Figure()
-#         fig.add_trace(go.Scatter(x=bs_coords[:,0], y=bs_coords[:,1], mode='markers', name='BS', marker=dict(size=0, color='rgba(0,0,0,0)'), showlegend=True))
-#         for x,y in bs_coords: fig.add_layout_image(source=f"data:image/png;base64,{bs_b64}", xref="x", yref="y", x=x, y=y, sizex=5, sizey=5, xanchor="center", yanchor="middle", layer="above")
-#         for i,(ux,uy) in enumerate(ue_coords): bx,by=bs_coords[solution[i]]; fig.add_trace(go.Scatter(x=[bx,ux],y=[by,uy],mode='lines',line=dict(color='lightgray',width=1),showlegend=False))
-#         custom=np.stack([np.arange(len(ue_coords)),solution],axis=1)
-#         fig.add_trace(go.Scatter(x=ue_coords[:,0],y=ue_coords[:,1],mode='markers',name='UE',marker=dict(size=10),hovertemplate="UE %{customdata[0]}<br>BS %{customdata[1]}<extra></extra>",customdata=custom))
-#         clear_and_plot(ph_topo, fig, "topo_single_count")
-#     res = run_metaheuristic(env=env, algorithm=algorithm, epoch=0, kpi_logger=tracker, visualize_callback=visualize)
-#     metrics = res["metrics"]
-#     st.success("Single optimization complete!")
-#     st.markdown("### Final KPIs Summary")
-
-#     kpi_labels = {
-#         "fitness": ("Fitness Score", ""),
-#         "average_sinr": ("Avg SINR", "dB"),
-#         "fairness": ("Fairness Index", "")
-#     }
-#     cols = st.columns(3)
-#     for i, (kpi, (label, unit)) in enumerate(kpi_labels.items()):
-#         val = metrics.get(kpi, 0)
-#         cols[i].metric(label, f"{val:.3f} {unit}")
-
-# # COMPARISON MODE
-# if run and mode=="Comparison":
-#     ph_live_title=st.empty(); ph_live_chart=st.empty(); ph_live_title.subheader(f"Comparison: Live {kpi_to_compare.replace('_',' ').title()}")
-#     results={}; st.session_state.cmp.clear()
-#     for alg in algorithm:
-#         tr=KPITracker(); e=NetworkEnvironment({"num_bs":num_bs,"num_ue":num_ue},log_kpis=False); st.session_state.cmp[alg]={"tracker":tr}
-#         def worker(a=alg,tr=tr,e=e): results[a]=run_metaheuristic(env=e,algorithm=a,epoch=0,kpi_logger=tr,visualize_callback=None)
-#         t=threading.Thread(target=worker,daemon=True); t.start(); st.session_state.cmp[alg]["thread"]=t
-#     while any(d["thread"].is_alive() for d in st.session_state.cmp.values()):
-#         fig_live=make_subplots(rows=1,cols=1)
-#         for alg,d in st.session_state.cmp.items():
-#             h=d["tracker"].history
-#             if not h.empty: fig_live.add_trace(go.Scatter(x=h.index,y=h[kpi_to_compare],name=alg))
-#         clear_and_plot(ph_live_chart,fig_live,"live_count"); time.sleep(1)
-#     for a,r in results.items(): st.session_state.cmp[a]["result"]=r
-#     c1,_,c3=st.columns([4,1,3]);
-#     with c1: st.subheader(f"Final {kpi_to_compare.replace('_',' ').title()}"); df=pd.DataFrame([{"alg":a,kpi_to_compare:r["metrics"][kpi_to_compare]} for a,r in results.items()]).set_index("alg"); st.plotly_chart(go.Figure(data=[go.Bar(x=df.index,y=df[kpi_to_compare])]),use_container_width=True)
-#     with c3: 
-#         st.subheader("Final KPI Summary")
-#         for a,r in results.items(): st.markdown(f"### {a.upper()}"); st.write(f"{r['metrics'][kpi_to_compare]:.3f}")
-#     st.success("Comparison complete!")
-
-
-# # ____________________________________________________________________________________________________________
-
-
+            # Prepare data for boxplot
+            box_data = []
+            box_labels = []
+            
+            # Always put baseline first
+            box_data.append([r["kpi_value"] for r in all_results[baseline_algo]])
+            box_labels.append(f"{baseline_algo.upper()} (Baseline)")
+            
+            for algo in comparison_algos:
+                box_data.append([r["kpi_value"] for r in all_results[algo]])
+                box_labels.append(algo.upper())
+            
+            # Create boxplot
+            bp = ax.boxplot(box_data, patch_artist=True, labels=box_labels)
+            
+            # Color the baseline differently
+            for i, box in enumerate(bp['boxes']):
+                if i == 0:  # Baseline
+                    box.set(facecolor='lightblue')
+                else:
+                    # Color based on significance
+                    if wilcoxon_results[i-1]["p-value"] < 0.05:
+                        if wilcoxon_results[i-1]["Comparison"] == "better":
+                            box.set(facecolor='lightgreen')
+                        elif wilcoxon_results[i-1]["Comparison"] == "worse":
+                            box.set(facecolor='lightcoral')
+                        else:
+                            box.set(facecolor='lightyellow')
+                    else:
+                        box.set(facecolor='lightyellow')
+            
+            # Add title and labels
+            ax.set_title(f'Distribution of {kpi_to_compare.replace("_", " ").title()} Values')
+            ax.set_ylabel(kpi_to_compare.replace('_', ' ').title())
+            ax.set_xlabel('Algorithm')
+            
+            # Rotate x-axis labels for better readability
+            plt.xticks(rotation=45, ha='right')
+            
+            # Add a legend
+            from matplotlib.patches import Patch
+            legend_elements = [
+                Patch(facecolor='lightblue', label='Baseline'),
+                Patch(facecolor='lightgreen', label='Significantly Better (p<0.05)'),
+                Patch(facecolor='lightcoral', label='Significantly Worse (p<0.05)'),
+                Patch(facecolor='lightyellow', label='No Significant Difference')
+            ]
+            ax.legend(handles=legend_elements, loc='upper right')
+            
+            # Add grid for easier reading
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            fig.tight_layout()
+            st.pyplot(fig)
+            
+            # Create bar chart showing mean values with error bars (95% CI)
+            st.subheader(f"Mean {kpi_to_compare.replace('_', ' ').title()} Comparison")
+            
+            # Calculate means and confidence intervals
+            means = []
+            ci_low = []
+            ci_high = []
+            labels = []
+            
+            # Always put baseline first
+            baseline_data = np.array([r["kpi_value"] for r in all_results[baseline_algo]])
+            means.append(np.mean(baseline_data))
+            # 95% CI using t-distribution
+            sem = stats.sem(baseline_data)
+            ci = sem * stats.t.ppf((1 + 0.95) / 2, len(baseline_data) - 1)
+            ci_low.append(means[0] - ci)
+            ci_high.append(means[0] + ci)
+            labels.append(f"{baseline_algo.upper()} (Baseline)")
+            
+            for algo in comparison_algos:
+                algo_data = np.array([r["kpi_value"] for r in all_results[algo]])
+                means.append(np.mean(algo_data))
+                sem = stats.sem(algo_data)
+                ci = sem * stats.t.ppf((1 + 0.95) / 2, len(algo_data) - 1)
+                ci_low.append(means[-1] - ci)
+                ci_high.append(means[-1] + ci)
+                labels.append(algo.upper())
+            
+            # Create bar chart
+            fig, ax = plt.subplots(figsize=(12, 6))
+            
+            # Plot bars
+            x = np.arange(len(labels))
+            bars = ax.bar(x, means, yerr=np.array([np.array(means) - np.array(ci_low), 
+                                                np.array(ci_high) - np.array(means)]),
+                        capsize=5, alpha=0.7)
+            
+            # Color bars based on statistical significance
+            bars[0].set_color('lightblue')  # Baseline
+            
+            for i in range(1, len(bars)):
+                if wilcoxon_results[i-1]["p-value"] < 0.05:
+                    if wilcoxon_results[i-1]["Comparison"] == "better":
+                        bars[i].set_color('lightgreen')
+                    elif wilcoxon_results[i-1]["Comparison"] == "worse":
+                        bars[i].set_color('lightcoral')
+                    else:
+                        bars[i].set_color('lightyellow')
+                else:
+                    bars[i].set_color('lightyellow')
+            
+            # Add labels and title
+            ax.set_ylabel(kpi_to_compare.replace('_', ' ').title())
+            ax.set_title(f'Mean {kpi_to_compare.replace("_", " ").title()} with 95% Confidence Intervals')
+            ax.set_xticks(x)
+            ax.set_xticklabels(labels, rotation=45, ha='right')
+            
+            # Add significance markers
+            for i in range(1, len(bars)):
+                if wilcoxon_results[i-1]["p-value"] < 0.01:
+                    marker = "***"
+                elif wilcoxon_results[i-1]["p-value"] < 0.05:
+                    marker = "**"
+                elif wilcoxon_results[i-1]["p-value"] < 0.1:
+                    marker = "*"
+                else:
+                    marker = ""
+                    
+                if marker:
+                    height = max(means[i], means[0]) * 1.05
+                    ax.text(x[i], height, marker, ha='center', va='bottom', fontsize=12)
+            
+            # Add a legend
+            legend_elements = [
+                Patch(facecolor='lightblue', label='Baseline'),
+                Patch(facecolor='lightgreen', label='Significantly Better (p<0.05)'),
+                Patch(facecolor='lightcoral', label='Significantly Worse (p<0.05)'),
+                Patch(facecolor='lightyellow', label='No Significant Difference')
+            ]
+            ax.legend(handles=legend_elements, loc='upper right')
+            
+            # Add significance legend
+            ax.text(0.98, 0.02, "*** p<0.01, ** p<0.05, * p<0.1", 
+                    transform=ax.transAxes, ha='right', va='bottom', fontsize=10)
+            
+            # Add grid
+            ax.grid(True, linestyle='--', alpha=0.3, axis='y')
+            
+            fig.tight_layout()
+            st.pyplot(fig)
+            
+            # Create convergence plot to compare performance over iterations
+            st.subheader("Convergence Behavior Analysis")
+            
+            # First, rerun algorithms to track convergence
+            convergence_data = {algo: [] for algo in [baseline_algo] + comparison_algos}
+            
+            # Select a single seed for convergence analysis
+            convergence_seed = n_seeds // 2  # Middle seed
+            
+            # Create placeholder for convergence plot
+            convergence_plot = st.empty()
+            
+            # Run baseline and comparison algos and track convergence
+            for algo in [baseline_algo] + comparison_algos:
+                # Set random seed
+                np.random.seed(convergence_seed)
+                
+                # Create environment
+                env = NetworkEnvironment({"num_ue": selected_ue, "num_bs": selected_bs})
+                
+                # Create tracker that will record history
+                tracker = KPITracker()
+                
+                # Run algorithm with the tracker
+                result = run_metaheuristic(
+                    env=env,
+                    algorithm=algo,
+                    epoch=iterations,
+                    kpi_logger=tracker,
+                    visualize_callback=None,
+                    iterations=iterations
+                )
+                
+                # Store convergence data
+                if kpi_to_compare in tracker.history:
+                    convergence_data[algo] = tracker.history[kpi_to_compare].tolist()
+                else:
+                    # If KPI not in history, create a flat line with the final value
+                    convergence_data[algo] = [result["metrics"].get(kpi_to_compare, 0)] * iterations
+            
+            # Create convergence plot
+            fig, ax = plt.subplots(figsize=(12, 6))
+            
+            # Plot line for baseline
+            ax.plot(range(1, len(convergence_data[baseline_algo])+1), 
+                    convergence_data[baseline_algo], 
+                    label=f"{baseline_algo.upper()} (Baseline)",
+                    linewidth=3, color='blue')
+            
+            # Plot lines for comparison algorithms
+            colors = plt.cm.tab10.colors
+            for i, algo in enumerate(comparison_algos):
+                ax.plot(range(1, len(convergence_data[algo])+1), 
+                        convergence_data[algo],
+                        label=algo.upper(),
+                        linewidth=1.5, color=colors[(i+1) % len(colors)])
+            
+            # Add labels and title
+            ax.set_xlabel('Iteration')
+            ax.set_ylabel(kpi_to_compare.replace('_', ' ').title())
+            ax.set_title(f'Convergence Behavior for {kpi_to_compare.replace("_", " ").title()}')
+            
+            # Add legend
+            ax.legend()
+            
+            # Add grid
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Display convergence plot
+            convergence_plot.pyplot(fig)
+            
+            # Create summary table
+            st.subheader("Statistical Summary")
+            
+            # Calculate summary statistics
+            summary_data = []
+            
+            # Baseline first
+            baseline_data = np.array([r["kpi_value"] for r in all_results[baseline_algo]])
+            summary_data.append({
+                "Algorithm": f"{baseline_algo.upper()} (Baseline)",
+                "Mean": np.mean(baseline_data),
+                "Median": np.median(baseline_data),
+                "Std Dev": np.std(baseline_data),
+                "Min": np.min(baseline_data),
+                "Max": np.max(baseline_data),
+                "95% CI Lower": np.mean(baseline_data) - stats.sem(baseline_data) * stats.t.ppf((1 + 0.95) / 2, len(baseline_data) - 1),
+                "95% CI Upper": np.mean(baseline_data) + stats.sem(baseline_data) * stats.t.ppf((1 + 0.95) / 2, len(baseline_data) - 1)
+            })
+            
+            # Comparison algorithms
+            for algo in comparison_algos:
+                algo_data = np.array([r["kpi_value"] for r in all_results[algo]])
+                summary_data.append({
+                    "Algorithm": algo.upper(),
+                    "Mean": np.mean(algo_data),
+                    "Median": np.median(algo_data),
+                    "Std Dev": np.std(algo_data),
+                    "Min": np.min(algo_data),
+                    "Max": np.max(algo_data),
+                    "95% CI Lower": np.mean(algo_data) - stats.sem(algo_data) * stats.t.ppf((1 + 0.95) / 2, len(algo_data) - 1),
+                    "95% CI Upper": np.mean(algo_data) + stats.sem(algo_data) * stats.t.ppf((1 + 0.95) / 2, len(algo_data) - 1)
+                })
+            
+            # Display summary table
+            summary_df = pd.DataFrame(summary_data)
+            st.dataframe(summary_df)
+            
+            # Download buttons for results
+            st.subheader("Download Results")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                csv_raw = results_df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="Download Raw Results",
+                    data=csv_raw,
+                    file_name=f"wilcoxon_raw_results_{kpi_to_compare}.csv",
+                    mime="text/csv"
+                )
+            
+            with col2:
+                csv_wilcoxon = wilcoxon_df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="Download Wilcoxon Results",
+                    data=csv_wilcoxon,
+                    file_name=f"wilcoxon_test_results_{kpi_to_compare}.csv",
+                    mime="text/csv"
+                )
+                
+            with col3:
+                csv_summary = summary_df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="Download Summary Statistics",
+                    data=csv_summary,
+                    file_name=f"wilcoxon_summary_{kpi_to_compare}.csv",
+                    mime="text/csv"
+                )
+            
+            # Final success message
+            st.success(f"Wilcoxon test completed comparing {baseline_algo.upper()} against {len(comparison_algos)} algorithms for {kpi_to_compare} KPI")    
