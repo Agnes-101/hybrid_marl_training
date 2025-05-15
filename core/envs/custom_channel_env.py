@@ -1679,7 +1679,7 @@ class NetworkEnvironment(MultiAgentEnv):
             lin_snr = ue.sinr
             snr_db  = 10*np.log10(lin_snr + 1e-12)
             r_gbps = throughputs_Gbps[ue_id]
-            print(f" UE {ue_id}: assoc→BS{ue.associated_bs}, "
+            print(f" UE {ue_id}: assoc→BS{ue.associated_bs}, EWMA_dr ({ue.ewma_dr}),"
                 f"SINR={snr_db:.2f} dB, Rate={r_gbps:.3f} Gb/s")        
 
         # 5) Compute other metrics
@@ -1715,62 +1715,7 @@ class NetworkEnvironment(MultiAgentEnv):
 
         }
 
-    # def evaluate_detailed_solution(self, solution, alpha=0.1, beta=0.1):
-    #     """
-    #     Apply a candidate user‑association solution, compute detailed performance metrics, then restore state.
-    #     """
-    #     # 1) Snapshot current state
-    #     original = self.get_state_snapshot()
-
-    #     # 2) Apply the proposed associations
-    #     self.apply_solution(solution)
-    #     connected_count = sum(1 for ue in self.ues if ue.associated_bs is not None)
-    #     # print(f"Connected UEs = {connected_count} / {self.num_ue}")
-        
-    #     # 3) Ensure loads and SINRs are up-to-date
-    #     for bs in self.base_stations:
-    #         bs.calculate_load()
-    #     # for ue in self.ues:
-    #     #     ue.sinr = self._calculate_sinrs(ue)[ue.associated_bs] if ue.associated_bs is not None else -np.inf
-    #     for ue in self.ues:
-    #         if ue.associated_bs is not None:
-    #             sinr_vec = self._calculate_sinrs(ue, debug=(ue.id<3))
-    #             ue.sinr = sinr_vec[ue.associated_bs]
-    #         else:
-    #             ue.sinr = -np.inf
-    #     # 4) Throughputs per UE from actual shared allocations
-    #     throughputs = np.zeros(self.num_ue, dtype=np.float32)
-    #     for bs in self.base_stations:
-    #         for ue_id, dr in bs.allocated_resources.items():
-    #             throughputs[ue_id] = dr
-
-    #     # Debug: print a few sample UE stats
-    #     for ue_id in throughputs.argsort()[-5:]:
-    #         ue = self.ues[ue_id]
-    #         print(f" UE {ue_id}: assoc→BS{ue.associated_bs}, SINR={ue.sinr:.2f} dB, Rate={throughputs[ue_id]:.3f} Mbps")
-
-    #     avg_throughput = throughputs.mean()
-
-    #     # 5) Compute metrics
-    #     fitness = self.calculate_reward()  # global environment reward
-    #     avg_sinr = np.mean([ue.sinr for ue in self.ues])        
-    #     fairness = (throughputs.sum()**2) / (len(throughputs) * np.sum(throughputs**2) + 1e-9)
-    #     load_var = np.var([bs.load for bs in self.base_stations])
-    #     bs_loads = [bs.load for bs in self.base_stations]
-
-    #     # 6) Restore original state
-    #     self.set_state_snapshot(original)
-
-    #     # 7) Return detailed report
-    #     return {
-    #         "fitness": float(fitness),
-    #         "average_sinr": float(avg_sinr),
-    #         "average_throughput": float(avg_throughput),
-    #         "fairness": float(fairness),
-    #         "load_variance": float(load_var),
-    #         "bs_loads": bs_loads
-    #     }
-
+    
 
         
 # env = NetworkEnvironment({"num_ue": 3, "num_bs": 2})
