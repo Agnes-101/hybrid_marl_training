@@ -1200,8 +1200,18 @@ class NetworkEnvironment(MultiAgentEnv):
                 "current_solution":     current_solution
             }
 
-            # 4) Final info dict
-            info = {**per_agent_info, "__all__": common_info}
+            # Create info dict with one entry per agent, plus global info
+            info = {
+                f"ue_{ue.id}": {
+                    "connected":             ue.associated_bs is not None,
+                    "sinr_dB":               float(min(ue.sinr, 100.0)) if ue.associated_bs is not None else float("-inf"),
+                    "throughput_bps_per_hz": float(
+                        np.log2(1 + 10**(min(ue.sinr, 100.0) / 10))
+                    ) if ue.associated_bs is not None else 0.0
+                }
+                for ue in self.ues
+            }
+            info["__all__"] = common_info
             self.current_step += 1
 
             return obs, rewards, terminated, truncated, info
