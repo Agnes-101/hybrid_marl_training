@@ -1169,7 +1169,38 @@ class NetworkEnvironment(MultiAgentEnv):
             obs = self._get_obs()
             terminated = {"__all__": False}
             truncated  = {"__all__": self.current_step >= self.episode_length}
-            info       = self._build_info_dict()
+            # 1) Compute per-UE instantaneous throughput
+            per_agent_info = {}
+            for ue in self.ues:
+                key = f"ue_{ue.id}"
+                connected = ue.associated_bs is not None
+                sinr_val  = min(ue.sinr, 100.0) if connected else -np.inf
+                thr       = np.log2(1 + 10**(sinr_val/10)) if connected else 0.0
+
+                per_agent_info[key] = {
+                    "connected":            connected,
+                    "sinr_dB":              float(sinr_val),
+                    "throughput_bps_per_hz": float(thr)
+                }
+
+            # 2) Compute global fairness (Jain’s index) on PRB utilization
+            loads    = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
+            caps     = np.array([bs.num_rbs for bs in self.base_stations], dtype=np.float32) + 1e-9
+            util     = loads / caps
+            jains    = (util.sum()**2) / (len(util) * (util**2).sum() + 1e-9) if util.sum() > 0 else 0.0
+
+            # 3) Assemble common (__all__) info
+            common_info = {
+                "connected_ratio":      connected_count / self.num_ue,
+                "step_time_s":          step_time,
+                "avg_reward":           total_reward / self.num_ue if self.num_ue > 0 else 0.0,
+                "throughput_sum_Gbps":  total_throughput_gbps,
+                "fairness_index":       float(jains),
+                "current_solution":     current_solution
+            }
+
+            # 4) Final info dict
+            info = {**per_agent_info, "__all__": common_info}
             self.current_step += 1
 
             return obs, rewards, terminated, truncated, info

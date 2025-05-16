@@ -1192,10 +1192,10 @@ if __name__ == "__main__":
         # Resource management
         "ray_resources": {
             "num_cpus": 8,
-            "num_gpus": 0,
+            "num_gpus": 1,
             },
         "marl_training": {
-        "num_gpus": 0  #  GPUs allocated to MARL
+        "num_gpus": 1  #  GPUs allocated to MARL
         },
         # Visualization parameters
         "visualization": {
