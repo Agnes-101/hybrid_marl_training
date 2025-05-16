@@ -195,10 +195,10 @@ class BaseStation:
         # 4) linear SINR
         return signal_mW / (interference_mW + noise_mW + 1e-12)
     
-    def allocate_prbs(self):
+    def allocate_prbs_optimized(self):
         """
-        Enhanced version of the PRB allocation method with strong fairness guarantees
-        that specifically addresses rate jumps between similar SINR values.
+        Optimized version of the PRB allocation method that maintains fairness guarantees
+        while reducing computational complexity and redundant operations.
         """
         # Handle empty case
         if not self.ues:
@@ -211,48 +211,59 @@ class BaseStation:
         self.rb_allocation = {ue_id: [] for ue_id in self.ues}
         delivered_bits = {ue_id: 0.0 for ue_id in self.ues}
         
-        # Precompute SINR arrays and Shannon capacity for each UE-PRB combination
-        sinr_map = {}
-        rate_map = {}
-        sinr_db_map = {}  # Store SINR in dB for fairness calculations
-        
-        for ue_id, ue in self.ues.items():
-            # Get SINR for all PRBs at once
-            sinr_array = self.snr_per_rb(ue)
-            sinr_map[ue_id] = sinr_array
-            
-            # Calculate SINR in dB for fairness metrics
-            sinr_db_array = 10 * np.log10(sinr_array + 1e-10)  # Avoid log of zero
-            sinr_db_map[ue_id] = sinr_db_array
-            
-            # Precalculate rates for all PRBs
-            rate_map[ue_id] = self.rb_bandwidth * np.log2(1 + sinr_array)
-        
         # Fast path for single UE case
         if len(self.ues) == 1:
             ue_id = next(iter(self.ues))
             self.rb_allocation[ue_id] = list(range(self.num_rbs))
-            delivered_bits[ue_id] = np.sum(rate_map[ue_id])
+            
+            # Precompute rate for this single UE
+            sinr_array = self.snr_per_rb(self.ues[ue_id])
+            rate_array = self.rb_bandwidth * np.log2(1 + sinr_array)
+            delivered_bits[ue_id] = np.sum(rate_array)
         else:
-            # --- SINR CLUSTERING APPROACH ---
-            # Group UEs into SINR clusters to ensure similar treatment within clusters
+            # --------------------------------------------------
+            # OPTIMIZATION 1: Efficient Precomputation with Caching
+            # --------------------------------------------------
             
-            # Step 1: Calculate average SINR for each UE
-            avg_sinr_db = {}
-            for ue_id in self.ues:
-                avg_sinr_db[ue_id] = float(np.mean(sinr_db_map[ue_id]))
+            # Precompute SINR arrays, rates, and best PRB ordering for each UE - all at once
+            sinr_map = {}               # Store raw SINR values
+            sinr_db_map = {}            # Store SINR in dB for clustering
+            rate_map = {}               # Store achievable rates per PRB
+            sorted_prb_indices = {}     # Store pre-sorted PRB indices (best first)
+            avg_sinr_db = {}            # Store average SINR in dB per UE
             
-            # Step 2: Group UEs into SINR clusters (within 3dB of each other)
-            # Sort UEs by average SINR
+            for ue_id, ue in self.ues.items():
+                # Get SINR for all PRBs at once (single calculation)
+                sinr_array = self.snr_per_rb(ue)
+                sinr_map[ue_id] = sinr_array
+                
+                # Calculate SINR in dB for clustering
+                sinr_db_array = 10 * np.log10(sinr_array + 1e-10)  # Avoid log of zero
+                sinr_db_map[ue_id] = sinr_db_array
+                
+                # Precalculate rates for all PRBs
+                rate_map[ue_id] = self.rb_bandwidth * np.log2(1 + sinr_array)
+                
+                # Calculate average SINR for clustering
+                avg_sinr_db[ue_id] = float(np.mean(sinr_db_array))
+                
+                # Precompute sorted PRB indices (best to worst) - used multiple times
+                sorted_prb_indices[ue_id] = np.argsort(-sinr_array)
+            
+            # --------------------------------------------------
+            # OPTIMIZATION 2: Efficient Clustering
+            # --------------------------------------------------
+            
+            # Sort UEs by average SINR (once, not repeatedly)
             sorted_ues = sorted(avg_sinr_db.items(), key=lambda x: x[1])
             
-            # Define SINR clusters (UEs within 3dB of each other)
+            # Use a more efficient approach to create SINR clusters
             sinr_clusters = []
             current_cluster = [sorted_ues[0][0]]
             current_base_sinr = sorted_ues[0][1]
             
             for ue_id, sinr in sorted_ues[1:]:
-                if sinr - current_base_sinr <= 3.0:  # If within 3dB of cluster base
+                if sinr - current_base_sinr <= 3.0:  # Within 3dB of cluster base
                     current_cluster.append(ue_id)
                 else:
                     # Start a new cluster
@@ -264,77 +275,95 @@ class BaseStation:
             if current_cluster:
                 sinr_clusters.append(current_cluster)
             
-            # Step 3: Distribute PRBs fairly among clusters based on size and need
+            # --------------------------------------------------
+            # OPTIMIZATION 3: Efficient PRB Tracking with NumPy
+            # --------------------------------------------------
+            
+            # Use boolean array for PRB availability instead of sets (much faster)
+            available_prbs = np.ones(self.num_rbs, dtype=bool)  # All PRBs available initially
+            
+            # --------------------------------------------------
+            # OPTIMIZATION 4: Efficient Cluster PRB Allocation
+            # --------------------------------------------------
+            
+            # Allocate PRBs to clusters (similar approach, optimized)
             total_ues = len(self.ues)
-            all_prbs = set(range(self.num_rbs))
             cluster_prb_allocation = {}
+            remaining_prbs_count = self.num_rbs
             
-            # Allocate PRBs proportionally to clusters based on UE count
-            # with slight bias toward lower SINR clusters
-            remaining_prbs = self.num_rbs
-            
+            # Base allocation: proportional to cluster size with bias toward lower SINR clusters
             for i, cluster in enumerate(sinr_clusters):
                 cluster_size = len(cluster)
                 
-                # Base allocation: proportional to cluster size
+                # Base allocation proportional to cluster size
                 base_allocation = int(self.num_rbs * (cluster_size / total_ues))
                 
                 # Add bias toward lower SINR clusters (more PRBs for worse conditions)
-                # Bias diminishes as we go through clusters (less bias for high SINR clusters)
                 bias_factor = 1.0 + max(0, 0.1 * (len(sinr_clusters) - i - 1))
                 
                 # Final allocation with bias (ensure we don't exceed remaining PRBs)
                 cluster_allocation = min(
                     int(base_allocation * bias_factor),
-                    remaining_prbs
+                    remaining_prbs_count
                 )
                 
                 # Store allocation for this cluster
                 cluster_prb_allocation[i] = cluster_allocation
-                remaining_prbs -= cluster_allocation
+                remaining_prbs_count -= cluster_allocation
             
-            # If we have any remaining PRBs, distribute them to clusters starting from lowest SINR
-            if remaining_prbs > 0:
+            # Distribute any remaining PRBs to clusters starting from lowest SINR
+            if remaining_prbs_count > 0:
                 for i in range(len(sinr_clusters)):
-                    if remaining_prbs <= 0:
+                    if remaining_prbs_count <= 0:
                         break
                     cluster_prb_allocation[i] += 1
-                    remaining_prbs -= 1
+                    remaining_prbs_count -= 1
             
-            # Step 4: For each cluster, allocate PRBs to UEs within the cluster
+            # --------------------------------------------------
+            # OPTIMIZATION 5: Efficient Intra-Cluster Allocation
+            # --------------------------------------------------
+            
+            # Process each cluster
             for cluster_idx, cluster in enumerate(sinr_clusters):
                 cluster_prbs_needed = cluster_prb_allocation[cluster_idx]
                 
-                # If cluster has no PRBs allocated, continue
+                # Skip empty clusters
                 if cluster_prbs_needed <= 0:
                     continue
                 
-                # Calculate min PRBs per UE in this cluster
+                # First pass: minimum allocation per UE in this cluster
                 min_prbs_per_ue = max(1, cluster_prbs_needed // len(cluster))
                 
-                # First pass: give each UE in cluster their minimum allocation
+                # Allocate minimum PRBs to each UE in this cluster (in batch)
                 for ue_id in cluster:
-                    # Find best PRBs for this UE from available PRBs
-                    best_prbs_indices = np.argsort(-sinr_map[ue_id])
-                    best_prbs = [idx for idx in best_prbs_indices if idx in all_prbs][:min_prbs_per_ue]
+                    # Get pre-sorted PRB indices for this UE
+                    prb_preference = sorted_prb_indices[ue_id]
                     
-                    # Allocate these PRBs
-                    for prb in best_prbs:
-                        if prb in all_prbs:  # Double-check availability
-                            self.rb_allocation[ue_id].append(prb)
-                            all_prbs.remove(prb)
-                            delivered_bits[ue_id] += rate_map[ue_id][prb]
+                    # Find best available PRBs for this UE
+                    allocated_count = 0
+                    for prb_idx in prb_preference:
+                        if available_prbs[prb_idx] and allocated_count < min_prbs_per_ue:
+                            # Allocate this PRB
+                            self.rb_allocation[ue_id].append(prb_idx)
+                            available_prbs[prb_idx] = False  # Mark as used
+                            delivered_bits[ue_id] += rate_map[ue_id][prb_idx]
+                            allocated_count += 1
                             cluster_prbs_needed -= 1
+                            
+                            # Early exit if we've allocated enough
+                            if allocated_count >= min_prbs_per_ue:
+                                break
                 
                 # Second pass: distribute remaining PRBs within cluster using modified PF
-                if cluster_prbs_needed > 0 and all_prbs:
-                    # Calculate intra-cluster metrics with stronger fairness factors
+                if cluster_prbs_needed > 0 and np.any(available_prbs):
+                    # Calculate intra-cluster fairness metrics (once, not repeatedly)
                     
                     # Get current rates within cluster
                     cluster_rates = {}
                     for ue_id in cluster:
                         if self.rb_allocation[ue_id]:
-                            cluster_rates[ue_id] = np.sum(rate_map[ue_id][self.rb_allocation[ue_id]])
+                            allocated_prbs = self.rb_allocation[ue_id]
+                            cluster_rates[ue_id] = sum(rate_map[ue_id][prb] for prb in allocated_prbs)
                         else:
                             cluster_rates[ue_id] = 0.0
                     
@@ -342,56 +371,60 @@ class BaseStation:
                     max_cluster_rate = max(cluster_rates.values()) if cluster_rates else 1.0
                     max_cluster_rate = max(max_cluster_rate, 1.0)  # Ensure non-zero
                     
-                    # Calculate fairness factor within cluster - strongly favor lower rates
+                    # Calculate fairness factor within cluster (once, not in loop)
                     fairness_factor = {}
                     for ue_id in cluster:
                         normalized_rate = cluster_rates[ue_id] / max_cluster_rate
                         # Strong inverse relationship - lower rates get much higher priority
-                        fairness_factor[ue_id] = 1.0 / (0.2 + 0.8 * normalized_rate)  # Range: [1.0, 5.0]
+                        fairness_factor[ue_id] = 1.0 / (0.2 + 0.8 * normalized_rate)
                     
-                    # Allocate remaining PRBs using these fairness factors
-                    remaining_cluster_prbs = list(all_prbs)[:cluster_prbs_needed]
+                    # Get remaining PRBs indices as a NumPy array (faster than list conversion)
+                    remaining_prb_indices = np.where(available_prbs)[0]
                     
-                    for prb in remaining_cluster_prbs:
-                        if prb in all_prbs:
-                            # Find best UE for this PRB in the cluster
-                            best_metric = -float('inf')
-                            best_ue = None
+                    # Allocate remaining PRBs efficiently
+                    for prb in remaining_prb_indices[:cluster_prbs_needed]:
+                        # Find best UE for this PRB in the cluster
+                        best_metric = -float('inf')
+                        best_ue = None
+                        
+                        for ue_id in cluster:
+                            # Avoid division by zero with a safe minimum value
+                            ewma = max(self.ues[ue_id].ewma_dr, 1e-6)
                             
-                            for ue_id in cluster:
-                                # Avoid division by zero with a safe minimum value
-                                ewma = max(self.ues[ue_id].ewma_dr, 1e-6)
-                                
-                                # Calculate metric with strong fairness bias
-                                metric = rate_map[ue_id][prb] / ewma * fairness_factor[ue_id]
-                                
-                                if metric > best_metric:
-                                    best_metric = metric
-                                    best_ue = ue_id
+                            # Calculate metric with strong fairness bias
+                            metric = rate_map[ue_id][prb] / ewma * fairness_factor[ue_id]
                             
-                            # Allocate PRB to best UE
-                            if best_ue is not None:
-                                self.rb_allocation[best_ue].append(prb)
-                                all_prbs.remove(prb)
-                                delivered_bits[best_ue] += rate_map[best_ue][prb]
+                            if metric > best_metric:
+                                best_metric = metric
+                                best_ue = ue_id
+                        
+                        # Allocate PRB to best UE
+                        if best_ue is not None:
+                            self.rb_allocation[best_ue].append(prb)
+                            available_prbs[prb] = False  # Mark as used
+                            delivered_bits[best_ue] += rate_map[best_ue][prb]
+            
+            # --------------------------------------------------
+            # OPTIMIZATION 6: Efficient Global PF for Remaining PRBs
+            # --------------------------------------------------
             
             # Allocate any remaining PRBs using standard PF with fairness
-            if all_prbs:
-                remaining_prbs_list = list(all_prbs)
-                
-                # Calculate current rates for fairness
+            remaining_prb_indices = np.where(available_prbs)[0]
+            if len(remaining_prb_indices) > 0:
+                # Calculate current rates for fairness (once, not in loop)
                 current_rates = {}
                 for ue_id in self.ues:
                     if self.rb_allocation[ue_id]:
-                        current_rates[ue_id] = np.sum(rate_map[ue_id][self.rb_allocation[ue_id]])
+                        allocated_prbs = self.rb_allocation[ue_id]
+                        current_rates[ue_id] = sum(rate_map[ue_id][prb] for prb in allocated_prbs)
                     else:
                         current_rates[ue_id] = 0.0
                 
-                # Find max rate for normalization
+                # Calculate max rate for normalization
                 max_rate = max(current_rates.values()) if current_rates else 1.0
                 max_rate = max(max_rate, 1.0)  # Ensure non-zero
                 
-                # Calculate inverse rate fairness factor
+                # Calculate inverse rate fairness factor (once, not in loop)
                 fairness_factor = {}
                 for ue_id in self.ues:
                     normalized_rate = current_rates[ue_id] / max_rate
@@ -399,7 +432,7 @@ class BaseStation:
                     fairness_factor[ue_id] = 1.0 / max(0.1, normalized_rate)
                 
                 # Allocate remaining PRBs
-                for prb in remaining_prbs_list:
+                for prb in remaining_prb_indices:
                     # Find best UE for this PRB across all UEs
                     best_metric = -float('inf')
                     best_ue = None
@@ -418,32 +451,40 @@ class BaseStation:
                     # Allocate PRB to best UE
                     if best_ue is not None:
                         self.rb_allocation[best_ue].append(prb)
+                        available_prbs[prb] = False  # Mark as used
                         delivered_bits[best_ue] += rate_map[best_ue][prb]
-        
-        # Final check for UEs with zero PRBs - highly unlikely with our approach,
-        # but included as a safety measure
-        zero_prb_ues = [ue_id for ue_id, prbs in self.rb_allocation.items() if not prbs]
-        if zero_prb_ues:
-            # Identify UEs with many PRBs
-            ue_prb_counts = [(ue_id, len(prbs)) for ue_id, prbs in self.rb_allocation.items() if prbs]
-            ue_prb_counts.sort(key=lambda x: x[1], reverse=True)
             
-            # Redistribute one PRB from each UE with many PRBs
-            for zero_ue in zero_prb_ues:
-                if ue_prb_counts and ue_prb_counts[0][1] > 1:
-                    donor_ue, _ = ue_prb_counts[0]
-                    
-                    # Take one PRB from donor
-                    prb = self.rb_allocation[donor_ue].pop()
-                    
-                    # Give to zero PRB UE
-                    self.rb_allocation[zero_ue].append(prb)
-                    delivered_bits[zero_ue] += rate_map[zero_ue][prb]
-                    delivered_bits[donor_ue] -= rate_map[donor_ue][prb]
-                    
-                    # Update PRB count list
-                    ue_prb_counts[0] = (donor_ue, ue_prb_counts[0][1] - 1)
-                    ue_prb_counts.sort(key=lambda x: x[1], reverse=True)
+            # --------------------------------------------------
+            # OPTIMIZATION 7: Efficient Zero-PRB UE Check
+            # --------------------------------------------------
+            
+            # Final check for UEs with zero PRBs (much less likely with optimized approach)
+            zero_prb_ues = [ue_id for ue_id, prbs in self.rb_allocation.items() if not prbs]
+            if zero_prb_ues:
+                # Identify UEs with many PRBs (do this once, not repeatedly)
+                ue_prb_counts = [(ue_id, len(prbs)) for ue_id, prbs in self.rb_allocation.items() if prbs]
+                ue_prb_counts.sort(key=lambda x: x[1], reverse=True)
+                
+                # Redistribute one PRB from each UE with many PRBs
+                for zero_ue in zero_prb_ues:
+                    if ue_prb_counts and ue_prb_counts[0][1] > 1:
+                        donor_ue, _ = ue_prb_counts[0]
+                        
+                        # Take one PRB from donor
+                        prb = self.rb_allocation[donor_ue].pop()
+                        
+                        # Give to zero PRB UE
+                        self.rb_allocation[zero_ue].append(prb)
+                        delivered_bits[zero_ue] += rate_map[zero_ue][prb]
+                        delivered_bits[donor_ue] -= rate_map[donor_ue][prb]
+                        
+                        # Update PRB count list
+                        ue_prb_counts[0] = (donor_ue, ue_prb_counts[0][1] - 1)
+                        ue_prb_counts.sort(key=lambda x: x[1], reverse=True)
+        
+        # --------------------------------------------------
+        # OPTIMIZATION 8: Efficient EWMA Update
+        # --------------------------------------------------
         
         # Update EWMA throughput for each UE - ensure minimum value
         for ue_id, ue in self.ues.items():
@@ -456,10 +497,12 @@ class BaseStation:
         self.allocated_resources = {}
         for ue_id, prbs in self.rb_allocation.items():
             if prbs:  # Only calculate for UEs with allocated PRBs
-                self.allocated_resources[ue_id] = np.sum(rate_map[ue_id][prbs])
+                # Use more efficient calculation of allocated resources
+                self.allocated_resources[ue_id] = sum(rate_map[ue_id][prb] for prb in prbs)
             else:
                 self.allocated_resources[ue_id] = 0.0
         
+        # Calculate system load
         self.calculate_load()
 
     
