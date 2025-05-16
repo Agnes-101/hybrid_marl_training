@@ -195,7 +195,7 @@ class BaseStation:
         # 4) linear SINR
         return signal_mW / (interference_mW + noise_mW + 1e-12)
     
-    def allocate_prbs_optimized(self):
+    def allocate_prbs(self):
         """
         Optimized version of the PRB allocation method that maintains fairness guarantees
         while reducing computational complexity and redundant operations.
