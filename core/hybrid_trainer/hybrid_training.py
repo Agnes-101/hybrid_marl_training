@@ -40,7 +40,15 @@ import gymnasium as gym
 from collections import OrderedDict
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 import json
-    
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import itertools
+from matplotlib.path import Path
+from matplotlib.spines import Spine
+from matplotlib.transforms import Affine2D
+   
 class MetaPolicy(TorchModelV2, nn.Module):
     def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
         nn.Module.__init__(self)
@@ -603,21 +611,15 @@ class HybridTraining:
         return (np.mean(metrics["reward"]) < 
                 self.config["adaptive_tuning"]["stagnation_threshold"])
         
-    import numpy as np
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    import itertools
-    from matplotlib.path import Path
-    from matplotlib.spines import Spine
-    from matplotlib.transforms import Affine2D
+    
 
     def run_specific_comparison(
         ue_values=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
         bs_values=[3, 7, 15],
         algorithms=["pfo", "co"], 
         selected_kpis=None, 
-        n_seeds=3, 
-        iterations=10, 
+        n_seeds=1, 
+        iterations=2, 
         selected_bs=None,
         verbose=True,
         output_dir=None,
@@ -1017,9 +1019,9 @@ class HybridTraining:
     def _compare_algorithms(self) -> Dict:
         """Run and compare multiple metaheuristics"""
         algorithm_results = {}
-        algorithm_results = self.run_specific_comparison(**params)
+        algorithm_results = self.run_specific_comparison()
         # Example of additional analysis on the results
-        df = results["raw_results"]
+        df = algorithm_results["raw_results"]
         
         # Calculate average performance by algorithm
         alg_performance = df.groupby("Algorithm")[custom_kpis].mean()
