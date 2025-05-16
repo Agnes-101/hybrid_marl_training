@@ -21,7 +21,7 @@ class KPITracker:
         self.enabled = enabled
         self.history = pd.DataFrame(columns=[            
             'timestamp', 'episode','connected_ratio','step_time', 'phase', 'algorithm',
-    'episode_reward_mean', 'policy_entropy', 'fitness',"load_quantiles_Gbps","handover_rate_per_step",
+    'episode_reward_mean', 'policy_entropy', 'fitness',"load_quantiles_Gbps","handover_rate",
     'average_sinr', 'fairness', 'load_variance', 'diversity', 'throughput', "solution", "sinr_list"
         ])
         self.logs = []  # Initialize logs storage
@@ -53,7 +53,7 @@ class KPITracker:
                 'fairness': metrics.get('fairness', 0),
                 'throughput':metrics.get('throughput',0),
                 'load_variance': metrics.get('load_variance', 0),
-                "handover_rate_per_step":metrics.get("handover_rate_per_step",0),
+                "handover_rate":metrics.get("handover_rate",0),
                 "load_quantiles_Gbps":metrics.get("load_quantiles_Gbps",0),
                 'diversity':metrics.get('diversity', 0)
             }])

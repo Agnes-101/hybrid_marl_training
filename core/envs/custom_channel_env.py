@@ -1709,7 +1709,7 @@ class NetworkEnvironment(MultiAgentEnv):
         return {
             "fitness": float(fitness),
             "average_sinr": float(avg_sinr),
-            "average_throughput_Gbps": float(avg_throughput_Gbps),
+            "average_throughput": float(avg_throughput_Gbps),
             "fairness": float(fairness),
             "load_variance": float(load_var),
             "bs_loads": bs_loads,

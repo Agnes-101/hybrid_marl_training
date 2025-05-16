@@ -66,12 +66,12 @@ SCENARIOS = {
     "Small":  {"UE": [10],      "BS": [3]},
     "Medium": {"UE": [50],      "BS": [7]},
     "Large":  {"UE": [100],     "BS": [15]},
-    "All":    {"UE": [10,50,100],"BS": [3,7,15]},
+    "All":    {"UE": [10,20,30,40,50,60,70,80,90,100],"BS": [3,7,15]},
 }
 # Define list of KPIs to track
 all_kpis = [
             'fitness', 
-            'handover_rate_per_step',
+            'handover_rate',
             'average_sinr', 
             'fairness', 
             'load_variance',
@@ -508,10 +508,12 @@ if run:
             
             # Add controls for number of seeds
             n_seeds = st.slider("Number of seeds per configuration", 1, 10, 3)
-            
+            bs_list = SCENARIOS["All"]["BS"]
+            selected_bs = st.selectbox("BS Configuration", bs_list, index=0)
             # Calculate total runs for progress tracking
-            total_runs = len(ue_list) * len(bs_list) * len(algos) * n_seeds
-            st.write(f"Running {total_runs} total simulations ({len(ue_list)} UE configs × {len(bs_list)} BS configs × {len(algos)} algorithms × {n_seeds} seeds)")
+            # total_runs = len(ue_list) * len(bs_list) * len(algos) * n_seeds
+            total_runs = len(ue_list) * len(algos) * n_seeds
+            st.write(f"Running {total_runs} total simulations ({len(ue_list)} UE configs × {len(algos)} algorithms × {n_seeds} seeds)")
             
             # Create progress bar
             progress_bar = st.progress(0)
@@ -522,7 +524,9 @@ if run:
             completed_runs = 0
             
             # Run all combinations
-            for ue, bs, alg, seed_num in itertools.product(ue_list, bs_list, algos, range(1, n_seeds + 1)):
+            # for ue, bs, alg, seed_num in itertools.product(ue_list, bs_list, algos, range(1, n_seeds + 1)):
+            for ue, alg, seed_num in itertools.product(ue_list, algos, range(1, n_seeds + 1)):
+                bs=selected_bs
                 # Update status
                 status_text.text(f"Running {alg.upper()} with UE={ue}, BS={bs}, seed #{seed_num}/{n_seeds}")
                 
