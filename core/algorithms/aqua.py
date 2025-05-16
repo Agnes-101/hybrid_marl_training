@@ -134,20 +134,38 @@ class AquilaOptimization:
 
     def _repair_solution(self, solution):
         """Identical capacity repair to ACO, with float-safe casting and clipping"""
-        # Ensure solution is valid: integer values in [0, num_bs - 1]
+        # Step 1: Ensure all assignments are integer BS indices in [0, num_bs)
         solution = np.clip(solution.astype(int), 0, self.num_bs - 1)
-        
+
+        # Step 2: Get current load per BS
         counts = np.bincount(solution, minlength=self.num_bs)
         capacities = np.array([bs.capacity for bs in self.env.base_stations])
-        
+
+        # Step 3: For every overloaded BS, reassign its excess users
         overloaded = np.where(counts > capacities)[0]
         for bs in overloaded:
             users = np.where(solution == bs)[0]
-            excess = counts[bs] - capacities[bs]
-            # Find alternative BS for excess users
-            solution[users[:excess]] = self._find_alternative_bs(users[:excess], counts)
-        
+            # Compute how many to move, force to int ≥ 0
+            raw_excess = counts[bs] - capacities[bs]
+            num_excess = max(0, int(raw_excess))
+
+            if num_excess == 0:
+                continue
+
+            # Pick that many users (you could also randomize selection here)
+            to_move = users[:num_excess]
+
+            # Find new BS indices for each of these users
+            new_bs = self._find_alternative_bs(to_move, counts)
+
+            # Reassign and immediately update counts
+            solution[to_move] = new_bs
+            # decrement old BS, increment new ones
+            counts[bs] -= num_excess
+            np.add.at(counts, new_bs, 1)
+
         return solution
+
 
 
     def _find_nearest_bs(self, position):
