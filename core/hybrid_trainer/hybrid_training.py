@@ -1074,76 +1074,76 @@ class HybridTraining:
 
     def run(self):
         # """Main training orchestration"""
-        if self.config["comparison_mode"]:
-            algorithm_results = self._compare_algorithms()
-            # best_algorithm = max(
-            #         algorithm_results,
-            #         key=lambda x: algorithm_results[x]["metrics"]["fitness"]
-            #     )
-            # print(f"\n Best algorithm selected: {best_algorithm.upper()}")
-            # initial_solution = algorithm_results[best_algorithm]
+        # if self.config["comparison_mode"]:
+        #     algorithm_results = self._compare_algorithms()
+        #     # best_algorithm = max(
+        #     #         algorithm_results,
+        #     #         key=lambda x: algorithm_results[x]["metrics"]["fitness"]
+        #     #     )
+        #     # print(f"\n Best algorithm selected: {best_algorithm.upper()}")
+        #     # initial_solution = algorithm_results[best_algorithm]
         
-        # try:
-        #     if self.config["comparison_mode"]:
-        #         algorithm_results = self._compare_algorithms()
-        #         best_algorithm = max(
-        #             algorithm_results,
-        #             key=lambda x: algorithm_results[x]["metrics"]["fitness"]
-        #         )
-        #         print(f"\n Best algorithm selected: {best_algorithm.upper()}")
-        #         initial_solution = algorithm_results[best_algorithm]
-        #     else:
-        #         # initial_solution = self._execute_metaheuristic_phase(
-        #         #     self.config["metaheuristic"]
-        #         # )
-        #         # Run metaheuristic phase only if not already done
-        #         if self.metaheuristic_runs < self.max_metaheuristic_runs:
-        #             initial_solution = self._execute_metaheuristic_phase(
-        #                 self.config["metaheuristic"]
-        #             )
-        #             self.metaheuristic_runs += 1
-        #         print(f"Initial Solution is : {initial_solution}")
-        #     # Hybrid training loop
-        #     current_phase = "marl"
-        #     print(f"\n Current phase: {current_phase}")
+        try:
+            if self.config["comparison_mode"]:
+                algorithm_results = self._compare_algorithms()
+                best_algorithm = max(
+                    algorithm_results,
+                    key=lambda x: algorithm_results[x]["metrics"]["fitness"]
+                )
+                print(f"\n Best algorithm selected: {best_algorithm.upper()}")
+                initial_solution = algorithm_results[best_algorithm]
+            else:
+                # initial_solution = self._execute_metaheuristic_phase(
+                #     self.config["metaheuristic"]
+                # )
+                # Run metaheuristic phase only if not already done
+                if self.metaheuristic_runs < self.max_metaheuristic_runs:
+                    initial_solution = self._execute_metaheuristic_phase(
+                        self.config["metaheuristic"]
+                    )
+                    self.metaheuristic_runs += 1
+                print(f"Initial Solution is : {initial_solution}")
+            # Hybrid training loop
+            current_phase = "marl"
+            print(f"\n Current phase: {current_phase}")
             
-        #     for epoch in range(1, self.config["max_epochs"] + 1):
-        #         self.current_epoch = epoch
-        #         if current_phase == "metaheuristic":
-        #             initial_solution = self._execute_metaheuristic_phase(
-        #                 self.config["metaheuristic"]
-        #             )
-        #             print(f"Initial Solution is : {initial_solution}")
-        #             current_phase = "marl"
+            for epoch in range(1, self.config["max_epochs"] + 1):
+                self.current_epoch = epoch
+                if current_phase == "metaheuristic":
+                    initial_solution = self._execute_metaheuristic_phase(
+                        self.config["metaheuristic"]
+                    )
+                    print(f"Initial Solution is : {initial_solution}")
+                    current_phase = "marl"
                 
-        #         # Execute MARL phase
-        #         analysis = self._execute_marl_phase(
-        #             initial_policy=initial_solution.get("solution")
-        #         )
+                # Execute MARL phase
+                analysis = self._execute_marl_phase(
+                    initial_policy=initial_solution.get("solution")
+                )
                 
-        #         # Log hybrid performance
-        #         self.kpi_logger.log_epoch(
-        #             epoch=epoch,
-        #             marl_metrics=analysis.stats(),
-        #             metaheuristic_metrics=initial_solution["metrics"]
-        #         )
+                # Log hybrid performance
+                self.kpi_logger.log_epoch(
+                    epoch=epoch,
+                    marl_metrics=analysis.stats(),
+                    metaheuristic_metrics=initial_solution["metrics"]
+                )
                 
-        #         # Adaptive phase switching
-        #         if (self.config["adaptive_tuning"]["enabled"] and 
-        #             self._adaptive_retuning_required()):
-        #             print("\n Performance stagnation detected - triggering retuning")
-        #             current_phase = "metaheuristic"
+                # Adaptive phase switching
+                if (self.config["adaptive_tuning"]["enabled"] and 
+                    self._adaptive_retuning_required()):
+                    print("\n Performance stagnation detected - triggering retuning")
+                    current_phase = "metaheuristic"
                 
-        #         # Save system state
-        #         if epoch % self.config["checkpoint_interval"] == 0:
-        #             self.env.save_checkpoint(
-        #                 f"{self.config['checkpoint_dir']}/epoch_{epoch}.pkl"
-        #             )
+                # Save system state
+                if epoch % self.config["checkpoint_interval"] == 0:
+                    self.env.save_checkpoint(
+                        f"{self.config['checkpoint_dir']}/epoch_{epoch}.pkl"
+                    )
 
-        # finally:
-        #    # self.dashboard.finalize_visualizations()
-        #     self.kpi_logger.generate_final_reports()
-        #     ray.shutdown()
+        finally:
+           # self.dashboard.finalize_visualizations()
+            self.kpi_logger.generate_final_reports()
+            ray.shutdown()
 
 
 if __name__ == "__main__":
@@ -1170,14 +1170,14 @@ if __name__ == "__main__":
     config = {
         # Core configuration
         "metaheuristic": "pfo",
-        "comparison_mode": True,
+        "comparison_mode": False,
         "metaheuristic_algorithms": ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa","aqua", "poa", "rime", "roa", "rsa", "sto"], #
         "marl_algorithm": "PPO", 
         
         # Environment parameters
         "env_config": {
             "num_bs": 3,
-            "num_ue": 60,
+            "num_ue": 50,
             "episode_length": 10,
             "log_kpis": True
         },
