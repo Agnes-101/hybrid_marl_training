@@ -94,7 +94,7 @@ with st.sidebar:
         kpi_cmp = st.selectbox("KPI to Compare", ["fitness", "average_sinr", "fairness"])
         
     if mode == "Specific Comparison":
-        iterations = st.slider("Iterations", 5, 50, 10)
+        iterations = st.slider("Iterations", 2, 50, 10)
         scenario_name = st.selectbox("Scenario", list(SCENARIOS.keys()))
         ue_list = SCENARIOS[scenario_name]["UE"]
         bs_list = SCENARIOS[scenario_name]["BS"]
@@ -107,7 +107,7 @@ with st.sidebar:
         viz_freq = st.slider("Visualization Frequency", 1, 20, 5, 
                              help="Update topology visualization every N steps (higher = faster but less visual feedback)")
     if mode == "Wilcoxon Test":
-        iterations = st.slider("Iterations", 5, 50, 10)
+        iterations = st.slider("Iterations", 2, 50, 10)
         # algos = st.multiselect("Compare Algos", ["avoa", "aqua","co", "coa", "do", "fla", "gto", "hba", "hoa", "pfo", "poa", "rime", "roa", "rsa", "sto"], default=["pfo", "co"])
         # kpi_cmp = st.selectbox("KPI to Compare", ["fitness", "average_sinr", "fairness"])
     
@@ -1332,7 +1332,7 @@ if run:
         st.header("Statistical Algorithm Comparison")
         
         # Configure test parameters
-        iterations = st.slider("Iterations per run", 10, 100, 30)
+        # iterations = st.slider("Iterations per run", 10, 100, 30)
         n_seeds = st.slider("Number of seeds (samples)", 5, 30, 10)
         
         # Choose baseline algorithm (default to PFO)

@@ -602,30 +602,435 @@ class HybridTraining:
         )
         return (np.mean(metrics["reward"]) < 
                 self.config["adaptive_tuning"]["stagnation_threshold"])
+        
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import itertools
+    from matplotlib.path import Path
+    from matplotlib.spines import Spine
+    from matplotlib.transforms import Affine2D
 
+    # Constants
+    SCENARIOS = {
+        "Small":  {"UE": [10],      "BS": [3]},
+        "Medium": {"UE": [50],      "BS": [7]},
+        "Large":  {"UE": [100],     "BS": [15]},
+        "All":    {"UE": [10,20,30,40,50,60,70,80,90,100],"BS": [3,7,15]},#  [10,20,30,40,50,60,70,80,90,100]
+    }
+
+    # Define list of KPIs to track
+    all_kpis = [
+        'fitness', 
+        'handover_rate',
+        'average_sinr', 
+        'fairness', 
+        'load_variance',
+        'throughput',
+        'energy_efficiency',
+        'connection_rate'
+    ]
+
+    def run_specific_comparison(
+        scenario_name="All", 
+        algorithms=["pfo", "co"], 
+        selected_kpis="all_kpis", 
+        n_seeds=1, 
+        iterations=3, 
+        selected_bs=None,
+        verbose=True,
+        output_dir=None
+    ):
+        """
+        Run network simulation with multiple configurations and generate analysis
+        
+        Parameters:
+        -----------
+        scenario_name : str
+            Name of the scenario to use from predefined SCENARIOS
+        algorithms : list
+            List of algorithms to compare
+        selected_kpis : str or list
+            KPIs to analyze, can be "all_kpis" or a list of KPI names
+        n_seeds : int
+            Number of seeds per configuration for statistical significance
+        iterations : int
+            Number of iterations for each simulation run
+        selected_bs : int
+            Specific BS configuration to use (if None, uses first from scenario)
+        verbose : bool
+            Whether to print progress information
+        output_dir : str
+            Directory to save output files (if None, files are not saved)
+            
+        Returns:
+        --------
+        dict
+            Dictionary containing the results dataframe, aggregated data, and generated figures
+        """
+        # Get scenario parameters
+        ue_list = SCENARIOS[scenario_name]["UE"]
+        bs_list = SCENARIOS[scenario_name]["BS"]
+        
+        # Set BS configuration
+        if selected_bs is None:
+            selected_bs = bs_list[0]
+        
+        # Handle KPI selection
+        if selected_kpis == "all_kpis":
+            selected_kpis = all_kpis
+        
+        # Calculate total runs for progress tracking
+        total_runs = len(ue_list) * len(algorithms) * n_seeds
+        
+        if verbose:
+            print(f"Running {total_runs} total simulations ({len(ue_list)} UE configs × {len(algorithms)} algorithms × {n_seeds} seeds)")
+            print(f"Using fixed BS={selected_bs}")
+        
+        # Store all results
+        records = []
+        completed_runs = 0
+        
+        # Run all combinations
+        for ue, alg, seed_num in itertools.product(ue_list, algorithms, range(1, n_seeds + 1)):
+            bs = selected_bs
+            
+            if verbose:
+                print(f"Running {alg.upper()} with UE={ue}, BS={bs}, seed #{seed_num}/{n_seeds} ({completed_runs+1}/{total_runs})")
+            
+            # Create tracker and environment for this run
+            tr = KPITracker()
+            env = NetworkEnvironment({"num_ue": ue, "num_bs": bs})
+            
+            # Set random seed for reproducibility
+            np.random.seed(seed_num)
+            
+            # Run simulation
+            out = run_metaheuristic(
+                env=env,
+                algorithm=alg,
+                epoch=iterations,
+                kpi_logger=tr,
+                visualize_callback=None,
+                iterations=iterations
+            )
+            
+            # Get metrics using dictionary access
+            m = out["metrics"]
+            
+            # Create record with all KPIs
+            record = {
+                "UE": ue,
+                "BS": bs,
+                "Algorithm": alg.upper(),
+                "Seed": seed_num,
+                "CPU Time": m.get("cpu_time", 0)
+            }
+            
+            # Add all available KPIs to the record - handle None values
+            for kpi in selected_kpis:
+                # Ensure we have a valid value (replace None with 0 to avoid arithmetic errors)
+                record[kpi] = m.get(kpi, 0) if m.get(kpi) is not None else 0
+                
+            records.append(record)
+            
+            # Update progress
+            completed_runs += 1
+            if verbose:
+                print(f"Progress: {completed_runs}/{total_runs} ({completed_runs/total_runs*100:.1f}%)")
+        
+        # Create DataFrame from all results
+        df_results = pd.DataFrame(records)
+        
+        if verbose:
+            print("Simulation complete. Aggregating results...")
+        
+        # Aggregate statistics by UE, BS, Algorithm for all KPIs
+        kpi_columns = selected_kpis + ["CPU Time"]
+        agg = (
+            df_results
+            .groupby(["UE", "BS", "Algorithm"])[kpi_columns]
+            .agg(["mean", "std"])
+        )
+        
+        # Flatten column names
+        agg.columns = ["_".join(col).strip() for col in agg.columns.values]
+        agg = agg.reset_index()
+        
+        # Save results if output directory is provided
+        if output_dir:
+            import os
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+                
+            # Save raw and aggregated results
+            df_results.to_csv(os.path.join(output_dir, f"{scenario_name}_raw_results.csv"), index=False)
+            agg.to_csv(os.path.join(output_dir, f"{scenario_name}_aggregated_results.csv"), index=False)
+        
+        # Create consistent colors and markers for algorithms
+        colors = plt.cm.tab10.colors
+        color_map = {alg.upper(): colors[i % len(colors)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+        
+        MARKERS = ['o','s','^','D','v','>','<','p','*','h','H','X','d','+']
+        marker_map = {alg.upper(): MARKERS[i % len(MARKERS)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+        
+        # Store figures for each KPI
+        figures = {}
+        
+        if verbose:
+            print("Generating visualizations...")
+        
+        # Create a plot for each KPI
+        for kpi in selected_kpis + ["CPU Time"]:
+            # Create figure for scaling behavior with UE
+            fig_scaling, ax_scaling = plt.subplots(figsize=(10, 6))
+            for alg, sub in agg.groupby("Algorithm"):
+                # Sort by UE to ensure proper line drawing
+                sub = sub.sort_values("UE")
+                ax_scaling.errorbar(
+                    sub["UE"],
+                    sub[f"{kpi}_mean"],
+                    yerr=sub[f"{kpi}_std"],  # Add error bars
+                    label=alg,
+                    marker=marker_map.get(alg, "o"),
+                    color=color_map.get(alg, "blue"),
+                    linestyle="-",
+                    markersize=8,
+                    capsize=4
+                )
+            
+            ax_scaling.set_xlabel("Number of UEs")
+            ax_scaling.set_ylabel(f"{kpi.replace('_', ' ').title()}")
+            ax_scaling.legend(title="Algorithm")
+            ax_scaling.grid(True, linestyle="--", alpha=0.7)
+            
+            # Add title with specific info
+            ax_scaling.set_title(f"{kpi.replace('_', ' ').title()} Scaling with UE (Fixed BS={selected_bs})")
+            
+            # Line graph showing performance across all UE levels
+            fig_perf, ax_perf = plt.subplots(figsize=(12, 7))
+            
+            # Get unique algorithms and UE values
+            unique_algs = sorted(agg["Algorithm"].unique())
+            unique_ue = sorted(agg["UE"].unique())
+            
+            # For each algorithm, plot a line across all UE values
+            for alg in unique_algs:
+                alg_data = agg[agg["Algorithm"] == alg].sort_values("UE")
+                ax_perf.plot(
+                    alg_data["UE"], 
+                    alg_data[f"{kpi}_mean"],
+                    label=alg,
+                    marker=marker_map.get(alg, "o"),
+                    color=color_map.get(alg, "blue"),
+                    linewidth=2,
+                    markersize=8
+                )
+                
+                # Add shaded error region
+                ax_perf.fill_between(
+                    alg_data["UE"],
+                    alg_data[f"{kpi}_mean"] - alg_data[f"{kpi}_std"],
+                    alg_data[f"{kpi}_mean"] + alg_data[f"{kpi}_std"],
+                    alpha=0.2,
+                    color=color_map.get(alg, "blue")
+                )
+            
+            # Add labels and grid
+            ax_perf.set_xlabel("Number of UEs")
+            ax_perf.set_ylabel(f"{kpi.replace('_', ' ').title()}")
+            ax_perf.set_title(f"{kpi.replace('_', ' ').title()} Performance Across All UE Levels")
+            ax_perf.legend(title="Algorithm")
+            ax_perf.grid(True, linestyle="--", alpha=0.7)
+            
+            # Set x-ticks to only show the actual UE values
+            ax_perf.set_xticks(unique_ue)
+            
+            # Save figures in the dictionary
+            figures[f"{kpi}_scaling"] = fig_scaling
+            figures[f"{kpi}_performance"] = fig_perf
+            
+            # Save figures if output directory is provided
+            if output_dir:
+                fig_scaling.savefig(os.path.join(output_dir, f"{scenario_name}_{kpi}_scaling.png"), dpi=300, bbox_inches="tight")
+                fig_perf.savefig(os.path.join(output_dir, f"{scenario_name}_{kpi}_performance.png"), dpi=300, bbox_inches="tight")
+        
+        # Function to create a radar chart
+        def radar_chart(fig, titles, values, algorithms):
+            # Number of variables
+            N = len(titles)
+            
+            # What will be the angle of each axis in the plot
+            angles = [n / float(N) * 2 * np.pi for n in range(N)]
+            angles += angles[:1]  # Close the loop
+            
+            # Create subplot
+            ax = fig.add_subplot(111, polar=True)
+            
+            # Draw one axis per variable and add labels
+            plt.xticks(angles[:-1], titles, size=12)
+            
+            # Draw ylabels
+            ax.set_rlabel_position(0)
+            
+            # Plot data
+            for i, alg in enumerate(algorithms):
+                alg_values = values[i]
+                alg_values += alg_values[:1]  # Close the loop
+                ax.plot(angles, alg_values, linewidth=2, linestyle='solid', label=alg, 
+                        color=color_map.get(alg, "blue"))
+                ax.fill(angles, alg_values, alpha=0.1, color=color_map.get(alg, "blue"))
+            
+            # Add legend
+            plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
+            
+            return ax
+        
+        # Create radar charts for each UE value
+        for radar_ue in ue_list:
+            # Filter data for the selected UE
+            radar_data = agg[agg["UE"] == radar_ue]
+            
+            # Normalize data for radar chart (0-1 scale for each KPI)
+            radar_kpis = [kpi for kpi in selected_kpis if kpi in df_results.columns]
+            
+            if len(radar_kpis) >= 3:  # Need at least 3 metrics for a meaningful radar chart
+                # Create normalized data for radar chart
+                norm_data = {}
+                for kpi in radar_kpis:
+                    # Get min and max values for this KPI
+                    kpi_min = df_results[kpi].min()
+                    kpi_max = df_results[kpi].max()
+                    kpi_range = kpi_max - kpi_min if kpi_max > kpi_min else 1
+                    
+                    # Normalize values between 0-1
+                    norm_data[kpi] = [(val - kpi_min) / kpi_range for val in radar_data[f"{kpi}_mean"]]
+                
+                # Create radar chart
+                fig_radar = plt.figure(figsize=(10, 8))
+                algorithms_list = radar_data["Algorithm"].tolist()
+                
+                # Prepare data for radar chart
+                radar_values = []
+                for i, alg in enumerate(algorithms_list):
+                    alg_values = [norm_data[kpi][i] for kpi in radar_kpis]
+                    radar_values.append(alg_values)
+                
+                # Create the radar chart
+                ax_radar = radar_chart(fig_radar, radar_kpis, radar_values, algorithms_list)
+                ax_radar.set_title(f"Algorithm Comparison Across All KPIs (UE={radar_ue}, BS={selected_bs})")
+                
+                # Save figure
+                figures[f"radar_ue_{radar_ue}"] = fig_radar
+                
+                if output_dir:
+                    fig_radar.savefig(os.path.join(output_dir, f"{scenario_name}_radar_ue_{radar_ue}.png"), dpi=300, bbox_inches="tight")
+        
+        # Create correlation heatmap
+        corr_columns = selected_kpis + ["CPU Time"]
+        corr_df = df_results[corr_columns].corr()
+        
+        fig_corr, ax_corr = plt.subplots(figsize=(10, 8))
+        im = ax_corr.imshow(corr_df, cmap="coolwarm")
+        
+        # Add colorbar
+        cbar = ax_corr.figure.colorbar(im, ax=ax_corr)
+        
+        # Set tick labels
+        ax_corr.set_xticks(np.arange(len(corr_columns)))
+        ax_corr.set_yticks(np.arange(len(corr_columns)))
+        ax_corr.set_xticklabels(corr_columns, rotation=45, ha="right")
+        ax_corr.set_yticklabels(corr_columns)
+        
+        # Add correlation values in the cells
+        for i in range(len(corr_columns)):
+            for j in range(len(corr_columns)):
+                text = ax_corr.text(j, i, f"{corr_df.iloc[i, j]:.2f}",
+                                ha="center", va="center", color="black" if abs(corr_df.iloc[i, j]) < 0.7 else "white")
+        
+        ax_corr.set_title("Correlation Between KPIs")
+        fig_corr.tight_layout()
+        
+        # Save correlation figure
+        figures["correlation"] = fig_corr
+        
+        if output_dir:
+            fig_corr.savefig(os.path.join(output_dir, f"{scenario_name}_correlation.png"), dpi=300, bbox_inches="tight")
+        
+        if verbose:
+            print(f"Multi-KPI analysis completed for {len(ue_list)} UE configurations with fixed BS={selected_bs}")
+        
+        # Close all figures to free memory
+        for fig in figures.values():
+            plt.close(fig)
+        
+        return {
+            "raw_results": df_results,
+            "aggregated_results": agg,
+            "figures": figures
+        }
+
+
+
+    # def run_metaheuristic(env, algorithm, epoch, kpi_logger, visualize_callback, iterations):
+    #     """
+    #     Placeholder for the actual algorithm runner function
+        
+    #     In a real implementation, this would run the selected metaheuristic algorithm
+    #     on the provided environment and return the metrics.
+    #     """
+    #     # Simulate some metrics based on inputs
+    #     # This is just for demonstration - replace with actual implementation
+    #     metrics = {
+    #         "cpu_time": np.random.uniform(0.5, 5) * iterations * len(str(algorithm)),
+    #         "fitness": np.random.uniform(0.7, 0.95) - (env.config["num_ue"] / 500),
+    #         "average_sinr": np.random.uniform(15, 30) - (env.config["num_ue"] / 20),
+    #         "throughput": np.random.uniform(800, 1200) * (env.config["num_bs"] / env.config["num_ue"] * 10),
+    #         "fairness": np.random.uniform(0.7, 0.9),
+    #         "load_variance": np.random.uniform(5, 20) * (env.config["num_ue"] / env.config["num_bs"]),
+    #         "handover_rate": np.random.uniform(0.05, 0.2) * (env.config["num_ue"] / 50),
+    #         "energy_efficiency": np.random.uniform(80, 120) - (env.config["num_ue"] / 5),
+    #         "connection_rate": np.random.uniform(0.9, 0.99) - (env.config["num_ue"] / 1000)
+    #     }
+        
+    #     # Adjust metrics based on algorithm (just for demonstration)
+    #     if algorithm.lower() == "pfo":
+    #         metrics["fitness"] *= 1.1
+    #         metrics["throughput"] *= 1.15
+    #     elif algorithm.lower() == "co":
+    #         metrics["average_sinr"] *= 1.07
+    #         metrics["energy_efficiency"] *= 1.1
+        
+    #     return {"metrics": metrics}
+
+
+
+        
+        
+       
     def _compare_algorithms(self) -> Dict:
         """Run and compare multiple metaheuristics"""
         algorithm_results = {}
-        
-        for algo in self.config["metaheuristic_algorithms"]:
-            self.env.reset()
-            algorithm_results[algo] = self._execute_metaheuristic_phase(algo)
-            time.sleep(1)  # Pause for visualization clarity
+        algorithm_results = self.run_specific_comparison(**params)
+        # for algo in self.config["metaheuristic_algorithms"]:
+        #     self.env.reset()
+        #     algorithm_results[algo] = self._execute_metaheuristic_phase(algo)
+        #     time.sleep(1)  # Pause for visualization clarity
         # Create animator from logged history
         # List the metrics you want to animate
-        metrics = ['fitness', 'average_sinr', 'fairness']
+        # metrics = ['fitness', 'average_sinr', 'fairness']
 
-        # Loop over each metric to create, show, and save its animation separately
-        for metric in metrics:
-            # Create a MetricAnimator instance for the current metric
-            animator = MetricAnimator(
-                df=self.kpi_logger.history,
-                metrics=[metric],  # Only process one metric at a time
-                fps=8  # Lower FPS for slower progression
-            )
-            animator.animate()           # Build the animation for this metric
-            animator.show()              # Render it inline in Jupyter/Colab
-            animator.save_videos("results/separated_metrics")
+        # # Loop over each metric to create, show, and save its animation separately
+        # for metric in metrics:
+        #     # Create a MetricAnimator instance for the current metric
+        #     animator = MetricAnimator(
+        #         df=self.kpi_logger.history,
+        #         metrics=[metric],  # Only process one metric at a time
+        #         fps=8  # Lower FPS for slower progression
+        #     )
+        #     animator.animate()           # Build the animation for this metric
+        #     animator.show()              # Render it inline in Jupyter/Colab
+        #     animator.save_videos("results/separated_metrics")
         # animator = MetricAnimator(
         #     df=self.kpi_logger.history,
         #     metrics=['fitness'],#, ', 'average_sinr','fairness'
@@ -636,7 +1041,9 @@ class HybridTraining:
         # # Save to separate files
         # animator.show()
         # animator.save_videos("results/separated_metrics")
-        
+        print(f"Analysis complete. Generated {len(results['figures'])} figures.")
+        print(f"Raw results shape: {results['raw_results'].shape}")
+        print(f"Aggregated results shape: {results['aggregated_results'].shape}")
 
         # For video export
         # animator.save_videos("results/training_progression.mp4")  
@@ -647,75 +1054,92 @@ class HybridTraining:
 
     def run(self):
         # """Main training orchestration"""
-        try:
-            if self.config["comparison_mode"]:
-                algorithm_results = self._compare_algorithms()
-                best_algorithm = max(
-                    algorithm_results,
-                    key=lambda x: algorithm_results[x]["metrics"]["fitness"]
-                )
-                print(f"\n Best algorithm selected: {best_algorithm.upper()}")
-                initial_solution = algorithm_results[best_algorithm]
-            else:
-                # initial_solution = self._execute_metaheuristic_phase(
-                #     self.config["metaheuristic"]
-                # )
-                # Run metaheuristic phase only if not already done
-                if self.metaheuristic_runs < self.max_metaheuristic_runs:
-                    initial_solution = self._execute_metaheuristic_phase(
-                        self.config["metaheuristic"]
-                    )
-                    self.metaheuristic_runs += 1
-                print(f"Initial Solution is : {initial_solution}")
-            # Hybrid training loop
-            current_phase = "marl"
-            print(f"\n Current phase: {current_phase}")
+        if self.config["comparison_mode"]:
+            algorithm_results = self._compare_algorithms()
+            # best_algorithm = max(
+            #         algorithm_results,
+            #         key=lambda x: algorithm_results[x]["metrics"]["fitness"]
+            #     )
+            # print(f"\n Best algorithm selected: {best_algorithm.upper()}")
+            # initial_solution = algorithm_results[best_algorithm]
+        
+        # try:
+        #     if self.config["comparison_mode"]:
+        #         algorithm_results = self._compare_algorithms()
+        #         best_algorithm = max(
+        #             algorithm_results,
+        #             key=lambda x: algorithm_results[x]["metrics"]["fitness"]
+        #         )
+        #         print(f"\n Best algorithm selected: {best_algorithm.upper()}")
+        #         initial_solution = algorithm_results[best_algorithm]
+        #     else:
+        #         # initial_solution = self._execute_metaheuristic_phase(
+        #         #     self.config["metaheuristic"]
+        #         # )
+        #         # Run metaheuristic phase only if not already done
+        #         if self.metaheuristic_runs < self.max_metaheuristic_runs:
+        #             initial_solution = self._execute_metaheuristic_phase(
+        #                 self.config["metaheuristic"]
+        #             )
+        #             self.metaheuristic_runs += 1
+        #         print(f"Initial Solution is : {initial_solution}")
+        #     # Hybrid training loop
+        #     current_phase = "marl"
+        #     print(f"\n Current phase: {current_phase}")
             
-            for epoch in range(1, self.config["max_epochs"] + 1):
-                self.current_epoch = epoch
-                if current_phase == "metaheuristic":
-                    initial_solution = self._execute_metaheuristic_phase(
-                        self.config["metaheuristic"]
-                    )
-                    print(f"Initial Solution is : {initial_solution}")
-                    current_phase = "marl"
+        #     for epoch in range(1, self.config["max_epochs"] + 1):
+        #         self.current_epoch = epoch
+        #         if current_phase == "metaheuristic":
+        #             initial_solution = self._execute_metaheuristic_phase(
+        #                 self.config["metaheuristic"]
+        #             )
+        #             print(f"Initial Solution is : {initial_solution}")
+        #             current_phase = "marl"
                 
-                # Execute MARL phase
-                analysis = self._execute_marl_phase(
-                    initial_policy=initial_solution.get("solution")
-                )
+        #         # Execute MARL phase
+        #         analysis = self._execute_marl_phase(
+        #             initial_policy=initial_solution.get("solution")
+        #         )
                 
-                # Log hybrid performance
-                self.kpi_logger.log_epoch(
-                    epoch=epoch,
-                    marl_metrics=analysis.stats(),
-                    metaheuristic_metrics=initial_solution["metrics"]
-                )
+        #         # Log hybrid performance
+        #         self.kpi_logger.log_epoch(
+        #             epoch=epoch,
+        #             marl_metrics=analysis.stats(),
+        #             metaheuristic_metrics=initial_solution["metrics"]
+        #         )
                 
-                # Adaptive phase switching
-                if (self.config["adaptive_tuning"]["enabled"] and 
-                    self._adaptive_retuning_required()):
-                    print("\n Performance stagnation detected - triggering retuning")
-                    current_phase = "metaheuristic"
+        #         # Adaptive phase switching
+        #         if (self.config["adaptive_tuning"]["enabled"] and 
+        #             self._adaptive_retuning_required()):
+        #             print("\n Performance stagnation detected - triggering retuning")
+        #             current_phase = "metaheuristic"
                 
-                # Save system state
-                if epoch % self.config["checkpoint_interval"] == 0:
-                    self.env.save_checkpoint(
-                        f"{self.config['checkpoint_dir']}/epoch_{epoch}.pkl"
-                    )
+        #         # Save system state
+        #         if epoch % self.config["checkpoint_interval"] == 0:
+        #             self.env.save_checkpoint(
+        #                 f"{self.config['checkpoint_dir']}/epoch_{epoch}.pkl"
+        #             )
 
-        finally:
-           # self.dashboard.finalize_visualizations()
-            self.kpi_logger.generate_final_reports()
-            ray.shutdown()
+        # finally:
+        #    # self.dashboard.finalize_visualizations()
+        #     self.kpi_logger.generate_final_reports()
+        #     ray.shutdown()
 
 
 if __name__ == "__main__":
-    
+    params = {
+        "scenario_name": "All",
+        "algorithms": ["pfo", "co", "avoa", "hoa"],
+        "selected_kpis": ["fitness", "average_sinr", "throughput"],
+        "n_seeds": 2,
+        "iterations": 5,
+        "verbose": True,
+        "output_dir": "./results"
+    }
     config = {
         # Core configuration
         "metaheuristic": "pfo",
-        "comparison_mode": False,
+        "comparison_mode": True,
         "metaheuristic_algorithms": ["pfo", "co", "coa", "do", "fla", "gto", "hba", "hoa", "avoa","aqua", "poa", "rime", "roa", "rsa", "sto"], #
         "marl_algorithm": "PPO", 
         
