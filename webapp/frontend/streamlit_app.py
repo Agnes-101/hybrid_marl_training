@@ -64,8 +64,8 @@ st.session_state.setdefault("last_viz_trigger", -1)
 
 SCENARIOS = {
     "Small":  {"UE": [10],      "BS": [3]},
-    "Medium": {"UE": [50],      "BS": [7]},
-    "Large":  {"UE": [100],     "BS": [15]},
+    "Medium": {"UE": [50],      "BS": [3]},
+    "Large":  {"UE": [100],     "BS": [7]},
     "All":    {"UE": [10,50,100],"BS": [3,7,15]},#  [10,20,30,40,50,60,70,80,90,100]
 }
 # Define list of KPIs to track
@@ -1333,7 +1333,7 @@ if run:
         
         # Configure test parameters
         # iterations = st.slider("Iterations per run", 10, 100, 30)
-        n_seeds = st.slider("Number of seeds (samples)", 5, 30, 10)
+        n_seeds = st.slider("Number of seeds (samples)", 2, 30, 10)
         
         # Choose baseline algorithm (default to PFO)
         baseline_algo = st.selectbox(
@@ -1812,7 +1812,9 @@ if run:
                     file_name=f"wilcoxon_raw_results_{kpi_to_compare}.csv",
                     mime="text/csv"
                 )
-            
+                # Add view toggle button
+                if st.button("📊 View Raw", key="view_raw"):
+                    st.session_state['show_raw'] = not st.session_state.get('show_raw', False)
             with col2:
                 csv_wilcoxon = wilcoxon_df.to_csv(index=False).encode("utf-8")
                 st.download_button(
@@ -1821,7 +1823,10 @@ if run:
                     file_name=f"wilcoxon_test_results_{kpi_to_compare}.csv",
                     mime="text/csv"
                 )
-                
+                # Add view toggle button
+                if st.button("📊 View Wilcoxon", key="view_wilcoxon"):
+                    st.session_state['show_wilcoxon'] = not st.session_state.get('show_wilcoxon', False)
+                    
             with col3:
                 csv_summary = summary_df.to_csv(index=False).encode("utf-8")
                 st.download_button(
@@ -1830,6 +1835,20 @@ if run:
                     file_name=f"wilcoxon_summary_{kpi_to_compare}.csv",
                     mime="text/csv"
                 )
-            
+                # Add view toggle button
+                if st.button("📊 View Summary", key="view_summary"):
+                    st.session_state['show_summary'] = not st.session_state.get('show_summary', False)
+            # Display viewed results based on toggle states
+            if st.session_state.get('show_raw', False):
+                st.subheader("Raw Results Preview")
+                st.dataframe(results_df.head(20))
+                
+            if st.session_state.get('show_wilcoxon', False):
+                st.subheader("Wilcoxon Test Results Preview")
+                st.dataframe(wilcoxon_df)
+                
+            if st.session_state.get('show_summary', False):
+                st.subheader("Summary Statistics Preview")
+                st.dataframe(summary_df)        
             # Final success message
             st.success(f"Wilcoxon test completed comparing {baseline_algo.upper()} against {len(comparison_algos)} algorithms for {kpi_to_compare} KPI")    

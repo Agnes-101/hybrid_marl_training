@@ -1211,7 +1211,7 @@ class NetworkEnvironment(MultiAgentEnv):
                 }
                 for ue in self.ues
             }
-            info["__all__"] = common_info
+            info["__common__"] = common_info
             self.current_step += 1
 
             return obs, rewards, terminated, truncated, info
@@ -1801,7 +1801,7 @@ class NetworkEnvironment(MultiAgentEnv):
         return {
             "fitness": float(fitness),
             "average_sinr": float(avg_sinr),
-            "average_throughput": float(avg_throughput_Gbps),
+            "throughput": float(avg_throughput_Gbps),
             "fairness": float(fairness),
             "load_variance": float(load_var),
             "bs_loads": bs_loads,
