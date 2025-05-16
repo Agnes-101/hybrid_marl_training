@@ -774,7 +774,8 @@ class NetworkEnvironment(MultiAgentEnv):
             bs.ues           = self.ues            # so data_rate_shared can see all UEs
         # Initialize KPI logger if logging is enabled
         self.kpi_logger = KPITracker() if log_kpis else None        
-        obs_dim = 3*self.num_bs + 1 + (self.num_bs + 1) # SINRs + BS loads + BS Utilizations + own demand + Connected
+        # obs_dim = 3*self.num_bs + 1 + (self.num_bs + 1) # SINRs + BS loads + BS Utilizations + own demand + Connected
+        obs_dim = 3*self.num_bs + 3 + (self.num_bs + 1)
         self.observation_space = gym.spaces.Dict({
             f"ue_{i}": gym.spaces.Box(
                 low=-np.inf, high=np.inf,
@@ -1386,6 +1387,83 @@ class NetworkEnvironment(MultiAgentEnv):
             print("Getting lastest info....")
             return self.last_info
         return None
+    # def _get_obs(self):
+    #     """
+    #     Get observation for each UE that includes:
+    #     - Normalized SINR to each BS
+    #     - PRB load fractions for each BS
+    #     - BS utilization (rate/capacity ratio)
+    #     - UE demand (normalized)
+    #     - One-hot encoding of current association
+        
+    #     Returns a dictionary of per-UE observations.
+    #     """
+    #     # 1) PRB-based load fraction per BS - with safety check for division
+    #     bs_prb_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
+        
+    #     # Safety check to prevent division by zero
+    #     bs_num_rbs = np.array([max(bs.num_rbs, 1) for bs in self.base_stations])
+    #     prb_fractions = bs_prb_loads / bs_num_rbs
+        
+    #     # 2) Calculate data-rate utilization per BS with appropriate clipping
+    #     rate_loads = np.array([
+    #         sum(bs.allocated_resources.values()) 
+    #         for bs in self.base_stations
+    #     ], dtype=np.float32)
+        
+    #     # Ensure capacity values are valid and reasonable
+    #     cap_bps = np.array([
+    #         max(bs.capacity * 1e6, 1.0)  # Ensure minimum capacity of 1 bps
+    #         for bs in self.base_stations
+    #     ], dtype=np.float32)
+        
+    #     # Calculate utilization with safety checks
+    #     # 1. Guard against division by very small numbers
+    #     # 2. Clip the result to prevent extremely large values
+    #     util_bps = np.clip(rate_loads / cap_bps, 0.0, 10.0)  # Cap at 1000% utilization
+        
+    #     # Build observations for each UE
+    #     obs = {}
+    #     for ue in self.ues:
+    #         # A) linear SINR to each BS, normalized by its max
+    #         sinr_lin = self._calculate_sinrs(ue).astype(np.float32)
+            
+    #         # Add safety check for zero SINR
+    #         max_sinr = max(sinr_lin.max(), 1e-6)  # Minimum value to avoid zero division
+    #         norm_sinr = sinr_lin / max_sinr
+            
+    #         # B) own demand normalized to [0,1] with safety check
+    #         ue_demand = max(ue.demand, 1.0)  # Ensure non-zero value
+    #         norm_demand = np.array([min(ue.demand / ue_demand, 1.0)], dtype=np.float32)
+            
+    #         # C) one-hot for association
+    #         idx = ue.associated_bs if ue.associated_bs is not None else self.num_bs
+    #         one_hot = np.eye(self.num_bs+1, dtype=np.float32)[idx]
+            
+    #         # # D) concat: SINR | PRB-load | utilization | demand | one-hot
+    #         # obs[f"ue_{ue.id}"] = np.concatenate([
+    #         #     norm_sinr,          # (num_bs,)
+    #         #     prb_fractions,      # (num_bs,)
+    #         #     util_bps,           # (num_bs,) - now with safety checks
+    #         #     norm_demand,        # (1,)
+    #         #     one_hot             # (num_bs+1,)
+    #         # ], axis=0)
+    #         # inside your per-UE loop, after computing norm_sinr...
+    #         last_throughput = np.array([thr_bps_per_hz], dtype=np.float32)
+    #         last_fairness   = np.array([global_jains], dtype=np.float32)  # same for every UE
+
+    #         obs_vector = np.concatenate([
+    #             norm_sinr,
+    #             prb_fractions,
+    #             util_bps,
+    #             norm_demand,
+    #             one_hot,
+    #             last_throughput,
+    #             last_fairness
+    #         ], axis=0)
+
+    #     return obs
+
     def _get_obs(self):
         """
         Get observation for each UE that includes:
@@ -1394,93 +1472,65 @@ class NetworkEnvironment(MultiAgentEnv):
         - BS utilization (rate/capacity ratio)
         - UE demand (normalized)
         - One-hot encoding of current association
-        
-        Returns a dictionary of per-UE observations.
+        - Last-step throughput (bps/Hz) and global Jain fairness
         """
-        # 1) PRB-based load fraction per BS - with safety check for division
+        # 1) PRB-based load fraction per BS
         bs_prb_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
-        
-        # Safety check to prevent division by zero
-        bs_num_rbs = np.array([max(bs.num_rbs, 1) for bs in self.base_stations])
+        bs_num_rbs   = np.array([max(bs.num_rbs, 1) for bs in self.base_stations], dtype=np.float32)
         prb_fractions = bs_prb_loads / bs_num_rbs
-        
-        # 2) Calculate data-rate utilization per BS with appropriate clipping
-        rate_loads = np.array([
-            sum(bs.allocated_resources.values()) 
-            for bs in self.base_stations
-        ], dtype=np.float32)
-        
-        # Ensure capacity values are valid and reasonable
-        cap_bps = np.array([
-            max(bs.capacity * 1e6, 1.0)  # Ensure minimum capacity of 1 bps
-            for bs in self.base_stations
-        ], dtype=np.float32)
-        
-        # Calculate utilization with safety checks
-        # 1. Guard against division by very small numbers
-        # 2. Clip the result to prevent extremely large values
-        util_bps = np.clip(rate_loads / cap_bps, 0.0, 10.0)  # Cap at 1000% utilization
-        
-        # Build observations for each UE
+
+        # 2) Rate-capacity utilization per BS
+        rate_loads = np.array([sum(bs.allocated_resources.values()) for bs in self.base_stations],
+                            dtype=np.float32)
+        cap_bps    = np.array([max(bs.capacity * 1e6, 1.0) for bs in self.base_stations],
+                            dtype=np.float32)
+        util_bps   = np.clip(rate_loads / cap_bps, 0.0, 10.0)
+
+        # 3) Compute global Jain's fairness index on PRB utilization
+        util = prb_fractions  # or use util_bps/cap_bps if you prefer rate-based fairness
+        if util.sum() > 0:
+            global_jains = float((util.sum()**2) / (len(util) * (util**2).sum() + 1e-9))
+        else:
+            global_jains = 0.0
+
         obs = {}
         for ue in self.ues:
-            # A) linear SINR to each BS, normalized by its max
+            # A) SINR vector normalized
             sinr_lin = self._calculate_sinrs(ue).astype(np.float32)
-            
-            # Add safety check for zero SINR
-            max_sinr = max(sinr_lin.max(), 1e-6)  # Minimum value to avoid zero division
+            max_sinr = max(sinr_lin.max(), 1e-6)
             norm_sinr = sinr_lin / max_sinr
-            
-            # B) own demand normalized to [0,1] with safety check
-            ue_demand = max(ue.demand, 1.0)  # Ensure non-zero value
+
+            # B) Normalized demand
+            ue_demand = max(ue.demand, 1.0)
             norm_demand = np.array([min(ue.demand / ue_demand, 1.0)], dtype=np.float32)
-            
-            # C) one-hot for association
+
+            # C) One-hot association
             idx = ue.associated_bs if ue.associated_bs is not None else self.num_bs
-            one_hot = np.eye(self.num_bs+1, dtype=np.float32)[idx]
-            
-            # D) concat: SINR | PRB-load | utilization | demand | one-hot
-            obs[f"ue_{ue.id}"] = np.concatenate([
+            one_hot = np.eye(self.num_bs + 1, dtype=np.float32)[idx]
+
+            # D) Last-step per-UE throughput (bps/Hz)
+            if ue.associated_bs is not None:
+                sinr_dB = min(ue.sinr, 100.0)
+                thr_bps_per_hz = np.log2(1 + 10**(sinr_dB / 10))
+            else:
+                thr_bps_per_hz = 0.0
+            last_throughput = np.array([thr_bps_per_hz], dtype=np.float32)
+
+            # E) Pack everything into one vector
+            obs_vector = np.concatenate([
                 norm_sinr,          # (num_bs,)
                 prb_fractions,      # (num_bs,)
-                util_bps,           # (num_bs,) - now with safety checks
+                util_bps,           # (num_bs,)
                 norm_demand,        # (1,)
-                one_hot             # (num_bs+1,)
+                one_hot,            # (num_bs+1,)
+                last_throughput,    # (1,)
+                np.array([global_jains], dtype=np.float32)  # (1,)
             ], axis=0)
-        
+
+            obs[f"ue_{ue.id}"] = obs_vector
+
         return obs
 
-    # def _get_obs(self):
-    #     # Precompute BS loads & utils
-    #     bs_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
-    #     bs_caps  = np.array([bs.capacity for bs in self.base_stations], dtype=np.float32)
-    #     normalized_loads = bs_loads / (bs_caps + 1e-9)
-    #     bs_utils = np.clip(bs_loads / (bs_caps + 1e-9), 0.0, 1.0).astype(np.float32)
-
-    #     obs = {}
-    #     for ue in self.ues:
-    #         # 1) SINR vector
-    #         sinr_vec = self._calculate_sinrs(ue).astype(np.float32)
-    #         normalized_sinrs = sinr_vec / 40.0
-
-    #         # 2) Own demand
-    #         norm_demand = np.array([ue.demand / 200.0], dtype=np.float32)
-
-    #         # 3) One-hot current association
-    #         #    index = BS id 0…num_bs-1, or num_bs if None
-    #         idx = ue.associated_bs if ue.associated_bs is not None else self.num_bs
-    #         bs_one_hot = np.eye(self.num_bs + 1, dtype=np.float32)[idx]
-
-    #         # 4) Concatenate everything in the prescribed order
-    #         obs[f"ue_{ue.id}"] = np.concatenate([
-    #             normalized_sinrs,      # shape (num_bs,)
-    #             normalized_loads,      # shape (num_bs,)
-    #             bs_utils,              # shape (num_bs,)
-    #             norm_demand,           # shape (1,)
-    #             bs_one_hot             # shape (num_bs+1,)
-    #         ], axis=0)
-
-    #     return obs
    
     def _calculate_local_interference(self, neighbor_dist=100.0):
         interference = 0.0

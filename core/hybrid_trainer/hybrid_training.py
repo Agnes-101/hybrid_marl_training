@@ -64,7 +64,7 @@ class MetaPolicy(TorchModelV2, nn.Module):
         if isinstance(obs_space, gym.spaces.Dict):
             # For Dict space, we need the size of a single agent's observation
             # This should be 2*num_bs+1
-            input_size = 3 * self.num_bs + 2
+            input_size = 4 * self.num_bs + 4
         else:
             input_size = np.prod(obs_space.shape)
             
