@@ -1144,8 +1144,9 @@ class NetworkEnvironment(MultiAgentEnv):
                 if ue.associated_bs is not None:
                     lin = min(ue.sinr, 100.0)
                     total_throughput += np.log2(1 + 10**(lin/10))
-            # now total_throughput is in bits/s per Hz—if you want Gbps, multiply by your PRB_bw and num_prbs:
-            total_throughput_gbps = total_throughput * self.rb_bandwidth * len(self.base_stations[0].rb_allocation) / 1e9
+                    
+            # now total_throughput is in bits/s per Hz—if you want Gbps, multiply by your PRB_bw and num_prbs:self.rb_bandwidth 
+            total_throughput_gbps = total_throughput * 180e3 * len(self.base_stations[0].rb_allocation) / 1e9
 
             # 4c) Log to KPI
             if self.log_kpis and self.kpi_logger:
