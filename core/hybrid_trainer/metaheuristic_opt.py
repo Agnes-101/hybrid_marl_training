@@ -71,7 +71,7 @@ def serialize_result(result: dict) -> dict:
         return obj
     return _convert(result)
 
-def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_logger: KPITracker,visualize_callback=None, iterations=10) -> dict:
+def run_metaheuristic(env: NetworkEnvironment, algorithm: str, epoch: int, kpi_logger: KPITracker,visualize_callback=None, iterations=4) -> dict:
     """
     Runs the selected metaheuristic algorithm and returns the optimized solution along with KPIs.
     
