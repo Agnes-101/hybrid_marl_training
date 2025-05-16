@@ -1400,7 +1400,7 @@ class NetworkEnvironment(MultiAgentEnv):
             norm_sinr = sinr_lin / max_sinr
             
             # B) own demand normalized to [0,1] with safety check
-            ue_demand = max(self.ue_demand, 1.0)  # Ensure non-zero value
+            ue_demand = max(ue.demand, 1.0)  # Ensure non-zero value
             norm_demand = np.array([min(ue.demand / ue_demand, 1.0)], dtype=np.float32)
             
             # C) one-hot for association
