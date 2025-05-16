@@ -66,7 +66,7 @@ SCENARIOS = {
     "Small":  {"UE": [10],      "BS": [3]},
     "Medium": {"UE": [50],      "BS": [7]},
     "Large":  {"UE": [100],     "BS": [15]},
-    "All":    {"UE": [10,20,30,40,50,60,70,80,90,100],"BS": [3,7,15]},
+    "All":    {"UE": [10,50,100],"BS": [3,7,15]},#  [10,20,30,40,50,60,70,80,90,100]
 }
 # Define list of KPIs to track
 all_kpis = [
@@ -398,24 +398,25 @@ if run:
             st.subheader(f"Live Multi-KPI Comparison @ UE={ue}, BS={bs}")
             trackers, threads, results, envs = {}, {}, {}, {}
             
-            for alg in algos:
-                tr = KPITracker()
-                trackers[alg] = tr
-                
-                env = NetworkEnvironment({"num_ue": ue, "num_bs": bs}, log_kpis=True)
-                envs[alg] = env
-                
-                def worker(a=alg, e=env, t=tr):
-                    results[a] = run_metaheuristic(
-                        e,
-                        a,
-                        iterations,
-                        t                    
-                    )
-                
-                th = threading.Thread(target=worker, daemon=True)
-                threads[alg] = th
-                th.start()
+            if st.button("Run Specific Comparison:"):
+                for alg in algos:
+                    tr = KPITracker()
+                    trackers[alg] = tr
+                    
+                    env = NetworkEnvironment({"num_ue": ue, "num_bs": bs}, log_kpis=True)
+                    envs[alg] = env
+                    
+                    def worker(a=alg, e=env, t=tr):
+                        results[a] = run_metaheuristic(
+                            e,
+                            a,
+                            iterations,
+                            t                    
+                        )
+                    
+                    th = threading.Thread(target=worker, daemon=True)
+                    threads[alg] = th
+                    th.start()
             
             # Define Plotly symbols for markers
             PLOTLY_SYMBOLS = [
@@ -510,308 +511,312 @@ if run:
             n_seeds = st.slider("Number of seeds per configuration", 1, 10, 3)
             bs_list = SCENARIOS["All"]["BS"]
             selected_bs = st.selectbox("BS Configuration", bs_list, index=0)
+            if selected_kpis == "all_kpis":
+                selected_kpis = all_kpis
             # Calculate total runs for progress tracking
             # total_runs = len(ue_list) * len(bs_list) * len(algos) * n_seeds
             total_runs = len(ue_list) * len(algos) * n_seeds
-            st.write(f"Running {total_runs} total simulations ({len(ue_list)} UE configs × {len(algos)} algorithms × {n_seeds} seeds)")
             
-            # Create progress bar
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            # Store all results
-            records = []
-            completed_runs = 0
-            
-            # Run all combinations
-            # for ue, bs, alg, seed_num in itertools.product(ue_list, bs_list, algos, range(1, n_seeds + 1)):
-            for ue, alg, seed_num in itertools.product(ue_list, algos, range(1, n_seeds + 1)):
-                bs=selected_bs
-                # Update status
-                status_text.text(f"Running {alg.upper()} with UE={ue}, BS={bs}, seed #{seed_num}/{n_seeds}")
+            if st.button("Run Specific Comparison:"):
+                st.write(f"Running {total_runs} total simulations ({len(ue_list)} UE configs × {len(algos)} algorithms × {n_seeds} seeds)")
                 
-                # Create tracker and environment for this run
-                tr = KPITracker()
-                env = NetworkEnvironment({"num_ue": ue, "num_bs": bs})
+                # Create progress bar
+                progress_bar = st.progress(0)
+                status_text = st.empty()
                 
-                # Set random seed for reproducibility
-                np.random.seed(seed_num)
+                # Store all results
+                records = []
+                completed_runs = 0
                 
-                # Run simulation
-                out = run_metaheuristic(
-                    env=env,
-                    algorithm=alg,
-                    epoch=iterations,
-                    kpi_logger=tr,
-                    visualize_callback=None,
-                    iterations=iterations
-                )
-                
-                # Get metrics using dictionary access
-                m = out["metrics"]
-                
-                # Create record with all KPIs
-                record = {
-                    "UE": ue,
-                    "BS": bs,
-                    "Algorithm": alg.upper(),
-                    "Seed": seed_num,
-                    "CPU Time": m.get("cpu_time", 0)
-                }
-                
-                # Add all available KPIs to the record - handle None values
-                for kpi in selected_kpis:
-                    # Ensure we have a valid value (replace None with 0 to avoid arithmetic errors)
-                    record[kpi] = m.get(kpi, 0) if m.get(kpi) is not None else 0
+                # Run all combinations
+                # for ue, bs, alg, seed_num in itertools.product(ue_list, bs_list, algos, range(1, n_seeds + 1)):
+                for ue, alg, seed_num in itertools.product(ue_list, algos, range(1, n_seeds + 1)):
+                    bs=selected_bs
+                    # Update status
+                    status_text.text(f"Running {alg.upper()} with UE={ue}, BS={bs}, seed #{seed_num}/{n_seeds}")
                     
-                records.append(record)
-                
-                # Update progress
-                completed_runs += 1
-                progress_bar.progress(completed_runs / total_runs)
-            
-            # Create DataFrame from all results
-            df_results = pd.DataFrame(records)
-            
-            # Display raw data if requested
-            if st.checkbox("Show raw data"):
-                st.dataframe(df_results)
-            
-            # Aggregate statistics by UE, BS, Algorithm for all KPIs
-            kpi_columns = selected_kpis + ["CPU Time"]
-            agg = (
-                df_results
-                .groupby(["UE", "BS", "Algorithm"])[kpi_columns]
-                .agg(["mean", "std"])
-            )
-            
-            # Flatten column names
-            agg.columns = ["_".join(col).strip() for col in agg.columns.values]
-            agg = agg.reset_index()
-            
-            # Download buttons
-            col1, col2 = st.columns(2)
-            with col1:
-                csv_raw = df_results.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="Download Raw Results",
-                    data=csv_raw,
-                    file_name=f"{scenario_name}_raw_results.csv",
-                    mime="text/csv"
-                )
-            
-            with col2:
-                csv_agg = agg.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="Download Aggregated Results",
-                    data=csv_agg,
-                    file_name=f"{scenario_name}_aggregated_results.csv",
-                    mime="text/csv"
-                )
-            
-            # Create tabs for KPI visualizations
-            kpi_tabs = st.tabs(selected_kpis + ["CPU Time"])
-            
-            # Consistent colors for algorithms
-            colors = plt.cm.tab10.colors
-            color_map = {alg.upper(): colors[i % len(colors)] for i, alg in enumerate(df_results["Algorithm"].unique())}
-            
-            # Create visualization markers
-            MARKERS = ['o','s','^','D','v','>','<','p','*','h','H','X','d','+']
-            marker_map = {alg.upper(): MARKERS[i % len(MARKERS)] for i, alg in enumerate(df_results["Algorithm"].unique())}
-            
-            # Create a plot for each KPI in its own tab
-            for i, kpi in enumerate(selected_kpis + ["CPU Time"]):
-                with kpi_tabs[i]:
-                    st.subheader(f"{kpi.replace('_', ' ').title()} Analysis")
+                    # Create tracker and environment for this run
+                    tr = KPITracker()
+                    env = NetworkEnvironment({"num_ue": ue, "num_bs": bs})
                     
-                    # Show scaling behavior with UE
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    for alg, sub in agg.groupby("Algorithm"):
-                        # Sort by UE to ensure proper line drawing
-                        sub = sub.sort_values("UE")
-                        ax.errorbar(
-                            sub["UE"],
-                            sub[f"{kpi}_mean"],
-                            yerr=sub[f"{kpi}_std"],  # Add error bars
-                            label=alg,
-                            marker=marker_map.get(alg, "o"),
-                            color=color_map.get(alg, "blue"),
-                            linestyle="-",
-                            markersize=8,
-                            capsize=4
-                        )
+                    # Set random seed for reproducibility
+                    np.random.seed(seed_num)
                     
-                    ax.set_xlabel("Number of UEs")
-                    ax.set_ylabel(f"{kpi.replace('_', ' ').title()}")
-                    ax.legend(title="Algorithm")
-                    ax.grid(True, linestyle="--", alpha=0.7)
+                    # Run simulation
+                    out = run_metaheuristic(
+                        env=env,
+                        algorithm=alg,
+                        epoch=iterations,
+                        kpi_logger=tr,
+                        visualize_callback=None,
+                        iterations=iterations
+                    )
                     
-                    # Add title with specific info
-                    ax.set_title(f"{kpi.replace('_', ' ').title()} Scaling with UE (Fixed BS={bs_list[0]})")
+                    # Get metrics using dictionary access
+                    m = out["metrics"]
                     
-                    # Display plot
-                    st.pyplot(fig)
+                    # Create record with all KPIs
+                    record = {
+                        "UE": ue,
+                        "BS": bs,
+                        "Algorithm": alg.upper(),
+                        "Seed": seed_num,
+                        "CPU Time": m.get("cpu_time", 0)
+                    }
                     
-                    # REPLACED BAR CHARTS WITH LINE GRAPH
-                    st.subheader(f"{kpi.replace('_', ' ').title()} by Algorithm at All UE Levels")
-                    
-                    # Create a line graph showing performance across all UE levels
-                    fig, ax = plt.subplots(figsize=(12, 7))
-                    
-                    # Get unique algorithms and UE values
-                    unique_algs = sorted(agg["Algorithm"].unique())
-                    unique_ue = sorted(agg["UE"].unique())
-                    
-                    # For each algorithm, plot a line across all UE values
-                    for alg in unique_algs:
-                        alg_data = agg[agg["Algorithm"] == alg].sort_values("UE")
-                        ax.plot(
-                            alg_data["UE"], 
-                            alg_data[f"{kpi}_mean"],
-                            label=alg,
-                            marker=marker_map.get(alg, "o"),
-                            color=color_map.get(alg, "blue"),
-                            linewidth=2,
-                            markersize=8
-                        )
+                    # Add all available KPIs to the record - handle None values
+                    for kpi in selected_kpis:
+                        # Ensure we have a valid value (replace None with 0 to avoid arithmetic errors)
+                        record[kpi] = m.get(kpi, 0) if m.get(kpi) is not None else 0
                         
-                        # Add shaded error region
-                        ax.fill_between(
-                            alg_data["UE"],
-                            alg_data[f"{kpi}_mean"] - alg_data[f"{kpi}_std"],
-                            alg_data[f"{kpi}_mean"] + alg_data[f"{kpi}_std"],
-                            alpha=0.2,
-                            color=color_map.get(alg, "blue")
-                        )
+                    records.append(record)
                     
-                    # Add labels and grid
-                    ax.set_xlabel("Number of UEs")
-                    ax.set_ylabel(f"{kpi.replace('_', ' ').title()}")
-                    ax.set_title(f"{kpi.replace('_', ' ').title()} Performance Across All UE Levels")
-                    ax.legend(title="Algorithm")
-                    ax.grid(True, linestyle="--", alpha=0.7)
+                    # Update progress
+                    completed_runs += 1
+                    progress_bar.progress(completed_runs / total_runs)
+            
+                # Create DataFrame from all results
+                df_results = pd.DataFrame(records)
+                
+                # Display raw data if requested
+                if st.checkbox("Show raw data"):
+                    st.dataframe(df_results)
+            
+                # Aggregate statistics by UE, BS, Algorithm for all KPIs
+                kpi_columns = selected_kpis + ["CPU Time"]
+                agg = (
+                    df_results
+                    .groupby(["UE", "BS", "Algorithm"])[kpi_columns]
+                    .agg(["mean", "std"])
+                )
+                
+                # Flatten column names
+                agg.columns = ["_".join(col).strip() for col in agg.columns.values]
+                agg = agg.reset_index()
+                
+                # Download buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    csv_raw = df_results.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        label="Download Raw Results",
+                        data=csv_raw,
+                        file_name=f"{scenario_name}_raw_results.csv",
+                        mime="text/csv"
+                    )
+                
+                with col2:
+                    csv_agg = agg.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        label="Download Aggregated Results",
+                        data=csv_agg,
+                        file_name=f"{scenario_name}_aggregated_results.csv",
+                        mime="text/csv"
+                    )
+                
+                # Create tabs for KPI visualizations
+                kpi_tabs = st.tabs(selected_kpis + ["CPU Time"])
+                
+                # Consistent colors for algorithms
+                colors = plt.cm.tab10.colors
+                color_map = {alg.upper(): colors[i % len(colors)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+                
+                # Create visualization markers
+                MARKERS = ['o','s','^','D','v','>','<','p','*','h','H','X','d','+']
+                marker_map = {alg.upper(): MARKERS[i % len(MARKERS)] for i, alg in enumerate(df_results["Algorithm"].unique())}
+                
+                # Create a plot for each KPI in its own tab
+                for i, kpi in enumerate(selected_kpis + ["CPU Time"]):
+                    with kpi_tabs[i]:
+                        st.subheader(f"{kpi.replace('_', ' ').title()} Analysis")
+                        
+                        # Show scaling behavior with UE
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        for alg, sub in agg.groupby("Algorithm"):
+                            # Sort by UE to ensure proper line drawing
+                            sub = sub.sort_values("UE")
+                            ax.errorbar(
+                                sub["UE"],
+                                sub[f"{kpi}_mean"],
+                                yerr=sub[f"{kpi}_std"],  # Add error bars
+                                label=alg,
+                                marker=marker_map.get(alg, "o"),
+                                color=color_map.get(alg, "blue"),
+                                linestyle="-",
+                                markersize=8,
+                                capsize=4
+                            )
+                        
+                        ax.set_xlabel("Number of UEs")
+                        ax.set_ylabel(f"{kpi.replace('_', ' ').title()}")
+                        ax.legend(title="Algorithm")
+                        ax.grid(True, linestyle="--", alpha=0.7)
+                        
+                        # Add title with specific info
+                        ax.set_title(f"{kpi.replace('_', ' ').title()} Scaling with UE (Fixed BS={bs_list[0]})")
+                        
+                        # Display plot
+                        st.pyplot(fig)
+                        
+                        # REPLACED BAR CHARTS WITH LINE GRAPH
+                        st.subheader(f"{kpi.replace('_', ' ').title()} by Algorithm at All UE Levels")
+                        
+                        # Create a line graph showing performance across all UE levels
+                        fig, ax = plt.subplots(figsize=(12, 7))
+                        
+                        # Get unique algorithms and UE values
+                        unique_algs = sorted(agg["Algorithm"].unique())
+                        unique_ue = sorted(agg["UE"].unique())
+                        
+                        # For each algorithm, plot a line across all UE values
+                        for alg in unique_algs:
+                            alg_data = agg[agg["Algorithm"] == alg].sort_values("UE")
+                            ax.plot(
+                                alg_data["UE"], 
+                                alg_data[f"{kpi}_mean"],
+                                label=alg,
+                                marker=marker_map.get(alg, "o"),
+                                color=color_map.get(alg, "blue"),
+                                linewidth=2,
+                                markersize=8
+                            )
+                            
+                            # Add shaded error region
+                            ax.fill_between(
+                                alg_data["UE"],
+                                alg_data[f"{kpi}_mean"] - alg_data[f"{kpi}_std"],
+                                alg_data[f"{kpi}_mean"] + alg_data[f"{kpi}_std"],
+                                alpha=0.2,
+                                color=color_map.get(alg, "blue")
+                            )
+                        
+                        # Add labels and grid
+                        ax.set_xlabel("Number of UEs")
+                        ax.set_ylabel(f"{kpi.replace('_', ' ').title()}")
+                        ax.set_title(f"{kpi.replace('_', ' ').title()} Performance Across All UE Levels")
+                        ax.legend(title="Algorithm")
+                        ax.grid(True, linestyle="--", alpha=0.7)
+                        
+                        # Set x-ticks to only show the actual UE values
+                        ax.set_xticks(unique_ue)
+                        
+                        # Display plot
+                        st.pyplot(fig)
+                
+                # Add a radar chart to compare algorithms across all KPIs
+                st.subheader("Multi-KPI Radar Chart Comparison")
+                
+                # Let user select a specific UE value for the radar chart
+                radar_ue = st.selectbox("Select UE for radar comparison", options=sorted(ue_list), key="radar_ue")
+                
+                # Filter data for the selected UE
+                radar_data = agg[agg["UE"] == radar_ue]
+                
+                # Create a radar chart
+                import matplotlib.pyplot as plt
+                from matplotlib.path import Path
+                from matplotlib.spines import Spine
+                from matplotlib.transforms import Affine2D
+                
+                # Function to create a radar chart
+                def radar_chart(fig, titles, values, algorithms):
+                    # Number of variables
+                    N = len(titles)
                     
-                    # Set x-ticks to only show the actual UE values
-                    ax.set_xticks(unique_ue)
+                    # What will be the angle of each axis in the plot
+                    angles = [n / float(N) * 2 * np.pi for n in range(N)]
+                    angles += angles[:1]  # Close the loop
                     
-                    # Display plot
+                    # Create subplot
+                    ax = fig.add_subplot(111, polar=True)
+                    
+                    # Draw one axis per variable and add labels
+                    plt.xticks(angles[:-1], titles, size=12)
+                    
+                    # Draw ylabels
+                    ax.set_rlabel_position(0)
+                    
+                    # Plot data
+                    for i, alg in enumerate(algorithms):
+                        alg_values = values[i]
+                        alg_values += alg_values[:1]  # Close the loop
+                        ax.plot(angles, alg_values, linewidth=2, linestyle='solid', label=alg, 
+                                color=color_map.get(alg, "blue"))
+                        ax.fill(angles, alg_values, alpha=0.1, color=color_map.get(alg, "blue"))
+                    
+                    # Add legend
+                    plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
+                    
+                    return ax
+                
+                # Normalize data for radar chart (0-1 scale for each KPI)
+                radar_kpis = [kpi for kpi in selected_kpis if kpi in df_results.columns]
+                
+                if len(radar_kpis) >= 3:  # Need at least 3 metrics for a meaningful radar chart
+                    # Create normalized data for radar chart
+                    norm_data = {}
+                    for kpi in radar_kpis:
+                        # Get min and max values for this KPI
+                        kpi_min = df_results[kpi].min()
+                        kpi_max = df_results[kpi].max()
+                        kpi_range = kpi_max - kpi_min if kpi_max > kpi_min else 1
+                        
+                        # Normalize values between 0-1
+                        norm_data[kpi] = [(val - kpi_min) / kpi_range for val in radar_data[f"{kpi}_mean"]]
+                    
+                    # Create radar chart
+                    fig = plt.figure(figsize=(10, 8))
+                    algorithms = radar_data["Algorithm"].tolist()
+                    
+                    # Prepare data for radar chart
+                    radar_values = []
+                    for i, alg in enumerate(algorithms):
+                        alg_values = [norm_data[kpi][i] for kpi in radar_kpis]
+                        radar_values.append(alg_values)
+                    
+                    # Create the radar chart
+                    ax = radar_chart(fig, radar_kpis, radar_values, algorithms)
+                    ax.set_title(f"Algorithm Comparison Across All KPIs (UE={radar_ue}, BS={bs_list[0]})")
+                    
+                    # Display the plot
                     st.pyplot(fig)
-            
-            # Add a radar chart to compare algorithms across all KPIs
-            st.subheader("Multi-KPI Radar Chart Comparison")
-            
-            # Let user select a specific UE value for the radar chart
-            radar_ue = st.selectbox("Select UE for radar comparison", options=sorted(ue_list), key="radar_ue")
-            
-            # Filter data for the selected UE
-            radar_data = agg[agg["UE"] == radar_ue]
-            
-            # Create a radar chart
-            import matplotlib.pyplot as plt
-            from matplotlib.path import Path
-            from matplotlib.spines import Spine
-            from matplotlib.transforms import Affine2D
-            
-            # Function to create a radar chart
-            def radar_chart(fig, titles, values, algorithms):
-                # Number of variables
-                N = len(titles)
+                else:
+                    st.warning("Need at least 3 KPIs for radar chart visualization")
                 
-                # What will be the angle of each axis in the plot
-                angles = [n / float(N) * 2 * np.pi for n in range(N)]
-                angles += angles[:1]  # Close the loop
+                # Add a correlation heatmap between KPIs
+                st.subheader("KPI Correlation Analysis")
                 
-                # Create subplot
-                ax = fig.add_subplot(111, polar=True)
+                # Compute correlation matrix between KPIs
+                corr_columns = selected_kpis + ["CPU Time"]
+                corr_df = df_results[corr_columns].corr()
                 
-                # Draw one axis per variable and add labels
-                plt.xticks(angles[:-1], titles, size=12)
+                # Create heatmap
+                fig, ax = plt.subplots(figsize=(10, 8))
+                im = ax.imshow(corr_df, cmap="coolwarm")
                 
-                # Draw ylabels
-                ax.set_rlabel_position(0)
+                # Add colorbar
+                cbar = ax.figure.colorbar(im, ax=ax)
                 
-                # Plot data
-                for i, alg in enumerate(algorithms):
-                    alg_values = values[i]
-                    alg_values += alg_values[:1]  # Close the loop
-                    ax.plot(angles, alg_values, linewidth=2, linestyle='solid', label=alg, 
-                            color=color_map.get(alg, "blue"))
-                    ax.fill(angles, alg_values, alpha=0.1, color=color_map.get(alg, "blue"))
+                # Set tick labels
+                ax.set_xticks(np.arange(len(corr_columns)))
+                ax.set_yticks(np.arange(len(corr_columns)))
+                ax.set_xticklabels(corr_columns, rotation=45, ha="right")
+                ax.set_yticklabels(corr_columns)
                 
-                # Add legend
-                plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
+                # Add correlation values in the cells
+                for i in range(len(corr_columns)):
+                    for j in range(len(corr_columns)):
+                        text = ax.text(j, i, f"{corr_df.iloc[i, j]:.2f}",
+                                    ha="center", va="center", color="black" if abs(corr_df.iloc[i, j]) < 0.7 else "white")
                 
-                return ax
-            
-            # Normalize data for radar chart (0-1 scale for each KPI)
-            radar_kpis = [kpi for kpi in selected_kpis if kpi in df_results.columns]
-            
-            if len(radar_kpis) >= 3:  # Need at least 3 metrics for a meaningful radar chart
-                # Create normalized data for radar chart
-                norm_data = {}
-                for kpi in radar_kpis:
-                    # Get min and max values for this KPI
-                    kpi_min = df_results[kpi].min()
-                    kpi_max = df_results[kpi].max()
-                    kpi_range = kpi_max - kpi_min if kpi_max > kpi_min else 1
-                    
-                    # Normalize values between 0-1
-                    norm_data[kpi] = [(val - kpi_min) / kpi_range for val in radar_data[f"{kpi}_mean"]]
-                
-                # Create radar chart
-                fig = plt.figure(figsize=(10, 8))
-                algorithms = radar_data["Algorithm"].tolist()
-                
-                # Prepare data for radar chart
-                radar_values = []
-                for i, alg in enumerate(algorithms):
-                    alg_values = [norm_data[kpi][i] for kpi in radar_kpis]
-                    radar_values.append(alg_values)
-                
-                # Create the radar chart
-                ax = radar_chart(fig, radar_kpis, radar_values, algorithms)
-                ax.set_title(f"Algorithm Comparison Across All KPIs (UE={radar_ue}, BS={bs_list[0]})")
+                ax.set_title("Correlation Between KPIs")
+                fig.tight_layout()
                 
                 # Display the plot
                 st.pyplot(fig)
-            else:
-                st.warning("Need at least 3 KPIs for radar chart visualization")
-            
-            # Add a correlation heatmap between KPIs
-            st.subheader("KPI Correlation Analysis")
-            
-            # Compute correlation matrix between KPIs
-            corr_columns = selected_kpis + ["CPU Time"]
-            corr_df = df_results[corr_columns].corr()
-            
-            # Create heatmap
-            fig, ax = plt.subplots(figsize=(10, 8))
-            im = ax.imshow(corr_df, cmap="coolwarm")
-            
-            # Add colorbar
-            cbar = ax.figure.colorbar(im, ax=ax)
-            
-            # Set tick labels
-            ax.set_xticks(np.arange(len(corr_columns)))
-            ax.set_yticks(np.arange(len(corr_columns)))
-            ax.set_xticklabels(corr_columns, rotation=45, ha="right")
-            ax.set_yticklabels(corr_columns)
-            
-            # Add correlation values in the cells
-            for i in range(len(corr_columns)):
-                for j in range(len(corr_columns)):
-                    text = ax.text(j, i, f"{corr_df.iloc[i, j]:.2f}",
-                                ha="center", va="center", color="black" if abs(corr_df.iloc[i, j]) < 0.7 else "white")
-            
-            ax.set_title("Correlation Between KPIs")
-            fig.tight_layout()
-            
-            # Display the plot
-            st.pyplot(fig)
-            
-            # Show success message
-            st.success(f"Multi-KPI analysis completed for {len(ue_list)} UE configurations with fixed BS={bs_list[0]}")   
+                
+                # Show success message
+                st.success(f"Multi-KPI analysis completed for {len(ue_list)} UE configurations with fixed BS={bs_list[0]}")   
     # elif mode == "Specific Comparison":
     #     st.header(f"Specific Comparison: {metric.replace('_',' ').title()}")
     #     # 1) Pick your scenario via the dict

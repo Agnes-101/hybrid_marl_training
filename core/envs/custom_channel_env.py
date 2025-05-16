@@ -214,11 +214,11 @@ class BaseStation:
         # Fast path for single UE case
         if len(self.ues) == 1:
             ue_id = next(iter(self.ues))
-            self.rb_allocation[ue_id] = list(range(self.num_rbs))
-            
+            self.rb_allocation[ue_id] = list(range(self.num_rbs))         
             # Precompute rate for this single UE
             sinr_array = self.snr_per_rb(self.ues[ue_id])
             rate_array = self.rb_bandwidth * np.log2(1 + sinr_array)
+            rate_map = {ue_id: rate_array}  # Add this line
             delivered_bits[ue_id] = np.sum(rate_array)
         else:
             # --------------------------------------------------
