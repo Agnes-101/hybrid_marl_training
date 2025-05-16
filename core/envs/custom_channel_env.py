@@ -1355,41 +1355,67 @@ class NetworkEnvironment(MultiAgentEnv):
             return self.last_info
         return None
     def _get_obs(self):
-        # 1) PRB-based load fraction per BS
+        """
+        Get observation for each UE that includes:
+        - Normalized SINR to each BS
+        - PRB load fractions for each BS
+        - BS utilization (rate/capacity ratio)
+        - UE demand (normalized)
+        - One-hot encoding of current association
+        
+        Returns a dictionary of per-UE observations.
+        """
+        # 1) PRB-based load fraction per BS - with safety check for division
         bs_prb_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
-        prb_fractions = bs_prb_loads / (np.array([bs.num_rbs for bs in self.base_stations]) + 1e-9)
-        rate_loads = np.array([sum(bs.allocated_resources.values()) 
-                        for bs in self.base_stations], dtype=np.float32)
-        cap_bps    = np.array([bs.capacity * 1e6 
-                            for bs in self.base_stations], dtype=np.float32)
-        util_bps   = rate_loads / (cap_bps + 1e-9)
-        # 2) Optionally: data-rate utilization per BS
-        #    rate_loads = np.array([sum(bs.allocated_resources.values()) for bs in self.base_stations])
-        #    cap_bps    = np.array([bs.capacity * 1e6 for bs in self.base_stations])
-        #    util_bps   = rate_loads / (cap_bps + 1e-9)
-
+        
+        # Safety check to prevent division by zero
+        bs_num_rbs = np.array([max(bs.num_rbs, 1) for bs in self.base_stations])
+        prb_fractions = bs_prb_loads / bs_num_rbs
+        
+        # 2) Calculate data-rate utilization per BS with appropriate clipping
+        rate_loads = np.array([
+            sum(bs.allocated_resources.values()) 
+            for bs in self.base_stations
+        ], dtype=np.float32)
+        
+        # Ensure capacity values are valid and reasonable
+        cap_bps = np.array([
+            max(bs.capacity * 1e6, 1.0)  # Ensure minimum capacity of 1 bps
+            for bs in self.base_stations
+        ], dtype=np.float32)
+        
+        # Calculate utilization with safety checks
+        # 1. Guard against division by very small numbers
+        # 2. Clip the result to prevent extremely large values
+        util_bps = np.clip(rate_loads / cap_bps, 0.0, 10.0)  # Cap at 1000% utilization
+        
+        # Build observations for each UE
         obs = {}
         for ue in self.ues:
             # A) linear SINR to each BS, normalized by its max
             sinr_lin = self._calculate_sinrs(ue).astype(np.float32)
-            norm_sinr = sinr_lin / (sinr_lin.max() + 1e-9)
-
-            # B) own demand normalized to [0,1]
-            norm_demand = np.array([ue.demand / self.max_demand], dtype=np.float32)
-
+            
+            # Add safety check for zero SINR
+            max_sinr = max(sinr_lin.max(), 1e-6)  # Minimum value to avoid zero division
+            norm_sinr = sinr_lin / max_sinr
+            
+            # B) own demand normalized to [0,1] with safety check
+            max_demand = max(self.max_demand, 1.0)  # Ensure non-zero value
+            norm_demand = np.array([min(ue.demand / max_demand, 1.0)], dtype=np.float32)
+            
             # C) one-hot for association
             idx = ue.associated_bs if ue.associated_bs is not None else self.num_bs
             one_hot = np.eye(self.num_bs+1, dtype=np.float32)[idx]
-
-            # D) concat: SINR | PRB-load | demand | one-hot
+            
+            # D) concat: SINR | PRB-load | utilization | demand | one-hot
             obs[f"ue_{ue.id}"] = np.concatenate([
                 norm_sinr,          # (num_bs,)
                 prb_fractions,      # (num_bs,)
-                util_bps,         # (num_bs,)   ← newly added
+                util_bps,           # (num_bs,) - now with safety checks
                 norm_demand,        # (1,)
                 one_hot             # (num_bs+1,)
             ], axis=0)
-
+        
         return obs
 
     # def _get_obs(self):
@@ -1534,11 +1560,11 @@ class NetworkEnvironment(MultiAgentEnv):
         2) Updates each UE.sinr as the average per-RB SINR over its allocated RBs.
         3) (Optional) Append histories for PRBS masks and SINR, if needed.
         """
-        print("Updating System Metrics....")
+        # print("Updating System Metrics....")
         # 1) Recompute loads
         for bs in self.base_stations:
             bs.calculate_load()
-            print(f"For Update System Metrics to {bs.id}, Load :{bs.load}")
+            # print(f"For Update System Metrics to {bs.id}, Load :{bs.load}")
         # 2) Update UE SINRs based on actual RB allocations
         for ue in self.ues:
             if ue.associated_bs is not None:
@@ -1564,7 +1590,7 @@ class NetworkEnvironment(MultiAgentEnv):
         on each BS for its set of UEs.
         """
         # --- 1) Normalize solution dict ---
-        print("Applying Solution to Environment......")
+        # print("Applying Solution to Environment......")
         if isinstance(solution, np.ndarray):
             sol_dict = {bs.id: [] for bs in self.base_stations}
             for ue_idx, bs_id in enumerate(solution.astype(int)):
@@ -1650,14 +1676,14 @@ class NetworkEnvironment(MultiAgentEnv):
         throughputs_Gbps = throughputs / 1e9  # bits/sec → bytes/sec → Gb/sec
         avg_throughput_Gbps = throughputs_Gbps.mean()
 
-        # Debug: print a few sample UE stats in GB/s
-        for ue_id in throughputs.argsort()[-5:]:
-            ue = self.ues[ue_id]            
-            lin_snr = ue.sinr
-            snr_db  = 10*np.log10(lin_snr + 1e-12)
-            r_gbps = throughputs_Gbps[ue_id]
-            print(f" UE {ue_id}: assoc→BS{ue.associated_bs}, "
-                f"SINR={snr_db:.2f} dB, Rate={r_gbps:.3f} Gb/s")        
+        # # Debug: print a few sample UE stats in GB/s
+        # for ue_id in throughputs.argsort()[-5:]:
+        #     ue = self.ues[ue_id]            
+        #     lin_snr = ue.sinr
+        #     snr_db  = 10*np.log10(lin_snr + 1e-12)
+        #     r_gbps = throughputs_Gbps[ue_id]
+        #     print(f" UE {ue_id}: assoc→BS{ue.associated_bs}, "
+        #         f"SINR={snr_db:.2f} dB, Rate={r_gbps:.3f} Gb/s")        
 
         # 5) Compute other metrics
         fitness     = self.calculate_reward()          # global reward
