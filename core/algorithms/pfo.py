@@ -630,7 +630,7 @@ class PolarFoxOptimization:
     # PFOA CORE: Stagnation-aware mutation
     def selective_mutation(self):
         print("Mutation Phase.....")
-        if self.stagnation_count > 3:  # Original PFOA condition
+        if self.stagnation_count > 5:  # Original PFOA condition 50
             num_mutate = self.population_size - 1  # Mutate all except leader
         else:
             num_mutate = int(self.mutation_factor * self.population_size)
