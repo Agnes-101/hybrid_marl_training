@@ -488,7 +488,7 @@ import copy
 
 class PolarFoxOptimization:
     def __init__(self, env: NetworkEnvironment, iterations=20, population_size=60,
-                mutation_factor=0.2, group_weights: list[float] | None = None, kpi_logger=None):
+                mutation_factor=0.2, group_types: list[list[float]] | None = None, kpi_logger=None):
         self.env = env
         self.num_users = env.num_ue
         self.num_cells = env.num_bs
@@ -500,12 +500,15 @@ class PolarFoxOptimization:
         self.kpi_logger = kpi_logger
 
         # PFOA CORE: Group parameters [PF0, LF0, a, b, m]
-        self.types = np.array([
-            [2, 2, 0.9, 0.9, 0.1],   # Group 0
-            [10, 2, 0.2, 0.9, 0.3],  # Group 1
-            [2, 10, 0.9, 0.2, 0.3],  # Group 2
-            [2, 12, 0.9, 0.9, 0.01]  # Group 3
-        ])
+        if group_types is None:
+            self.types = np.array([
+                [2, 2, 0.9, 0.9, 0.1],   # Group 0
+                [10, 2, 0.2, 0.9, 0.3],  # Group 1
+                [2, 10, 0.9, 0.2, 0.3],  # Group 2
+                [2, 12, 0.9, 0.9, 0.01]  # Group 3
+            ])
+        else:
+            self.types = np.array(group_types, dtype=float)
         
         # PFOA CORE: Initialize population with group structures
         self.population = []

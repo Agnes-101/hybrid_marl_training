@@ -131,17 +131,25 @@ class OptunaTuner:
         }
 
     @staticmethod
-    def suggest_polarfoxoptimization_params(trial):
-        return {
-            'population_size': trial.suggest_int('population_size', 40, 60),
-            'mutation_factor': trial.suggest_float('mutation_factor', 0.3, 0.6),
-            'jump_rate': trial.suggest_float('jump_rate', 0.3, 0.6),
-            'follow_rate': trial.suggest_float('follow_rate', 0.3, 0.6),
-            'group_weights': [
-                trial.suggest_float(f'group_weight_{i}', 0.1, 1.0) 
-                for i in range(4)
-            ]
+    def suggest_polarfoxoptimization_params(trial: optuna.trial.Trial) -> dict:
+        # Core algorithm hyperparameters
+        params = {
+            'population_size': trial.suggest_int('population_size', 40, 80),
+            'mutation_factor': trial.suggest_float('mutation_factor', 0.1, 0.6),
         }
+
+        # Group-specific PFOA parameters: PF0, LF0, decay rates a and b, and minimum factor m
+        types = []
+        for k in range(4):
+            pf0 = trial.suggest_float(f'PF0_group_{k}', 1.0, 10.0)
+            lf0 = trial.suggest_float(f'LF0_group_{k}', 1.0, 12.0)
+            a   = trial.suggest_float(f'decay_a_group_{k}', 0.8, 0.99)
+            b   = trial.suggest_float(f'decay_b_group_{k}', 0.8, 0.99)
+            m   = trial.suggest_float(f'min_factor_group_{k}', 0.01, 0.2)
+            types.append([pf0, lf0, a, b, m])
+
+        params['group_types'] = types
+        return params
 
     @staticmethod
     def suggest_rimeoptimization_params(trial):
