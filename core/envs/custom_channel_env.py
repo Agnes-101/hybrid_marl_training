@@ -1084,7 +1084,7 @@ class NetworkEnvironment(MultiAgentEnv):
         all_positions = np.random.uniform(0, 100, size=(self.num_ue, 2)).astype(np.float32)
         self.ues = [
             UE(
-                id=i,
+                id=f"ue_{i}",
                 position=all_positions[i],
                 demand=np.random.randint(5, 20),
                 v_min=0.5,

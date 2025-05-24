@@ -365,6 +365,8 @@ class HybridTraining:
             **self.config["env_config"],
             "initial_assoc": initial_policy
         }
+        # Make sure this has the right num_ue
+        # print(f"DEBUG: num_ue in env_config: {env_config.get('num_ue')}")
         # policies = {
         #     f"ue_{i}": (
         #         None,
