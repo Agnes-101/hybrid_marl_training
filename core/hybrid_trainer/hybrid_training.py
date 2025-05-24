@@ -396,7 +396,7 @@ class HybridTraining:
                 num_sgd_iter=15, # 10,
                 clip_param=0.2
             )
-            .multiagent(
+            .multi_agent(
                 policies={
                     "bs_0_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Macro
                     "bs_1_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Small cell 1
