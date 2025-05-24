@@ -47,7 +47,7 @@ class PolicyMappingManager:
                
             
         if agent_id not in self.ue_positions:
-            print(f"Warning: {agent_id} position not found, defaulting to macro")
+            print(f"Warning: {agent_id} position not found against position {self.ue_positions[agent_id]}, defaulting to macro")
             return 0
             
         ue_pos = self.ue_positions[agent_id]
