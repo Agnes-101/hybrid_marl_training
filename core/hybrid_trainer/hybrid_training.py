@@ -951,7 +951,7 @@ if __name__ == "__main__":
         "max_epochs": 10,
         "checkpoint_interval": 2,
         "checkpointdir": "./checkpoints",
-        "comparison_runs": 5,  # Number of runs for statistical comparison
+        "comparison_runs": 1,  # Number of runs for statistical comparison
         "early_stopping": {
             "enabled": True,
             "min_iterations": 20,

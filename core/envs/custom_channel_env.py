@@ -79,7 +79,7 @@ class PolicyMappingManager:
             assignments[agent_id] = f"bs_{closest_bs}_policy"
         
         distribution = self.get_policy_distribution()
-        print(f"Policy distribution: {distribution}")
+        # print(f"Policy distribution: {distribution}")
         return assignments
 class UE:
     def __init__(self, id, position, demand,
@@ -113,7 +113,7 @@ class UE:
         # uniformly anywhere in the 100×100 area
         return np.random.uniform(0, 100, size=2).astype(np.float32)
 
-    def update_position(self, delta_time=0.1):
+    def update_position(self, delta_time=0.08):
         """MRWP: if paused, count down; else move toward waypoint."""
         if self.pause_time > 0:
             # still in pause
@@ -1564,7 +1564,7 @@ class NetworkEnvironment(MultiAgentEnv):
             self.current_step += 1
             # Update UE positions using MRWP mobility model
             for ue in self.ues:
-                ue.update_position(delta_time=self.time_step)
+                ue.update_position()
             
             # Update policy manager with new positions
             new_positions = {}
