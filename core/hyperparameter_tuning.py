@@ -134,7 +134,7 @@ class OptunaTuner:
     def suggest_polarfoxoptimization_params(trial: optuna.trial.Trial) -> dict:
         # Core algorithm hyperparameters
         params = {
-            'population_size': trial.suggest_int('population_size', 40, 60),
+            # 'population_size': trial.suggest_int('population_size', 40, 60),
             'mutation_factor': trial.suggest_float('mutation_factor', 0.1, 0.6),
         }
 
@@ -242,7 +242,7 @@ class BatchTuner:
         
         def objective(trial):
             common_params = {
-                'iterations': trial.suggest_int('iterations', 5, 10)
+                'iterations': trial.suggest_int('iterations', 4, 6)
                 # 'population_size': trial.suggest_int('population_size', 20, 100)
             }
             
