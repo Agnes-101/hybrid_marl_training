@@ -366,14 +366,15 @@ class HybridTraining:
             "initial_assoc": initial_policy
         }
         policies = {
-            f"bs_{i}_policy": (
-                None,               # default policy class
-                self.obs_space,     # the shared observation space
-                self.act_space,     # the shared action space
-                {}                  # (empty) custom config
+            f"ue_{i}": (
+                None,
+                self.obs_space[f"ue_{i}"],
+                self.act_space[f"ue_{i}"],
+                {}
             )
-            for i in range(self.env.num_bs)
+            for i in range(self.config["env_config"]["num_ue"])
         }
+        
         # Build PPO config with policy sharing
         marl_config = (
             PPOConfig()
