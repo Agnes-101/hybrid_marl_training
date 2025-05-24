@@ -242,7 +242,7 @@ class BatchTuner:
         
         def objective(trial):
             common_params = {
-                'iterations': trial.suggest_int('iterations', 30, 50)
+                'iterations': trial.suggest_int('iterations', 5, 10)
                 # 'population_size': trial.suggest_int('population_size', 20, 100)
             }
             
