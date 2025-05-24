@@ -42,6 +42,12 @@ class PolicyMappingManager:
         Returns:
             BS index (0 = macro, 1-3 = small cells)
         """
+        # Wherever you're setting up ue_positions
+        self.ue_positions = {}
+        for ue in self.ues:
+            agent_id = f"ue_{ue.id}"  # Convert int ID to string format
+            self.ue_positions[agent_id] = ue.position
+            
         if agent_id not in self.ue_positions:
             print(f"Warning: {agent_id} position not found, defaulting to macro")
             return 0
@@ -1084,7 +1090,7 @@ class NetworkEnvironment(MultiAgentEnv):
         all_positions = np.random.uniform(0, 100, size=(self.num_ue, 2)).astype(np.float32)
         self.ues = [
             UE(
-                id=f"ue_{i}",
+                id=i,
                 position=all_positions[i],
                 demand=np.random.randint(5, 20),
                 v_min=0.5,
