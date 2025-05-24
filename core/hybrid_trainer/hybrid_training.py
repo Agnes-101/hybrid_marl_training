@@ -548,9 +548,9 @@ class HybridTraining:
             print(f"COMPARISON RUN {run + 1}/{num_runs}")
             print(f"{'='*60}")
             
-            # Initialize fresh KPI logger for this run
-            if hasattr(self, 'kpi_logger'):
-                self.kpi_logger.start_new_run(run, "comparison")
+            # # Initialize fresh KPI logger for this run
+            # if hasattr(self, 'kpi_logger'):
+            #     self.kpi_logger.start_new_run(run, "comparison")
             
             # Run baseline MARL first
             print(f"\n--- BASELINE MARL (Run {run + 1}) ---")
