@@ -47,7 +47,7 @@ class PolicyMappingManager:
                
             
         if agent_id not in self.ue_positions:
-            print(f"Warning: {agent_id} position not found against position {self.ue_positions[agent_id]}, defaulting to macro")
+            print(f"Warning: {agent_id} position not found, defaulting to macro")
             return 0
             
         ue_pos = self.ue_positions[agent_id]
@@ -1100,10 +1100,10 @@ class NetworkEnvironment(MultiAgentEnv):
             for i in range(self.num_ue)
         ]
         print(f"Created {len(self.ues)} UEs")
-        # self.ue_positions = {}
-        # for ue in self.ues:
-        #     agent_id = f"ue_{ue.id}"  # Convert int ID to string format
-        #     self.ue_positions[agent_id] = ue.position
+        self.ue_positions = {}
+        for ue in self.ues:
+            agent_id = f"ue_{ue.id}"  # Convert int ID to string format
+            self.ue_positions[agent_id] = ue.position
         self.prev_associations = {ue.id: None for ue in self.ues}
         self.handover_counts  = {ue.id: 0    for ue in self.ues}
         self.load_history = {bs.id: [] for bs in self.base_stations}
