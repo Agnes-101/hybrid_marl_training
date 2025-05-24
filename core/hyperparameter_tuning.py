@@ -134,21 +134,21 @@ class OptunaTuner:
     def suggest_polarfoxoptimization_params(trial: optuna.trial.Trial) -> dict:
         # Core algorithm hyperparameters
         params = {
-            'population_size': trial.suggest_int('population_size', 40, 80),
+            'population_size': trial.suggest_int('population_size', 40, 60),
             'mutation_factor': trial.suggest_float('mutation_factor', 0.1, 0.6),
         }
 
-        # Group-specific PFOA parameters: PF0, LF0, decay rates a and b, and minimum factor m
-        types = []
-        for k in range(4):
-            pf0 = trial.suggest_float(f'PF0_group_{k}', 1.0, 10.0)
-            lf0 = trial.suggest_float(f'LF0_group_{k}', 1.0, 12.0)
-            a   = trial.suggest_float(f'decay_a_group_{k}', 0.8, 0.99)
-            b   = trial.suggest_float(f'decay_b_group_{k}', 0.8, 0.99)
-            m   = trial.suggest_float(f'min_factor_group_{k}', 0.01, 0.2)
-            types.append([pf0, lf0, a, b, m])
+        # # Group-specific PFOA parameters: PF0, LF0, decay rates a and b, and minimum factor m
+        # types = []
+        # for k in range(4):
+        #     pf0 = trial.suggest_float(f'PF0_group_{k}', 1.0, 10.0)
+        #     lf0 = trial.suggest_float(f'LF0_group_{k}', 1.0, 12.0)
+        #     a   = trial.suggest_float(f'decay_a_group_{k}', 0.8, 0.99)
+        #     b   = trial.suggest_float(f'decay_b_group_{k}', 0.8, 0.99)
+        #     m   = trial.suggest_float(f'min_factor_group_{k}', 0.01, 0.2)
+        #     types.append([pf0, lf0, a, b, m])
 
-        params['group_types'] = types
+        # params['group_types'] = types
         return params
 
     @staticmethod
@@ -308,7 +308,7 @@ if __name__ == "__main__":
     env = NetworkEnvironment({"num_bs":4, "num_ue":60})
     
     # Configure tuner (100 trials per algorithm, 1 hour max per algorithm)
-    tuner = BatchTuner(env, n_trials=20, timeout=2000)
+    tuner = BatchTuner(env, n_trials=20, timeout=3600)
     
     # Start batch optimization
     print("Starting batch optimization of all algorithms...")

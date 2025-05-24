@@ -224,7 +224,7 @@ class HBAOptimization:
         distances = np.linalg.norm(cell_positions - pos, axis=1)
         return int(np.argmin(distances))
 
-    def run(self, visualize_callback=None) -> dict:
+    def run(self, visualize_callback: callable = None, kpi_logger=None) -> np.ndarray:
         """Execute the HBA optimization loop"""
         # Snapshot and restore
         original_state = self.env.get_state_snapshot()
