@@ -1564,6 +1564,7 @@ class NetworkEnvironment(MultiAgentEnv):
                 agent_id = f"ue{ue.id}"
                 new_positions[agent_id] = np.array(ue.position)
             self.policy_manager.update_ue_positions(new_positions)
+            
             return obs, rewards, terminated, truncated, info
         except Exception as e:        
             print(f"ERROR in step: {e}")

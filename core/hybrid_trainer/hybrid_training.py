@@ -307,7 +307,7 @@ class HybridTraining:
         self.manager = self.env.policy_manager
 
         # 3) Define your mapping function *as a closure* over self.manager
-        def policy_mapping_fn(agent_id, **kwargs):
+        def policy_mapping_fn(agent_id, episode=None, **kwargs):
             bs_idx = self.manager.get_closest_bs(agent_id)
             return f"bs_{bs_idx}_policy"
 
