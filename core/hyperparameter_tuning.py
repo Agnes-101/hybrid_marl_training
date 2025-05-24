@@ -305,7 +305,7 @@ class BatchTuner:
 
 if __name__ == "__main__":
     # Initialize network environment
-    env = NetworkEnvironment({"num_bs":10, "num_ue":300})
+    env = NetworkEnvironment({"num_bs":4, "num_ue":60})
     
     # Configure tuner (100 trials per algorithm, 1 hour max per algorithm)
     tuner = BatchTuner(env, n_trials=20, timeout=2000)
