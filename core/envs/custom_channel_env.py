@@ -32,7 +32,13 @@ class UE:
         self.waypoint    = self._draw_waypoint()
         self.speed       = np.random.uniform(v_min, v_max)
         self.pause_time  = 0.0                 # start “moving”
+        self.seed = 42
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            
         # Scheduling fields:
+        
+    
         self.associated_bs = None
         self.sinr          = -np.inf
         self.ewma_dr       = 1e6
@@ -85,7 +91,9 @@ class UE:
         return int(np.ceil((self.demand * 1e6) / rb_capacity))
                     
 class BaseStation:
-    def __init__(self, id, position, frequency, bandwidth, height=50.0, reuse_color=None,tx_power_dbm=30.0,tx_gain_dbi=8.0,bf_gain_dbi=20.0):
+    def __init__(self, id, position, frequency, bandwidth, height=50.0, reuse_color=None,tx_power_dbm=30.0,tx_gain_dbi=8.0,
+                subcarrier_spacing=60e3, bf_gain_dbi=20.0, path_loss_n=2.0,path_loss_sigma=0.0,cre_bias=0.0):
+
         self.id = int(id)
         self.position = np.array(position, dtype=np.float32)
         self.frequency = float(frequency)    # Hz
@@ -98,9 +106,16 @@ class BaseStation:
         self.load = 0.0                      # sum of allocated rates
         self.capacity = 0 # self.bandwidth * 0.8 # e.g. 80% of bandwidth in Mbps
         self.reuse_color   = reuse_color         # e.g. "A", "B", or "C"
+        self.path_loss_n     = float(path_loss_n)
+        self.path_loss_sigma = float(path_loss_sigma)
+        self.cre_bias        = float(cre_bias)
         # Resource block parameters
-        self.rb_bandwidth = 180e3  # Hz (typical 5G/6G subcarrier spacing × 12)
+        self.rb_bandwidth = 12*subcarrier_spacing # Hz (typical 5G/6G subcarrier spacing × 12)
         self.num_rbs = int(self.bandwidth / self.rb_bandwidth)  # Number of available RBs
+        # print(f"BS with reuse Colour: {reuse_color},RB Bandwidth: {self.rb_bandwidth}, No. Num_rbs:{self.num_rbs}")
+        self.seed = 42
+        if self.seed is not None:
+            np.random.seed(self.seed)
         
         self.rb_allocation = {}  # Dictionary mapping UE IDs to allocated RBs
         self.rb_sinr = np.zeros(self.num_rbs)  # SINR per RB (for interference modeling)
@@ -121,7 +136,7 @@ class BaseStation:
     #     const2 = 44.9 - 6.55 * np.log10(hb)
     #     return const1 + const2 * np.log10(distance + 1e-9)
     
-    def path_loss(self, distance, d0=1.0, n=2.0, sigma=0.0):
+    def path_loss(self, distance, d0=1.0):
         """
         Close-In Reference Distance Path-Loss Model.
         distance: link distance in meters
@@ -133,72 +148,156 @@ class BaseStation:
 
         # 1) Free‐space loss at d0 (usually 1 m):
         #    FSPL(d0) = 20 log10(4π d0 f / c)
-        fspl_d0 = 20 * np.log10(4 * np.pi * d0 * self.frequency / c)
-
+        
+        fspl_d0 = 20*np.log10(4*np.pi*d0*self.frequency/c)
         # 2) Distance‐dependent term
-        pl_mean = fspl_d0 + 10 * n * np.log10(distance / d0)
-
+        
+        pl_mean = fspl_d0 + 10*self.path_loss_n*np.log10(distance/d0)
         # 3) Add shadow fading if desired
-        shadow = np.random.randn() * sigma if sigma > 0 else 0.0
-
+        
+        shadow   = np.random.randn()*self.path_loss_sigma
         return pl_mean + shadow
+    
 
     def noise_mW(self):
         # Thermal noise: -174 dBm/Hz + 10*log10(BW_Hz)
         noise_dbm = -174 + 10 * np.log10(self.bandwidth )
         return 10 ** (noise_dbm / 10)
     
-    def _calculate_local_interference(self, neighbor_dist=100.0):
-        """Calculate interference at this BS from all other BSs within neighbor_dist."""
+    
+    def _calculate_local_interference(self, neighbor_dist=None):
+        # Set default neighbor distance by tier
+        if neighbor_dist is None:
+            neighbor_dist = 1000.0 if self.reuse_color=="Macro" else 100.0
+
         interference = 0.0
         for other in self.base_stations:
             if other.id == self.id:
                 continue
+
             d = np.linalg.norm(self.position - other.position)
-            if d < neighbor_dist:
-                # received power from interfering BS
-                prx_int = other.received_power_mW(self.position)
-                interference += prx_int
-        return interference           
+            if d > neighbor_dist:
+                continue
+
+            # other.received_power_mW already includes path-loss
+            interference += other.received_power_mW(self.position)
+
+        return interference
+
+
     
+    # def received_power_mW(self, ue_pos, ue_rx_gain=None):# , ue_bf_gain_dbi=0.0
+    #     d = np.linalg.norm(self.position - ue_pos)
+    #     # The code is calculating the path loss using a function `path_loss` with the distance `d` as
+    #     # an input parameter and storing the result in the variable `L`.
+    #     L  = self.path_loss(d)
+    #     G_tx = self.tx_gain + self.bf_gain      # total transmit gain
+    #     G_rx = ue_rx_gain if ue_rx_gain is not None else 0.0 # (ue_rx_gain or 0.0) + ue_bf_gain_dbi  # UE may also beam-form
+    #     p_rx_dbm = self.tx_power + G_tx + G_rx - L
+    #     return 10**(p_rx_dbm/10)
+    def received_power_mW(self, ue_position, ue_rx_gain=None):
+        """Calculate received power with atmospheric/environmental losses"""
+        # 1. Basic free space path loss
+        distance = np.linalg.norm(ue_position - self.position)
+        lambda_ = 3e8 / (self.frequency * 1e6)  # Wavelength in meters
+        
+        # Free space path loss (dB)
+        fspl = 20 * np.log10(distance) + 20 * np.log10(self.frequency) + 20 * np.log10(4 * np.pi / 3e8)
+        
+        # 2. Atmospheric attenuation components (ITU-R models)
+        def rain_attenuation(freq_ghz, rain_rate, distance_km):
+            """ITU-R P.838-8 specific attenuation due to rain"""
+            k = 0.0335 * (freq_ghz**0.9)  # Coefficients for 10-100 GHz
+            alpha = 1 - 0.02 * (freq_ghz - 10)
+            return k * (rain_rate**alpha) * distance_km
+
+        def gaseous_attenuation(freq_ghz, temp=15, humidity=60):
+            """ITU-R P.676-13 oxygen/water vapor absorption"""
+            # Simplified model for 1-60 GHz
+            if freq_ghz < 15:
+                return 0.05 * freq_ghz  # dB/km
+            elif 15 <= freq_ghz < 60:
+                return 0.1 * (freq_ghz - 14) + 0.75  # dB/km
+            else:
+                return 3.0  # dB/km (approximate for 60+ GHz)
+
+        # 3. Environmental parameters (customize these)
+        rain_rate = 10  # mm/h - moderate rain
+        humidity = 60    # %
+        temperature = 25  # °C
+        
+        # Calculate additional losses
+        distance_km = distance / 1000
+        freq_ghz = self.frequency / 1e3
+        
+        L_rain = rain_attenuation(freq_ghz, rain_rate, distance_km)
+        L_gas = gaseous_attenuation(freq_ghz, temperature, humidity) * distance_km
+        L_cloud = 0.1 * distance_km  # Simple cloud attenuation
+        
+        # 4. Antenna and system losses
+        L_polarization = 1  # dB - polarization mismatch
+        L_pointing = 0.5    # dB - beam misalignment
+        
+        # 5. Total additional losses
+        total_add_loss = L_rain + L_gas + L_cloud + L_polarization + L_pointing
+        
+        # 6. Final received power calculation
+        Prx_dBm = (self.tx_power
+                + self.tx_gain 
+                - fspl 
+                - total_add_loss)
+        # Macro-specific fixed attenuation (IN dB DOMAIN)
+        if self.reuse_color == "Macro":
+            fixed_macro_loss = 50  # dB
+            Prx_dBm -= fixed_macro_loss  # Proper dB subtraction
+        else:
+            fixed_macro_loss = 5  # dB
+            Prx_dBm -= fixed_macro_loss  # Proper dB subtraction
+            
+        return 10 ** (Prx_dBm / 10)  # Convert dBm to mW
     
-    def received_power_mW(self, ue_pos, ue_rx_gain=None):# , ue_bf_gain_dbi=0.0
-        d = np.linalg.norm(self.position - ue_pos)
-        # The code is calculating the path loss using a function `path_loss` with the distance `d` as
-        # an input parameter and storing the result in the variable `L`.
-        L  = self.path_loss(d)
-        G_tx = self.tx_gain + self.bf_gain      # total transmit gain
-        G_rx = ue_rx_gain if ue_rx_gain is not None else 0.0 # (ue_rx_gain or 0.0) + ue_bf_gain_dbi  # UE may also beam-form
-        p_rx_dbm = self.tx_power + G_tx + G_rx - L
-        return 10**(p_rx_dbm/10)
-    
-    def snr_linear(self, ue):
+    def snr_linear(self, ue, cross_tier=True, max_sinr_db=40.0):
         """
         Compute the linear SINR for this BS → ue link, including
-        Tx/Rx gains, co-channel interference, and thermal noise.
+        Tx/Rx gains, co-channel (or cross-tier) interference, and thermal noise.
+        
+        cross_tier: if True, include interference from all BSs; 
+                    if False, only from same reuse_color.
+        max_sinr_db: cap SINR at this dB value (e.g. 50 dB).
         """
-        # 1) desired signal power (mW)
-        signal_mW = self.received_power_mW(ue.position, ue.rx_gain)#, ue.bf_gain
 
-        # 2) co‐channel interference: sum mW from other BSs on same reuse_color
+        # 1) desired signal power (mW)
+        signal_mW = self.received_power_mW(ue.position, ue.rx_gain)
+
+        # 2) build interference sum
         interference_mW = 0.0
         for other in self.base_stations:
             if other.id == self.id:
                 continue
-            if other.reuse_color != self.reuse_color:
-                continue
+
+            if not cross_tier:
+                # only co-channel
+                if other.reuse_color != self.reuse_color:
+                    continue
+
+            # include this BS’s contribution
             interference_mW += other.received_power_mW(ue.position, ue.rx_gain)
 
         # 3) noise power (mW)
         noise_mW = self.noise_mW()
 
-        # 4) linear SINR
-        return signal_mW / (interference_mW + noise_mW + 1e-12)
+        # 4) raw linear SINR
+        lin_snr = signal_mW / (interference_mW + noise_mW + 1e-12)
+
+        # 5) apply cap
+        snr_cap_linear = 10 ** (max_sinr_db / 10)
+        return min(lin_snr, snr_cap_linear)
+
     
     def allocate_prbs(self):
         """
-        Optimized version of the PRB allocation method that maintains fairness guarantees
-        while reducing computational complexity and redundant operations.
+        Improved version of the PRB allocation method that ensures fairer distribution
+        and resolves bugs in the original implementation.
         """
         # Handle empty case
         if not self.ues:
@@ -207,489 +306,627 @@ class BaseStation:
             self.calculate_load()
             return
             
-        # Initialize allocation and delivered bits
-        self.rb_allocation = {ue_id: [] for ue_id in self.ues}
-        delivered_bits = {ue_id: 0.0 for ue_id in self.ues}
-        
+        # Determine UE IDs properly
+        if isinstance(self.ues, dict):
+            ue_ids = list(self.ues.keys())
+        else:
+            # self.ues is a list of UE objects
+            ue_ids = [ue.id for ue in self.ues]
+
+        self.rb_allocation = {ue_id: [] for ue_id in ue_ids}
+        delivered_bits = {ue_id: 0.0 for ue_id in ue_ids}
+
         # Fast path for single UE case
         if len(self.ues) == 1:
             ue_id = next(iter(self.ues))
-            self.rb_allocation[ue_id] = list(range(self.num_rbs))         
-            # Precompute rate for this single UE
-            sinr_array = self.snr_per_rb(self.ues[ue_id])
+            ue = self.ues[ue_id]
+            max_bits = ue.demand * 1e6  # demand in bits/sec
+
+            # Tentatively give it all PRBs
+            prb_list = list(range(self.num_rbs))
+            sinr_array = self.snr_per_rb(ue)
             rate_array = self.rb_bandwidth * np.log2(1 + sinr_array)
-            rate_map = {ue_id: rate_array}  # Add this line
-            delivered_bits[ue_id] = np.sum(rate_array)
-        else:
-            # --------------------------------------------------
-            # OPTIMIZATION 1: Efficient Precomputation with Caching
-            # --------------------------------------------------
-            
-            # Precompute SINR arrays, rates, and best PRB ordering for each UE - all at once
-            sinr_map = {}               # Store raw SINR values
-            sinr_db_map = {}            # Store SINR in dB for clustering
-            rate_map = {}               # Store achievable rates per PRB
-            sorted_prb_indices = {}     # Store pre-sorted PRB indices (best first)
-            avg_sinr_db = {}            # Store average SINR in dB per UE
-            
-            for ue_id, ue in self.ues.items():
-                # Get SINR for all PRBs at once (single calculation)
-                sinr_array = self.snr_per_rb(ue)
-                sinr_map[ue_id] = sinr_array
-                
-                # Calculate SINR in dB for clustering
-                sinr_db_array = 10 * np.log10(sinr_array + 1e-10)  # Avoid log of zero
-                sinr_db_map[ue_id] = sinr_db_array
-                
-                # Precalculate rates for all PRBs
-                rate_map[ue_id] = self.rb_bandwidth * np.log2(1 + sinr_array)
-                
-                # Calculate average SINR for clustering
-                avg_sinr_db[ue_id] = float(np.mean(sinr_db_array))
-                
-                # Precompute sorted PRB indices (best to worst) - used multiple times
-                sorted_prb_indices[ue_id] = np.argsort(-sinr_array)
-            
-            # --------------------------------------------------
-            # OPTIMIZATION 2: Efficient Clustering
-            # --------------------------------------------------
-            
-            # Sort UEs by average SINR (once, not repeatedly)
-            sorted_ues = sorted(avg_sinr_db.items(), key=lambda x: x[1])
-            
-            # Use a more efficient approach to create SINR clusters
-            sinr_clusters = []
-            current_cluster = [sorted_ues[0][0]]
-            current_base_sinr = sorted_ues[0][1]
-            
-            for ue_id, sinr in sorted_ues[1:]:
-                if sinr - current_base_sinr <= 3.0:  # Within 3dB of cluster base
-                    current_cluster.append(ue_id)
-                else:
-                    # Start a new cluster
-                    sinr_clusters.append(current_cluster)
-                    current_cluster = [ue_id]
-                    current_base_sinr = sinr
-            
-            # Add the last cluster
-            if current_cluster:
-                sinr_clusters.append(current_cluster)
-            
-            # --------------------------------------------------
-            # OPTIMIZATION 3: Efficient PRB Tracking with NumPy
-            # --------------------------------------------------
-            
-            # Use boolean array for PRB availability instead of sets (much faster)
-            available_prbs = np.ones(self.num_rbs, dtype=bool)  # All PRBs available initially
-            
-            # --------------------------------------------------
-            # OPTIMIZATION 4: Efficient Cluster PRB Allocation
-            # --------------------------------------------------
-            
-            # Allocate PRBs to clusters (similar approach, optimized)
-            total_ues = len(self.ues)
-            cluster_prb_allocation = {}
-            remaining_prbs_count = self.num_rbs
-            
-            # Base allocation: proportional to cluster size with bias toward lower SINR clusters
-            for i, cluster in enumerate(sinr_clusters):
-                cluster_size = len(cluster)
-                
-                # Base allocation proportional to cluster size
-                base_allocation = int(self.num_rbs * (cluster_size / total_ues))
-                
-                # Add bias toward lower SINR clusters (more PRBs for worse conditions)
-                bias_factor = 1.0 + max(0, 0.1 * (len(sinr_clusters) - i - 1))
-                
-                # Final allocation with bias (ensure we don't exceed remaining PRBs)
-                cluster_allocation = min(
-                    int(base_allocation * bias_factor),
-                    remaining_prbs_count
-                )
-                
-                # Store allocation for this cluster
-                cluster_prb_allocation[i] = cluster_allocation
-                remaining_prbs_count -= cluster_allocation
-            
-            # Distribute any remaining PRBs to clusters starting from lowest SINR
-            if remaining_prbs_count > 0:
-                for i in range(len(sinr_clusters)):
-                    if remaining_prbs_count <= 0:
+            total_bits = rate_array.sum()
+
+            # Cap at demand
+            allocated_bits = min(total_bits, max_bits)
+            # Figure out how many PRBs to use to stay under demand
+            if allocated_bits < total_bits:
+                # allocate highest‐rate PRBs until sum(rate) ≥ max_bits
+                order = np.argsort(-rate_array)
+                cum = 0.0
+                prb_list = []
+                for prb in order:
+                    cum += rate_array[prb]
+                    prb_list.append(prb)
+                    if cum >= max_bits:
                         break
-                    cluster_prb_allocation[i] += 1
-                    remaining_prbs_count -= 1
+            # Store the allocation
+            self.rb_allocation[ue_id] = prb_list
+            delivered_bits[ue_id] = min(max_bits, sum(rate_array[prb] for prb in prb_list))
+            # skip the rest of the algorithm
+            self.allocated_resources = {ue_id: delivered_bits[ue_id]}
+            self.calculate_load()
+            return
+        
+        # --------------------------------------------------
+        # OPTIMIZATION 1: Efficient Precomputation with Caching
+        # --------------------------------------------------
+        
+        # Precompute SINR arrays, rates, and best PRB ordering for each UE
+        sinr_map = {}               # Store raw SINR values
+        sinr_db_map = {}            # Store SINR in dB for clustering
+        rate_map = {}               # Store achievable rates per PRB
+        sorted_prb_indices = {}     # Store pre-sorted PRB indices (best first)
+        avg_sinr_db = {}            # Store average SINR in dB per UE
+        
+        for ue_id, ue in self.ues.items():
+            # Get SINR for all PRBs at once (single calculation)
+            sinr_array = self.snr_per_rb(ue)
+            sinr_map[ue_id] = sinr_array
             
-            # --------------------------------------------------
-            # OPTIMIZATION 5: Efficient Intra-Cluster Allocation
-            # --------------------------------------------------
+            # Calculate SINR in dB for clustering
+            sinr_db_array = 10 * np.log10(sinr_array + 1e-10)  # Avoid log of zero
+            sinr_db_map[ue_id] = sinr_db_array
             
-            # Process each cluster
-            for cluster_idx, cluster in enumerate(sinr_clusters):
-                cluster_prbs_needed = cluster_prb_allocation[cluster_idx]
-                
-                # Skip empty clusters
-                if cluster_prbs_needed <= 0:
+            # Precalculate rates for all PRBs
+            rate_map[ue_id] = self.rb_bandwidth * np.log2(1 + sinr_array)
+            
+            # Calculate average SINR for clustering
+            avg_sinr_db[ue_id] = float(np.mean(sinr_db_array))
+            
+            # Precompute sorted PRB indices (best to worst)
+            sorted_prb_indices[ue_id] = np.argsort(-sinr_array)
+        
+        # --------------------------------------------------
+        # IMPROVED: Better UE Clustering with More Flexible Boundaries
+        # --------------------------------------------------
+        
+        # Sort UEs by average SINR
+        sorted_ues = sorted(avg_sinr_db.items(), key=lambda x: x[1])
+        
+        # Create more adaptable SINR clusters with dynamic boundaries
+        # Use percentile-based approach instead of fixed dB difference
+        num_clusters = min(5, len(sorted_ues))  # Limit max clusters based on total UEs
+        cluster_size = max(1, len(sorted_ues) // num_clusters)
+        
+        sinr_clusters = []
+        for i in range(0, len(sorted_ues), cluster_size):
+            cluster = [ue_id for ue_id, _ in sorted_ues[i:i+cluster_size]]
+            if cluster:  # Only add non-empty clusters
+                sinr_clusters.append(cluster)
+        
+        # --------------------------------------------------
+        # OPTIMIZATION 3: Efficient PRB Tracking
+        # --------------------------------------------------
+        
+        # Use boolean array for PRB availability
+        available_prbs = np.ones(self.num_rbs, dtype=bool)
+        
+        # --------------------------------------------------
+        # IMPROVED: Better Initial Allocation Strategy
+        # --------------------------------------------------
+        
+        # First ensure every UE gets at least one PRB to avoid starvation
+        # Prioritize UEs with poorer conditions for fairer initial allocation
+        
+        # Start with UEs in clusters from worst to best SINR
+        for cluster in sinr_clusters:
+            for ue_id in cluster:
+                # Skip if already allocated in a previous pass
+                if self.rb_allocation[ue_id]:
                     continue
-                
-                # First pass: minimum allocation per UE in this cluster
-                min_prbs_per_ue = max(1, cluster_prbs_needed // len(cluster))
-                
-                # Allocate minimum PRBs to each UE in this cluster (in batch)
-                for ue_id in cluster:
-                    # Get pre-sorted PRB indices for this UE
-                    prb_preference = sorted_prb_indices[ue_id]
                     
-                    # Find best available PRBs for this UE
-                    allocated_count = 0
-                    for prb_idx in prb_preference:
-                        if available_prbs[prb_idx] and allocated_count < min_prbs_per_ue:
-                            # Allocate this PRB
-                            self.rb_allocation[ue_id].append(prb_idx)
-                            available_prbs[prb_idx] = False  # Mark as used
-                            delivered_bits[ue_id] += rate_map[ue_id][prb_idx]
-                            allocated_count += 1
-                            cluster_prbs_needed -= 1
-                            
-                            # Early exit if we've allocated enough
-                            if allocated_count >= min_prbs_per_ue:
-                                break
-                
-                # Second pass: distribute remaining PRBs within cluster using modified PF
-                if cluster_prbs_needed > 0 and np.any(available_prbs):
-                    # Calculate intra-cluster fairness metrics (once, not repeatedly)
-                    
-                    # Get current rates within cluster
-                    cluster_rates = {}
-                    for ue_id in cluster:
-                        if self.rb_allocation[ue_id]:
-                            allocated_prbs = self.rb_allocation[ue_id]
-                            cluster_rates[ue_id] = sum(rate_map[ue_id][prb] for prb in allocated_prbs)
-                        else:
-                            cluster_rates[ue_id] = 0.0
-                    
-                    # Find max rate within cluster for normalization
-                    max_cluster_rate = max(cluster_rates.values()) if cluster_rates else 1.0
-                    max_cluster_rate = max(max_cluster_rate, 1.0)  # Ensure non-zero
-                    
-                    # Calculate fairness factor within cluster (once, not in loop)
-                    fairness_factor = {}
-                    for ue_id in cluster:
-                        normalized_rate = cluster_rates[ue_id] / max_cluster_rate
-                        # Strong inverse relationship - lower rates get much higher priority
-                        fairness_factor[ue_id] = 1.0 / (0.2 + 0.8 * normalized_rate)
-                    
-                    # Get remaining PRBs indices as a NumPy array (faster than list conversion)
-                    remaining_prb_indices = np.where(available_prbs)[0]
-                    
-                    # Allocate remaining PRBs efficiently
-                    for prb in remaining_prb_indices[:cluster_prbs_needed]:
-                        # Find best UE for this PRB in the cluster
-                        best_metric = -float('inf')
-                        best_ue = None
-                        
-                        for ue_id in cluster:
-                            # Avoid division by zero with a safe minimum value
-                            ewma = max(self.ues[ue_id].ewma_dr, 1e-6)
-                            
-                            # Calculate metric with strong fairness bias
-                            metric = rate_map[ue_id][prb] / ewma * fairness_factor[ue_id]
-                            
-                            if metric > best_metric:
-                                best_metric = metric
-                                best_ue = ue_id
-                        
-                        # Allocate PRB to best UE
-                        if best_ue is not None:
-                            self.rb_allocation[best_ue].append(prb)
-                            available_prbs[prb] = False  # Mark as used
-                            delivered_bits[best_ue] += rate_map[best_ue][prb]
-            
-            # --------------------------------------------------
-            # OPTIMIZATION 6: Efficient Global PF for Remaining PRBs
-            # --------------------------------------------------
-            
-            # Allocate any remaining PRBs using standard PF with fairness
+                # Find best available PRB for this UE
+                for prb_idx in sorted_prb_indices[ue_id]:
+                    if available_prbs[prb_idx]:
+                        # Allocate this PRB
+                        self.rb_allocation[ue_id].append(prb_idx)
+                        available_prbs[prb_idx] = False
+                        delivered_bits[ue_id] += rate_map[ue_id][prb_idx]
+                        break  # One PRB per UE in this phase
+        
+        # --------------------------------------------------
+        # IMPROVED: Proportional Fairness Allocation with Demand Awareness
+        # --------------------------------------------------
+        
+        # Calculate normalized demand for each UE (for demand-aware allocation)
+        max_demand = max(ue.demand for _, ue in self.ues.items())
+        normalized_demand = {ue_id: self.ues[ue_id].demand / max_demand 
+                            for ue_id in self.ues}
+        
+        # Calculate how many PRBs are still available
+        remaining_prbs_count = np.sum(available_prbs)
+        
+        # If PRBs remain, allocate them using improved PF with demand awareness
+        if remaining_prbs_count > 0:
+            # Get remaining PRB indices
             remaining_prb_indices = np.where(available_prbs)[0]
-            if len(remaining_prb_indices) > 0:
-                # Calculate current rates for fairness (once, not in loop)
-                current_rates = {}
-                for ue_id in self.ues:
-                    if self.rb_allocation[ue_id]:
-                        allocated_prbs = self.rb_allocation[ue_id]
-                        current_rates[ue_id] = sum(rate_map[ue_id][prb] for prb in allocated_prbs)
-                    else:
-                        current_rates[ue_id] = 0.0
-                
-                # Calculate max rate for normalization
-                max_rate = max(current_rates.values()) if current_rates else 1.0
-                max_rate = max(max_rate, 1.0)  # Ensure non-zero
-                
-                # Calculate inverse rate fairness factor (once, not in loop)
-                fairness_factor = {}
-                for ue_id in self.ues:
-                    normalized_rate = current_rates[ue_id] / max_rate
-                    # Lower rates get higher priority (inverse relationship)
-                    fairness_factor[ue_id] = 1.0 / max(0.1, normalized_rate)
-                
-                # Allocate remaining PRBs
-                for prb in remaining_prb_indices:
-                    # Find best UE for this PRB across all UEs
-                    best_metric = -float('inf')
-                    best_ue = None
-                    
-                    for ue_id in self.ues:
-                        # Avoid division by zero with a safe minimum value
-                        ewma = max(self.ues[ue_id].ewma_dr, 1e-6)
-                        
-                        # Calculate metric with fairness factor
-                        metric = rate_map[ue_id][prb] / ewma * fairness_factor[ue_id]
-                        
-                        if metric > best_metric:
-                            best_metric = metric
-                            best_ue = ue_id
-                    
-                    # Allocate PRB to best UE
-                    if best_ue is not None:
-                        self.rb_allocation[best_ue].append(prb)
-                        available_prbs[prb] = False  # Mark as used
-                        delivered_bits[best_ue] += rate_map[best_ue][prb]
             
-            # --------------------------------------------------
-            # OPTIMIZATION 7: Efficient Zero-PRB UE Check
-            # --------------------------------------------------
-            
-            # Final check for UEs with zero PRBs (much less likely with optimized approach)
-            zero_prb_ues = [ue_id for ue_id, prbs in self.rb_allocation.items() if not prbs]
-            if zero_prb_ues:
-                # Identify UEs with many PRBs (do this once, not repeatedly)
-                ue_prb_counts = [(ue_id, len(prbs)) for ue_id, prbs in self.rb_allocation.items() if prbs]
-                ue_prb_counts.sort(key=lambda x: x[1], reverse=True)
+            # Allocate remaining PRBs
+            for prb in remaining_prb_indices:
+                best_metric = -float('inf')
+                best_ue = None
                 
-                # Redistribute one PRB from each UE with many PRBs
-                for zero_ue in zero_prb_ues:
-                    if ue_prb_counts and ue_prb_counts[0][1] > 1:
-                        donor_ue, _ = ue_prb_counts[0]
-                        
-                        # Take one PRB from donor
-                        prb = self.rb_allocation[donor_ue].pop()
-                        
-                        # Give to zero PRB UE
+                for ue_id in self.ues:
+                    # Skip if demand is already satisfied
+                    current_rate = delivered_bits[ue_id]
+                    max_demand_bits = self.ues[ue_id].demand * 1e6
+                    
+                    if current_rate >= max_demand_bits:
+                        continue
+                    
+                    # Avoid division by zero with a safe minimum EWMA
+                    ewma = max(self.ues[ue_id].ewma_dr, 1e-6)
+                    
+                    # Improved metric calculation:
+                    # - Higher weight for UEs far from their demand
+                    # - Consider both instantaneous rate and long-term fairness
+                    demand_satisfaction = current_rate / max_demand_bits if max_demand_bits > 0 else 1.0
+                    demand_weight = 1.0 / (0.1 + 0.9 * demand_satisfaction)  # Higher weight for unsatisfied demand
+                    
+                    # Combine rate, fairness, and demand factors
+                    metric = (rate_map[ue_id][prb] / ewma) * demand_weight
+                    
+                    if metric > best_metric:
+                        best_metric = metric
+                        best_ue = ue_id
+                
+                # Allocate PRB to best UE if found
+                if best_ue is not None:
+                    self.rb_allocation[best_ue].append(prb)
+                    available_prbs[prb] = False
+                    delivered_bits[best_ue] += rate_map[best_ue][prb]
+        
+        # --------------------------------------------------
+        # IMPROVED: Final Rebalancing for Zero-Allocation UEs
+        # --------------------------------------------------
+        
+        # Check for UEs with zero PRBs - more aggressive redistribution
+        zero_prb_ues = [ue_id for ue_id, prbs in self.rb_allocation.items() if not prbs]
+        
+        if zero_prb_ues:
+            # Find UEs with multiple PRBs as potential donors
+            ue_prb_counts = [(ue_id, len(prbs), delivered_bits[ue_id] / (self.ues[ue_id].demand * 1e6)) 
+                            for ue_id, prbs in self.rb_allocation.items() if len(prbs) > 1]
+            
+            # Sort donors by satisfaction ratio (most satisfied first)
+            ue_prb_counts.sort(key=lambda x: x[2], reverse=True)
+            
+            # Try to help each zero-PRB UE
+            for zero_ue in zero_prb_ues:
+                # Find best donor with multiple PRBs
+                for donor_idx, (donor_ue, prb_count, _) in enumerate(ue_prb_counts):
+                    if prb_count <= 1:  # Don't take from UEs with only 1 PRB
+                        continue
+                    
+                    # Take the worst PRB from donor (least impact to donor)
+                    donor_prbs = self.rb_allocation[donor_ue]
+                    donor_rates = [rate_map[donor_ue][prb] for prb in donor_prbs]
+                    worst_idx = np.argmin(donor_rates)
+                    prb = donor_prbs[worst_idx]
+                    
+                    # Only donate if it helps zero_ue more than it hurts donor_ue
+                    if rate_map[zero_ue][prb] > rate_map[donor_ue][prb] * 0.8:  # 20% efficiency threshold
+                        # Transfer the PRB
+                        donor_prbs.pop(worst_idx)
                         self.rb_allocation[zero_ue].append(prb)
+                        
+                        # Update delivered bits
                         delivered_bits[zero_ue] += rate_map[zero_ue][prb]
                         delivered_bits[donor_ue] -= rate_map[donor_ue][prb]
                         
-                        # Update PRB count list
-                        ue_prb_counts[0] = (donor_ue, ue_prb_counts[0][1] - 1)
-                        ue_prb_counts.sort(key=lambda x: x[1], reverse=True)
+                        # Update donor's PRB count
+                        ue_prb_counts[donor_idx] = (donor_ue, prb_count - 1, 
+                                                delivered_bits[donor_ue] / (self.ues[donor_ue].demand * 1e6))
+                        ue_prb_counts.sort(key=lambda x: x[2], reverse=True)
+                        break
         
         # --------------------------------------------------
-        # OPTIMIZATION 8: Efficient EWMA Update
+        # Final EWMA Update and Resource Calculation
         # --------------------------------------------------
         
-        # Update EWMA throughput for each UE - ensure minimum value
+        # Update EWMA throughput for each UE
         for ue_id, ue in self.ues.items():
-            # Ensure EWMA never gets too small
             ue.update_ewma(delivered_bits[ue_id])
-            if ue.ewma_dr < 1e-6:  # Set a minimal EWMA to prevent division issues
+            if ue.ewma_dr < 1e-6:  # Set a minimal EWMA
                 ue.ewma_dr = 1e-6
         
         # Calculate allocated resources in bps
         self.allocated_resources = {}
         for ue_id, prbs in self.rb_allocation.items():
             if prbs:  # Only calculate for UEs with allocated PRBs
-                # Use more efficient calculation of allocated resources
                 self.allocated_resources[ue_id] = sum(rate_map[ue_id][prb] for prb in prbs)
             else:
                 self.allocated_resources[ue_id] = 0.0
         
+        # # Display allocation results
+        # for ue_id, ue in self.ues.items():
+        #     alloc_mbps = self.allocated_resources.get(ue_id, 0.0) / 1e6
+        #     print(f" BS {self.reuse_color},UE {ue_id}: allocated={alloc_mbps:.2f} Mbps, demand={ue.demand:.2f} Mbps")
+
         # Calculate system load
         self.calculate_load()
+        
 
-    
-    
-    
-    def calculate_capacity_rb_based(self, sample_points=100, overhead_factor=0.8):
-        """
-        Estimate BS capacity based on sample-driven average spectral efficiency.
-        - sample_points: number of random spatial samples in cell area
-        - overhead_factor: fraction of resources available for user data
-        Returns capacity in Mbps.
-        """
-        total_se = 0.0  # sum of spectral efficiencies (bits/s/Hz)
-        # Determine cell radius from BS positions (max distance)
-        cell_radius = max(np.linalg.norm(bs.position - self.position)
-                          for bs in self.base_stations)
-
+    def calculate_capacity_rb_based(self, sample_points=500, overhead_factor=0.8):
+        total_se = 0.0
+        
+        # Debug for macro
+        is_macro = self.reuse_color == "Macro"
+        # if self.id == 0:
+        #     print(f"--- BS {self.id} Capacity Calculation ---")
+        #     print(f"Frequency: {self.frequency/1e6:.1f} MHz")
+        #     print(f"Bandwidth: {self.bandwidth/1e6:.1f} MHz")
+        #     print(f"Num RBs: {self.num_rbs}")
+            # print(f"TX Power: {self.tx_power_dbm} dBm")
+        
+        # 1) Determine a coverage radius - FIXED APPROACH
+        # For macro: standard coverage radius
+        # For small cells: either use distances between cells or a default
+        if is_macro:
+            cell_radius = 500.0  # More realistic macro coverage radius
+        else:
+            # For small cells, use distance to nearest neighbor or default
+            same_tier_bs = [bs for bs in self.base_stations 
+                        if bs.id != self.id and bs.reuse_color == self.reuse_color]
+            
+            if same_tier_bs:
+                cell_radius = min(
+                    np.linalg.norm(bs.position - self.position)
+                    for bs in same_tier_bs
+                ) / 2.0  # Half the distance to nearest same-tier BS
+            else:
+                cell_radius = 100.0  # Default small cell radius
+        
+        # 2) Cap instantaneous SINR at 30 dB (≈1000 linear)
+        max_sinr_db = 30.0
+        sinr_cap = 10 ** (max_sinr_db / 10)
+        
+        # Track average SINR for debugging
+        sinr_samples = []
+        
+        # 3) Uniform‐disk sampling
         for _ in range(sample_points):
-            # Uniformly sample a point in the circular cell
-            u = np.random.uniform(0, 1)
-            r = np.sqrt(u) * cell_radius
-            theta = np.random.uniform(0, 2 * np.pi)
-            sample_point = self.position + np.array([r * np.cos(theta),
-                                                   r * np.sin(theta)], dtype=np.float32)
-
-            # Desired signal (mW)
-            d = np.linalg.norm(sample_point - self.position)
-            pl = self.path_loss(d)
-            prx = 10 ** ((self.tx_power + self.tx_gain + self.bf_gain - pl) / 10)
-
-            # Co-channel interference (mW)
-            interf = 0.0
-            for other in self.base_stations:
-                if other.id != self.id and other.reuse_color == self.reuse_color:
-                    d_int = np.linalg.norm(sample_point - other.position)
-                    pl_int = other.path_loss(d_int)
-                    interf += 10 ** ((other.tx_power + other.tx_gain + other.bf_gain - pl_int) / 10)
-
-            # Noise (mW)
+            u = np.random.rand()          # uniform [0,1)
+            r = np.sqrt(u) * cell_radius  # uniform area
+            theta = np.random.rand() * 2 * np.pi
+            dx, dy = r * np.cos(theta), r * np.sin(theta)
+            sample_point = self.position + np.array([dx, dy], dtype=np.float32)
+            
+            # 4) Compute desired & cross‐tier interference + noise
+            prx = self.received_power_mW(sample_point)
+            
+            # Consider different interference models for macro vs small cells
+            if is_macro:
+                # For macro, small cells generally operate in different frequency bands
+                # so they cause minimal interference
+                interf = sum(
+                    other.received_power_mW(sample_point) * 0.01  # Reduced cross-tier interference
+                    for other in self.base_stations
+                    if other.id != self.id and other.reuse_color != "Macro"  # Only from other tiers
+                )
+            else:
+                # Small cells see interference from same color cells and reduced from macro
+                interf = sum(
+                    other.received_power_mW(sample_point) * (1.0 if other.reuse_color == self.reuse_color else 0.1)
+                    for other in self.base_stations
+                    if other.id != self.id
+                )
+                
             noise = self.noise_mW()
-            sinr = prx / (interf + noise + 1e-12)
+            
+            sinr = min(prx / (interf + noise + 1e-12), sinr_cap)
+            sinr_samples.append(sinr)
             total_se += np.log2(1 + sinr)
-
-        # Compute average spectral efficiency (bits/s/Hz)
-        avg_se = total_se / sample_points
-
-        # Per-RB capacity (bits/s)
-        rb_capacity = self.rb_bandwidth * avg_se
-
-        # Total capacity (bits/s) with overhead
-        total_bps = rb_capacity * self.num_rbs * overhead_factor
-
-        # Convert to Mbps
-        self.capacity = total_bps / 1e6
+        
+        # 5) From average spectral efficiency to capacity
+        avg_se = total_se / sample_points       # bits/s/Hz
+        rb_cap = self.rb_bandwidth * avg_se     # bits/s per RB
+        total_bps = rb_cap * self.num_rbs * overhead_factor
+        
+        # Safety minimum capacities based on technology
+        min_capacity = 100.0 if is_macro else 50.0
+        
+        # Mbps, with a guardrail at 10 Gbps and minimum capacity
+        self.capacity = max(min(total_bps / 1e6, 1e4), min_capacity)
+        
+        # # Additional debug for macro
+        # if self.id == 0:
+        #     avg_sinr = sum(sinr_samples) / len(sinr_samples)
+        #     print(f"Cell radius: {cell_radius:.1f} m")
+        #     print(f"Avg SINR: {10*np.log10(avg_sinr):.2f} dB")
+        #     print(f"Avg SE: {avg_se:.4f} bits/s/Hz")
+        #     print(f"RB capacity: {rb_cap/1e6:.4f} Mbps")
+        #     print(f"Total theoretical: {total_bps/1e6:.4f} Mbps")
+        #     print(f"Final capacity: {self.capacity:.4f} Mbps")
+        #     print("-----------------------------------")
+        
         return self.capacity
+    # def calculate_capacity_rb_based(self, sample_points=500, overhead_factor=0.8):
+    #     """Use tier-appropriate capacity models"""
+    #     if self.reuse_color == "Macro":
+    #         # For macro: statistical model based on typical macro cell performance
+    #         # This adjusts for the lack of neighboring macro cells
+            
+    #         # 1) Area: π·r² where r is effective coverage radius
+    #         coverage_radius = 750.0  # meters (typical half-ISD)
+    #         coverage_area = np.pi * coverage_radius**2  # m²
+            
+    #         # 2) Average spectral efficiency from empirical studies
+    #         # Typically 1.5-3 bps/Hz for macro cells with modern technology
+    #         avg_spectral_efficiency = 2.5  # bps/Hz
+            
+    #         # 3) Apply bandwidth and overhead factors
+    #         total_bps = avg_spectral_efficiency * self.bandwidth * overhead_factor
+            
+    #         # 4) Cell capacity (bps)
+    #         self.capacity = total_bps / 1e6  # Convert to Mbps
+    #     else:
+    #         # For small cells: use your existing detailed calculation
+    #         total_se = 0.0
+    #         # 1) Determine a coverage radius
+    #         if len(self.base_stations) == 1:
+    #             # fallback radii: macro vs. small cell
+    #             cell_radius = 1000.0 if self.reuse_color == "Macro" else 100.0
+    #         else:
+    #             cell_radius = max(
+    #                     np.linalg.norm(bs.position - self.position)
+    #                     for bs in self.base_stations
+    #                 )
+
+    #             # 2) Cap instantaneous SINR at 30 dB (≈1000 linear)
+    #         max_sinr_db = 30.0
+    #         sinr_cap    = 10 ** (max_sinr_db / 10)
+
+    #             # 3) Uniform‐disk sampling
+    #         for _ in range(sample_points):
+    #             u     = np.random.rand()          # uniform [0,1)
+    #             r     = np.sqrt(u) * cell_radius  # uniform area
+    #             theta = np.random.rand() * 2 * np.pi
+    #             dx, dy = r * np.cos(theta), r * np.sin(theta)
+    #             sample_point = self.position + np.array([dx, dy], dtype=np.float32)
+
+    #             # 4) Compute desired & cross‐tier interference + noise
+    #             prx   = self.received_power_mW(sample_point)
+    #             interf = sum(
+    #                     other.received_power_mW(sample_point)
+    #                     for other in self.base_stations
+    #                     if other.id != self.id
+    #                 )
+    #             noise = self.noise_mW()
+
+    #             sinr = min(prx / (interf + noise + 1e-12), sinr_cap)
+    #             total_se += np.log2(1 + sinr)
+
+    #             # 5) From average spectral efficiency to capacity
+    #             avg_se    = total_se / sample_points       # bits/s/Hz
+    #             rb_cap    = self.rb_bandwidth * avg_se     # bits/s per RB
+    #             total_bps = rb_cap * self.num_rbs * overhead_factor
+
+    #             # Mbps, with a guardrail at 10 Gbps (for modest BW)
+    #             self.capacity = min(total_bps / 1e6, 1e4)
+    #             return self.capacity
+                
     def snr_per_rb(self, ue):
-        """
-        Compute per-RB linear SINR array for a given UE.
-        Returns a numpy array of length self.num_rbs.
-        """
         sinr_rb = np.empty(self.num_rbs, dtype=np.float32)
-        # Pre-compute noise per RB (assuming noise_mW returns total per RB noise)
         noise_rb = self.noise_mW()
-
-        # For flat fading: the received power is same on every RB, so compute once
-        prx = self.received_power_mW(ue.position, ue.rx_gain)
-
-        # Compute interference per RB: sum of mW from co-channel BSs
+        
+        # Calculate base received power
+        base_prx = self.received_power_mW(ue.position, ue.rx_gain)
+        
+        # Generate frequency-selective fading per RB (simplified model)
+        # Correlated Rayleigh fading with correlation across adjacent RBs
+        coherence_rbs = min(20, self.num_rbs // 50)  # Coherence bandwidth in RBs
+        num_independent_fades = max(1, self.num_rbs // coherence_rbs)
+        
+        # Generate independent fades
+        independent_fades = np.random.rayleigh(scale=1.0, size=num_independent_fades)
+        
+        # Interpolate to get per-RB fading
+        fading = np.interp(
+            np.linspace(0, num_independent_fades-1, self.num_rbs),
+            np.arange(num_independent_fades),
+            independent_fades
+        )
+        
+        # Normalize fading to maintain average power
+        fading = fading / np.mean(fading)
+        
+        # Apply fading to received power per RB
+        prx_per_rb = base_prx * fading
+        
+        # Calculate interference (could also add per-RB interference variation)
         interf = 0.0
         for other in self.base_stations:
             if other.id == self.id or other.reuse_color != self.reuse_color:
                 continue
             interf += other.received_power_mW(ue.position, ue.rx_gain)
-
-        # Fill array
-        sinr_val = prx / (interf + noise_rb + 1e-12)
-        sinr_rb.fill(sinr_val)
+        
+        # Calculate SINR per RB
+        for rb in range(self.num_rbs):
+            sinr_rb[rb] = prx_per_rb[rb] / (interf + noise_rb + 1e-12)
+        
         return sinr_rb
     
-    def data_rate_unshared(self, ue):
-        """
-        Returns the instantaneous Shannon capacity of UE if alone on the BS.
-        - self.bandwidth in Hz
-        - snr_linear returns a linear ratio (not in dB)
-        -> result is in bits/sec
-        """
-        snr = self.snr_linear(ue)
-        return self.bandwidth * np.log2(1 + snr)
-
-    def priority(self, ue, alpha=1.0, beta=1.0, eps=1e-6):
-        T_inst = self.data_rate_unshared(ue) #bits/sec (or Mbps, if you divided)
-        R_hist = ue.ewma_dr   # same units as T_inst
-        return (T_inst ** alpha) / (R_hist ** beta + eps)
-    
-    def data_rate_shared(self, ue, alpha=1.0, beta=1.0, gamma=0.5):
-        """Enhanced PF scheduler incorporating demand"""
-        # 1) Compute priority with demand factor
-        weights = []
-        ue_demands = {}
-        
-        for other_ue_id in self.allocated_resources:
-            other_ue = self.ues[other_ue_id]
-            # Base priority using PF
-            w_pf = self.priority(other_ue, alpha, beta)
-            
-            # Demand factor: prioritize UEs whose demand is not yet met
-            demand_factor = min(1.0, other_ue.demand / (other_ue.ewma_dr + 1e-6))**gamma
-            
-            # Final priority
-            w = w_pf * demand_factor
-            weights.append(w)
-            ue_demands[other_ue_id] = other_ue.demand
-        
-        W = sum(weights) + 1e-9
-        
-        # 2) Fraction for THIS UE with demand consideration
-        w_i_pf = self.priority(ue, alpha, beta)
-        demand_factor_i = min(1.0, ue.demand / (ue.ewma_dr + 1e-6))**gamma
-        w_i = w_i_pf * demand_factor_i
-        
-        fraction = w_i / W
-        
-        # 3) Shared rate = fraction × instantaneous capacity
-        T_inst = self.data_rate_unshared(ue)
-        
-        # 4) Cap allocated rate at demand if desired
-        allocated_rate = fraction * T_inst
-        # Uncomment to cap at demand:
-        # allocated_rate = min(allocated_rate, ue.demand)
-        
-        return allocated_rate
     
 class NetworkEnvironment(MultiAgentEnv):
+    # @staticmethod
+    # def generate_hex_positions(
+    #     num_bs,
+    #     width=100.0,
+    #     height=100.0,
+    #     min_distance_from_center=30.0,  # Minimum distance for small cells
+    #     enforce_center=True
+    # ):
+    #     """
+    #     Generates positions with:
+    #     - Guaranteed central BS at (50,50) when enforce_center=True
+    #     - Other BSs placed in hex pattern ≥ min_distance_from_center away
+    #     """
+    #     center = (width/2, height/2)
+    #     positions = []
+        
+    #     if num_bs < 1:
+    #         return []
+
+    #     # ==================================================================
+    #     # 1. Always place first BS at center (50,50)
+    #     # ==================================================================
+    #     if enforce_center:
+    #         positions.append(center)
+    #         remaining_bs = num_bs - 1
+    #     else:
+    #         remaining_bs = num_bs
+
+    #     # ==================================================================
+    #     # 2. Calculate hexagonal grid parameters for remaining BSs
+    #     # ==================================================================
+    #     if remaining_bs > 0:
+    #         # Effective area excluding central safety zone
+    #         safe_radius = min_distance_from_center
+    #         usable_width = width - 2*safe_radius
+    #         usable_height = height - 2*safe_radius
+            
+    #         area_per_bs = (usable_width * usable_height) / remaining_bs
+    #         pitch = max(math.sqrt(2 * area_per_bs / math.sqrt(3)), 15.0)
+            
+    #         # Generate grid positions offset from center
+    #         hex_height = pitch * math.sin(math.radians(60))
+    #         n_cols = int(math.ceil(usable_width / pitch)) + 2
+    #         n_rows = int(math.ceil(usable_height / hex_height)) + 2
+            
+    #         x_start = safe_radius
+    #         y_start = safe_radius
+            
+    #         # ==============================================================
+    #         # 3. Generate candidate positions (all outside safe radius)
+    #         # ==============================================================
+    #         candidate_pos = []
+    #         for row in range(n_rows):
+    #             y = y_start + row * hex_height
+    #             x_offset = (pitch/2 if row % 2 else 0)
+                
+    #             for col in range(n_cols):
+    #                 x = x_start + x_offset + col * pitch
+    #                 candidate = (x, y)
+                    
+    #                 # Check position validity
+    #                 if (0 <= x <= width) and (0 <= y <= height):
+    #                     dist_to_center = np.hypot(x-center[0], y-center[1])
+    #                     if dist_to_center >= min_distance_from_center:
+    #                         candidate_pos.append(candidate)
+
+    #         # ==============================================================
+    #         # 4. Sort candidates by distance from center (spiral pattern)
+    #         # ==============================================================
+    #         candidate_pos.sort(
+    #             key=lambda p: (
+    #                 np.hypot(p[0]-center[0], p[1]-center[1]),  # Distance
+    #                 -np.arctan2(p[1]-center[1], p[0]-center[0]) # Angle
+    #             )
+    #         )
+
+    #         # Take first N positions meeting criteria
+    #         positions += candidate_pos[:remaining_bs]
+
+    #     return positions[:num_bs]
     @staticmethod
-    def generate_hex_positions(num_bs, width=100.0, height=100.0):
+    def generate_hex_positions(num_bs, width=100.0, height=100.0, min_distance_from_center=30.0,  # Minimum distance for small cells
+    enforce_center=True):
         """
-        Generate base station positions in a hexagonal pattern that automatically
-        scales spacing based on the number of stations, ensuring even distribution
-        across the entire map area.
+        Generate base station positions with the macro cell at center (width/2, height/2)
+        and small cells arranged in optimal positions around it.
         """
         if num_bs < 1:
             return []
-
-        # Calculate spacing based on area per BS
-        area_per_bs = (width * height) / num_bs
-        pitch = math.sqrt((2 * area_per_bs) / math.sqrt(3))
         
-        # Prevent excessive spacing for very small numbers
-        max_pitch = min(width, height) / 2
-        pitch = min(pitch, max_pitch)
-        
-        # Ensure minimum spacing for readability
-        pitch = max(pitch, 5.0)
-
-        # Calculate grid dimensions to cover entire map
-        hex_height = pitch * math.sin(math.radians(60))
-        n_cols = int(math.ceil(width / pitch)) + 2
-        n_rows = int(math.ceil(height / hex_height)) + 2
-
-        # Center the grid
-        total_width = (n_cols-1) * pitch
-        total_height = (n_rows-1) * hex_height
-        x_offset = (width - total_width) / 2
-        y_offset = (height - total_height) / 2
-
-        # Generate all potential positions
-        positions = []
-        for row in range(n_rows):
-            y = y_offset + row * hex_height
-            x_start = x_offset + (pitch/2 if row % 2 else 0)
-            
-            for col in range(n_cols):
-                x = x_start + col * pitch
-                if 0 <= x <= width and 0 <= y <= height:
-                    positions.append((x, y))
-
-        # Sort by distance from center with spiral pattern
+        # Always place the first base station (macro cell) at the center
         center = (width/2, height/2)
-        positions.sort(
-            key=lambda p: (
-                math.hypot(p[0]-center[0], p[1]-center[1]),  # Primary: distance
-                -math.atan2(p[1]-center[1], p[0]-center[0])   # Secondary: angle
-            )
-        )
-
-        return [((x, y)) for x, y in positions[:num_bs]]
-
+        positions = [center]
+        
+        if num_bs == 1:
+            return positions
+        
+        # For small cells, use optimal positioning instead of standard hexagonal grid
+        # Calculate the effective radius - half of the smaller dimension
+        effective_radius = min(width, height) / 2 * 0.65  # 65% of half-width for optimal small cell placement
+        
+        # Generate positions on concentric rings around the center
+        remaining_positions = []
+        
+        # First ring - optimal for up to 6 small cells
+        if num_bs <= 7:  # 1 macro + 6 small cells
+            angle_step = 2 * math.pi / (num_bs - 1)
+            for i in range(num_bs - 1):
+                angle = i * angle_step
+                x = center[0] + effective_radius * math.cos(angle)
+                y = center[1] + effective_radius * math.sin(angle)
+                remaining_positions.append((x, y))
+        else:
+            # First ring - 6 cells
+            for i in range(6):
+                angle = i * math.pi / 3
+                x = center[0] + effective_radius * math.cos(angle)
+                y = center[1] + effective_radius * math.sin(angle)
+                remaining_positions.append((x, y))
+            
+            # If more cells are needed, add additional rings with increasing radius
+            remaining_cells = num_bs - 7  # -1 for macro, -6 for first ring
+            if remaining_cells > 0:
+                # Second ring
+                second_ring_radius = effective_radius * 1.8
+                cells_in_second_ring = min(12, remaining_cells)
+                angle_step = 2 * math.pi / cells_in_second_ring
+                
+                for i in range(cells_in_second_ring):
+                    angle = i * angle_step + (angle_step / 2)  # offset to stagger from first ring
+                    x = center[0] + second_ring_radius * math.cos(angle)
+                    y = center[1] + second_ring_radius * math.sin(angle)
+                    remaining_positions.append((x, y))
+                
+                # If still more cells needed, fall back to hexagonal grid for the rest
+                remaining_cells -= cells_in_second_ring
+                if remaining_cells > 0:
+                    # Calculate standard hexagonal grid positions as before
+                    area_per_bs = (width * height) / num_bs
+                    pitch = math.sqrt((2 * area_per_bs) / math.sqrt(3))
+                    pitch = min(pitch, min(width, height) / 2)
+                    pitch = max(pitch, 5.0)
+                    
+                    hex_height = pitch * math.sin(math.radians(60))
+                    n_cols = int(math.ceil(width / pitch)) + 2
+                    n_rows = int(math.ceil(height / hex_height)) + 2
+                    
+                    x_offset = (width - (n_cols-1) * pitch) / 2
+                    y_offset = (height - (n_rows-1) * hex_height) / 2
+                    
+                    # Generate grid positions
+                    grid_positions = []
+                    for row in range(n_rows):
+                        y = y_offset + row * hex_height
+                        x_start = x_offset + (pitch/2 if row % 2 else 0)
+                        
+                        for col in range(n_cols):
+                            x = x_start + col * pitch
+                            pos = (x, y)
+                            # Skip the center and any positions too close to already placed cells
+                            if 0 <= x <= width and 0 <= y <= height and pos != center:
+                                min_distance = min([math.hypot(x-p[0], y-p[1]) for p in positions + remaining_positions], default=float('inf'))
+                                if min_distance > pitch * 0.7:
+                                    grid_positions.append(pos)
+                    
+                    # Sort remaining grid positions by distance from center
+                    grid_positions.sort(key=lambda p: math.hypot(p[0]-center[0], p[1]-center[1]))
+                    
+                    # Add as many as needed
+                    remaining_positions.extend(grid_positions[:remaining_cells])
+        
+        # Ensure all positions are within bounds
+        remaining_positions = [(max(0, min(width, x)), max(0, min(height, y))) for x, y in remaining_positions]
+        
+        # Return the center followed by the optimally placed small cells
+        return positions + remaining_positions[:num_bs-1]
     
     def __init__(self, config:EnvContext, log_kpis=True):        
         super().__init__()  # ✅ Initialize gym.Env
@@ -705,55 +942,90 @@ class NetworkEnvironment(MultiAgentEnv):
         self.current_step = 0
         self.log_kpis = log_kpis        
         self.metaheuristic_agents = []  # Initialize empty list 
-        
+        self.seed = 42
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            
         self.step_count       = 0        
         self.base_stations = []
-        # Calculating hexagonal positions for BS
-        # 1) define your reuse pattern and carrier frequencies
-        colors = ["A", "B", "C"]
-        carrier_freqs = {
-            "A": 140e9,   # GHz, e.g. 140 GHz
-            "B": 141e9,   # GHz
-            "C": 142e9    # GHz
+        # Calculating hexagonal positions for BS             
+        
+        # In NetworkEnvironment.__init__:
+        grid = self.generate_hex_positions(
+            num_bs=self.num_bs,
+            min_distance_from_center=30.0,
+            enforce_center=True
+        )
+        # In NetworkEnvironment __init__ after grid generation:
+        # In NetworkEnvironment __init__ after grid generation:
+        colors = ["A", "B", "C"]  # Simple 3-color reuse
+        # Define bandwidths (aligned with 3GPP recommendations)
+        MACRO_CONFIG = {
+            "frequency": 2.1e9,    # Sub-6 GHz
+            "bandwidth": 20e6,     # 20 MHz (typical macro cell)
+            "tx_power_dbm": 46.0,
+            "path_loss_n": 3.5
         }
-        bandwidth = 10e9  # Hz, e.g. 10 GHz per carrier slice
 
-        # 2) get (row, col, pos) tuples
-        grid = self.generate_hex_positions(self.num_bs, width=100.0, height=100.0)
+        SMALL_CELL_CONFIG = {
+            "A": {
+                "frequency": 26.75e9,  # # full n258 BW 28 GHz
+                "bandwidth": 3.25e9    # 2 GHz (mmWave typical)
+            },
+            "B": {
+                "frequency": 28.00e9,  # # full n257 BW 39 GHz
+                "bandwidth": 3.00e9  # 4 GHz 
+            },
+            "C": {
+                "frequency": 39.00e9,  #  # full n260 BW 60 GHz
+                "bandwidth": 3.00e9   # 8 GHz
+            }
+        }
 
-        # 3) instantiate BS with reuse_color & per‐slice frequency
-        self.base_stations = []
-        # Then update your BS instantiation loop:
-        for i, pos in enumerate(grid):
-            color = colors[i % len(colors)]  # Simple rotating color scheme
-            # Or for spatial color distribution:
-            # color = colors[int((pos[0]/100 + pos[1]/100) * len(colors)) % len(colors)]
-            freq = carrier_freqs[color]
-            bs = BaseStation(
-                id=i,
+        # Macro BS initialization
+        macro_bs = BaseStation(
+            id=0,
+            position=grid[0],
+            frequency=MACRO_CONFIG["frequency"],
+            bandwidth=MACRO_CONFIG["bandwidth"],
+            subcarrier_spacing=15e3,
+            reuse_color="Macro",
+            tx_power_dbm=MACRO_CONFIG["tx_power_dbm"],
+            path_loss_n=MACRO_CONFIG["path_loss_n"],
+            tx_gain_dbi=8.0,    # Standard cellular antenna
+            bf_gain_dbi=10.0,    # Limited beamforming
+            path_loss_sigma=8.0,
+            cre_bias=0.0            
+        )
+        self.base_stations.append(macro_bs)
+        # Small cells initialization
+        small_cells = []
+        for i, pos in enumerate(grid[1:]):  # Skip macro
+            color = colors[i % len(colors)]
+            config = SMALL_CELL_CONFIG[color]
+            
+            small_cells.append(BaseStation(
+                id=i+1,
                 position=pos,
-                frequency=freq,
-                bandwidth=bandwidth,
-                reuse_color=color
-                # ... other parameters
-            )
-        # for i, (row, col, pos) in enumerate(grid):
-        #     color = colors[(row + 2*col) % len(colors)]
-        #     freq  = carrier_freqs[color]
-        #     bs = BaseStation(
-        #         id=i,
-        #         position=pos,
-        #         frequency=freq,
-        #         bandwidth=bandwidth,
-        #         reuse_color=color                
-        #     )
-            self.base_stations.append(bs)
-        print(f"[NetworkEnvironment] num_bs = {config.get('num_bs')}")     
+                frequency=config["frequency"],
+                bandwidth=config["bandwidth"],
+                subcarrier_spacing=60e3,
+                reuse_color=color,
+                tx_power_dbm=30.0,
+                path_loss_n=2.1,
+                path_loss_sigma=4.0,
+                cre_bias=6.0,
+                tx_gain_dbi=12.0,  # High-gain mmWave antenna
+                bf_gain_dbi=25.0,   # Advanced beamforming
+                height=10.0         # Small cell height
+            ))
+        self.base_stations.extend(small_cells)
+        all_positions = np.random.uniform(0, 100, size=(self.num_ue, 2)).astype(np.float32)
         self.ues = [
             UE(
                 id=i,
-                position=np.random.uniform(0, 100, size=2).astype(np.float32),
-                demand=np.random.randint(50, 200),
+                position=all_positions[i],
+                demand=np.random.randint(5, 20),
                 v_min=0.5,
                 v_max=1.5,
                 pause_min=1.0,
@@ -790,16 +1062,6 @@ class NetworkEnvironment(MultiAgentEnv):
             for i in range(self.num_ue)
         })
 
-        
-    # def observation_space(self, agent_id=None):
-    #     if agent_id is not None:
-    #         return self.observation_space[agent_id]
-    #     return self.observation_space
-
-    # def action_space(self, agent_id=None):
-    #     if agent_id is not None:
-    #         return self.action_space[agent_id]
-    #     return self.action_space
 
     def reward(self, agent):
         return self.calculate_individual_reward(agent)  # Implement per-BS reward
@@ -839,26 +1101,7 @@ class NetworkEnvironment(MultiAgentEnv):
             return float(base_reward)
 
         return 0.0
-
     
-    
-    # def pick_best_bs(self, ue, w1=0.7, w2=0.3):
-    #     unshared = np.array([bs.data_rate_unshared(ue) for bs in self.base_stations])
-    #     max_unsh = unshared.max() + 1e-9
-    #     loads = np.array([bs.load for bs in self.base_stations])
-    #     caps  = np.array([bs.capacity for bs in self.base_stations])
-    #     load_factor = 1 - loads / caps
-    #     scores = w1 * (unshared / max_unsh) + w2 * load_factor
-    #     return int(np.argmax(scores))
-
-    # def reset(self, seed=None, options=None):
-    #     self.current_step = 0
-    #     for ue in self.ues:
-    #         ue.position = np.random.uniform(0,100,2).astype(np.float32)
-    #         ue.associated_bs = None
-    #         ue.sinr = -np.inf
-    #         ue.ewma_dr = 0.0
-    #     return self._get_obs(), {}    
     def reset(self, *, seed=None, options=None):
         # 1) Reset step counter and clear all BS loads & UE state
         self.current_step = 0
@@ -920,7 +1163,7 @@ class NetworkEnvironment(MultiAgentEnv):
         # 2) Refresh each BS capacity (Mbps)
         for bs in self.base_stations:
             bs.capacity = bs.calculate_capacity_rb_based()
-
+            # print(f"BS {bs.id}, Capacity: {bs.capacity}")
         # 3) Build load and capacity tensors (both in bps)
         loads_bps = torch.tensor(
             [sum(bs.allocated_resources.values()) for bs in self.base_stations],
@@ -942,7 +1185,10 @@ class NetworkEnvironment(MultiAgentEnv):
 
         # 6) Overload penalty: sum of (load_norm - 1)+ across BSs
         overload = torch.relu(loads_norm - 1.0).sum()
-
+        # for i, bs in enumerate(self.base_stations):
+        #     load = sum(bs.allocated_resources.values())
+        #     capacity = bs.capacity * 1e6
+        #     print(f"BS {bs.id}: Load={load/1e6:.2f}Mbps, Capacity={capacity/1e6:.2f}Mbps, Ratio={load/capacity:.2f}")
         # 7) Composite reward
         #    - throughput in Gbps (≈ 0–X)
         #    - fairness [0–1]
@@ -1108,7 +1354,7 @@ class NetworkEnvironment(MultiAgentEnv):
 
             # 3) Update SINR & EWMA
             self._update_system_metrics()
-            print(f"Connected Users : {connected_count} Users")
+            # print(f"Connected Users : {connected_count} Users")
             # 4) Compute per-agent rewards
             rewards = {f"ue_{ue.id}": self.calculate_individual_reward(f"ue_{ue.id}")
                     for ue in self.ues}
@@ -1221,258 +1467,14 @@ class NetworkEnvironment(MultiAgentEnv):
             print(traceback.format_exc())
             # Return a safe default response
             return self._get_obs(), {f"ue_{ue.id}": 0.0 for ue in self.ues}, {"__all__": False}, {"__all__": True}, {"__common__": {"error": str(e)}} 
-    # def step(self, actions: Dict[str, int]):
-    #     # Add timing for performance analysis
-    #     print(f"Step called with {len(actions)} actions")
-    #     try:
-    #         start_time = time.time()            
-    #         connected_count = 0
-    #         handover_count = 0
-    #         for i, ue in enumerate(self.ues):
-    #             print(f"Before step - UE {i}: associated_bs={ue.associated_bs}")
-    #         for i, bs in enumerate(self.base_stations):
-    #             print(f"Before step - BS {i}: load={bs.load}, allocated_resources={bs.allocated_resources}")
-    #         # 1) Process each UE’s action
-    #         for agent_id, a in actions.items():
-    #             i = int(agent_id.split("_")[1])
-    #             ue = self.ues[i]
-
-    #             # decode new BS index
-    #             new_bs = None if a == 0 else (a - 1)
-    #             old_bs = ue.associated_bs
-
-    #             if new_bs != old_bs:
-    #                 # remove from old BS
-    #                 if old_bs is not None:
-    #                     self.base_stations[old_bs].allocated_resources.pop(ue.id, None)
-    #                     self.base_stations[old_bs].calculate_load()
-
-    #                 # try admit to new BS
-    #                 if new_bs is not None:
-    #                     bs = self.base_stations[new_bs]
-    #                     dr = bs.data_rate_shared(ue)
-    #                     if bs.load + dr <= bs.capacity:
-    #                         bs.allocated_resources[ue.id] = dr
-    #                         bs.calculate_load()
-    #                         ue.associated_bs = new_bs
-    #                         connected_count += 1
-    #                     else:
-    #                         # capacity full → revert to old
-    #                         ue.associated_bs = old_bs
-    #                         if old_bs is not None:
-    #                             connected_count += 1
-    #                 handover_count += 1
-    #             else:
-    #                 # stayed put
-    #                 if ue.associated_bs is not None:
-    #                     connected_count += 1
-
-            
-    #         # 3) Update SINR & EWMA
-    #         for ue in self.ues:
-    #             # full multi-cell SINR vector
-    #             sinr_vec = self._calculate_sinrs(ue)
-    #             if ue.associated_bs is not None:
-    #                 ue.sinr = sinr_vec[ue.associated_bs]
-    #                 # update EWMA with allocated rate
-    #                 self.base_stations[ue.associated_bs].calculate_load()
-    #                 measured = self.base_stations[ue.associated_bs].allocated_resources.get(ue.id, 0.0)
-    #                 ue.update_ewma(measured)
-    #             else:
-    #                 ue.sinr = -np.inf
-            
-    #         # Calculate rewards efficiently
-    #         rewards = {}
-    #         total_reward = 0
-    #         for bs in self.base_stations:
-    #             print(f"BS {bs.id}: load={bs.load}, capacity={bs.capacity}, ratio={bs.load/bs.capacity if bs.capacity>0 else 'inf'}")
-            
-    #         # # 4) Compute rewards and aggregate metrics
-    #         # rewards = {}
-    #         # total_reward = 0.0
-    #         for ue in self.ues:
-    #             key = f"ue_{ue.id}"
-    #             r = self.calculate_individual_reward(key)
-    #             rewards[key] = r
-    #             total_reward += r                 
-            
-    #         print(f"Connected Users : {connected_count} Users")
-    #         # Log performance metrics at regular intervals
-    #         step_time = time.time() - start_time
-    #         jains = 0.0
-    #         if self.current_step % 10 == 0 or connected_count < self.num_ue:
-    #             print(f"Step {self.current_step} | Time: {step_time:.3f}s | Connected: {connected_count}/{self.num_ue} UEs")
-                
-    #             # Calculate load balancing metrics
-    #             loads = [bs.load for bs in self.base_stations]
-    #             capacities = [bs.capacity for bs in self.base_stations]
-    #             utilizations = [load/cap if cap > 0 else 0 for load, cap in zip(loads, capacities)]
-                
-    #             # Jain's fairness index for load distribution
-    #             if sum(utilizations) > 0:
-    #                 squared_sum = sum(utilizations)**2
-    #                 sum_squared = sum(u**2 for u in utilizations) * len(utilizations)
-    #                 jains = squared_sum / sum_squared if sum_squared > 0 else 0
-    #                 print(f"Load Balancing Fairness: {jains:.4f}")
-            
-    #         # Track current solution for visualization
-    #         current_solution = []
-    #         for ue in self.ues:
-    #             if ue.associated_bs is not None:
-    #                 current_solution.append(ue.associated_bs)
-    #             else:
-    #                 # Use a default value for unconnected UEs
-    #                 current_solution.append(-1)  # Using -1 to clearly indicate unconnected status
-            
-    #         # Calculate SINR values, with protection against overflow
-    #         sinr_list = []
-    #         for ue in self.ues:
-    #             if ue.associated_bs is not None:
-    #                 # Ensure SINR is within a reasonable range to prevent overflow
-    #                 capped_sinr = min(ue.sinr, 100.0)  # Cap at 100 dB to prevent overflow
-    #                 sinr_list.append(capped_sinr)
-    #             else:
-    #                 sinr_list.append(-np.inf)
-            
-    #         # KPI logging
-    #         if self.log_kpis and self.kpi_logger:
-    #             # Safe throughput calculation to prevent overflow
-    #             throughput = 0.0
-    #             for ue in self.ues:
-    #                 if ue.associated_bs is not None:
-    #                     # Prevent overflow by capping SINR
-    #                     capped_sinr = min(ue.sinr, 100.0)  # Cap at 100 dB
-    #                     throughput += np.log2(1 + 10**(capped_sinr/10))
-                
-    #             metrics = {
-    #                 "connected_ratio": connected_count/self.num_ue,
-    #                 "step_time": step_time,
-    #                 "episode_reward_mean": total_reward/self.num_ue,
-    #                 "fairness_index": jains,
-    #                 "throughput": throughput,
-    #                 "solution": current_solution,
-    #                 "sinr_list": sinr_list,
-    #             }
-    #             self.kpi_logger.log_metrics(
-    #                 phase="environment", algorithm="hybrid_marl",
-    #                 metrics=metrics, episode=self.current_step
-    #             )
-                
-    #         # Split termination into terminated and truncated (for Gymnasium compatibility)
-    #         terminated = {"__all__": False}  # Episode is not terminated due to failure condition
-    #         truncated = {"__all__": self.current_step >= self.episode_length}  # Episode length limit reached 
-
-    #         # Common info for all agents
-    #         common_info = {
-    #             "connected_ratio": connected_count / self.num_ue,
-    #             "step_time": step_time,
-    #             "current_solution": current_solution,
-    #             "avg_reward": total_reward / self.num_ue if self.num_ue > 0 else 0
-    #         }
-            
-    #         # Create info dict with one entry per agent, plus common info
-    #         info = {
-    #             f"ue_{ue.id}": {
-    #                 "connected": ue.associated_bs is not None,
-    #                 "sinr": float(min(ue.sinr, 100.0) if ue.associated_bs is not None else -np.inf)  # Cap SINR values
-    #             } for ue in self.ues  # Add minimal agent-specific info
-    #         }
-    #         info["__common__"] = common_info  # Add common info under special key
-    #         # Save as last info
-    #         self.last_info = info
-    #         # Increment step counter
-    #         self.current_step += 1
-    #         return self._get_obs(), rewards, terminated, truncated, info
-        
-    #     except Exception as e:
-    #         print(f"ERROR in step: {e}")
-    #         import traceback
-    #         print(traceback.format_exc())
-    #         # Return a safe default response
-    #         return self._get_obs(), {f"ue_{ue.id}": 0.0 for ue in self.ues}, {"__all__": False}, {"__all__": True}, {"__common__": {"error": str(e)}}   
-    # Add this to your NetworkEnvironment class
+    
     def get_last_info(self):
         """Return the last info dict from a step"""
         if hasattr(self, 'last_info'):
             print("Getting lastest info....")
             return self.last_info
         return None
-    # def _get_obs(self):
-    #     """
-    #     Get observation for each UE that includes:
-    #     - Normalized SINR to each BS
-    #     - PRB load fractions for each BS
-    #     - BS utilization (rate/capacity ratio)
-    #     - UE demand (normalized)
-    #     - One-hot encoding of current association
-        
-    #     Returns a dictionary of per-UE observations.
-    #     """
-    #     # 1) PRB-based load fraction per BS - with safety check for division
-    #     bs_prb_loads = np.array([bs.load for bs in self.base_stations], dtype=np.float32)
-        
-    #     # Safety check to prevent division by zero
-    #     bs_num_rbs = np.array([max(bs.num_rbs, 1) for bs in self.base_stations])
-    #     prb_fractions = bs_prb_loads / bs_num_rbs
-        
-    #     # 2) Calculate data-rate utilization per BS with appropriate clipping
-    #     rate_loads = np.array([
-    #         sum(bs.allocated_resources.values()) 
-    #         for bs in self.base_stations
-    #     ], dtype=np.float32)
-        
-    #     # Ensure capacity values are valid and reasonable
-    #     cap_bps = np.array([
-    #         max(bs.capacity * 1e6, 1.0)  # Ensure minimum capacity of 1 bps
-    #         for bs in self.base_stations
-    #     ], dtype=np.float32)
-        
-    #     # Calculate utilization with safety checks
-    #     # 1. Guard against division by very small numbers
-    #     # 2. Clip the result to prevent extremely large values
-    #     util_bps = np.clip(rate_loads / cap_bps, 0.0, 10.0)  # Cap at 1000% utilization
-        
-    #     # Build observations for each UE
-    #     obs = {}
-    #     for ue in self.ues:
-    #         # A) linear SINR to each BS, normalized by its max
-    #         sinr_lin = self._calculate_sinrs(ue).astype(np.float32)
-            
-    #         # Add safety check for zero SINR
-    #         max_sinr = max(sinr_lin.max(), 1e-6)  # Minimum value to avoid zero division
-    #         norm_sinr = sinr_lin / max_sinr
-            
-    #         # B) own demand normalized to [0,1] with safety check
-    #         ue_demand = max(ue.demand, 1.0)  # Ensure non-zero value
-    #         norm_demand = np.array([min(ue.demand / ue_demand, 1.0)], dtype=np.float32)
-            
-    #         # C) one-hot for association
-    #         idx = ue.associated_bs if ue.associated_bs is not None else self.num_bs
-    #         one_hot = np.eye(self.num_bs+1, dtype=np.float32)[idx]
-            
-    #         # # D) concat: SINR | PRB-load | utilization | demand | one-hot
-    #         # obs[f"ue_{ue.id}"] = np.concatenate([
-    #         #     norm_sinr,          # (num_bs,)
-    #         #     prb_fractions,      # (num_bs,)
-    #         #     util_bps,           # (num_bs,) - now with safety checks
-    #         #     norm_demand,        # (1,)
-    #         #     one_hot             # (num_bs+1,)
-    #         # ], axis=0)
-    #         # inside your per-UE loop, after computing norm_sinr...
-    #         last_throughput = np.array([thr_bps_per_hz], dtype=np.float32)
-    #         last_fairness   = np.array([global_jains], dtype=np.float32)  # same for every UE
-
-    #         obs_vector = np.concatenate([
-    #             norm_sinr,
-    #             prb_fractions,
-    #             util_bps,
-    #             norm_demand,
-    #             one_hot,
-    #             last_throughput,
-    #             last_fairness
-    #         ], axis=0)
-
-    #     return obs
+    
 
     def _get_obs(self):
         """
@@ -1568,7 +1570,11 @@ class NetworkEnvironment(MultiAgentEnv):
         return np.array(positions).flatten()
     
     def get_state_snapshot(self) -> dict:
-        return {
+         # pick the UE iterable based on type
+            
+            ue_iter = (self.ues.values() if isinstance(self.ues, dict)
+                else self.ues)
+            return {
             "users": [{
                 "id": ue.id,
                 "position": ue.position.copy().tolist(),
@@ -1579,7 +1585,7 @@ class NetworkEnvironment(MultiAgentEnv):
                 "associated_bs": ue.associated_bs,
                 "sinr": float(ue.sinr),
                 "ewma_dr": float(ue.ewma_dr)
-            } for ue in self.ues],
+            } for ue in ue_iter],# self.ues
             "base_stations": [{
                 "id": bs.id,
                 "allocated_resources": bs.allocated_resources.copy(),
@@ -1599,8 +1605,9 @@ class NetworkEnvironment(MultiAgentEnv):
 
     def set_state_snapshot(self, state: dict):
         # restore UEs
+        ue_iter = self.ues.values() if isinstance(self.ues, dict) else self.ues
         for ue_state in state["users"]:
-            ue = next(u for u in self.ues if u.id == ue_state["id"])
+            ue = next(u for u in ue_iter if u.id == ue_state["id"])
             ue.position       = np.array(ue_state["position"], dtype=np.float32)
             ue.waypoint       = np.array(ue_state["waypoint"], dtype=np.float32)
             ue.speed          = ue_state["speed"]
@@ -1658,7 +1665,8 @@ class NetworkEnvironment(MultiAgentEnv):
             bs.calculate_load()
             # print(f"For Update System Metrics to {bs.id}, Load :{bs.load}")
         # 2) Update UE SINRs based on actual RB allocations
-        for ue in self.ues:
+        ue_iter = self.ues.values() if isinstance(self.ues, dict) else self.ues
+        for ue in ue_iter:
             if ue.associated_bs is not None:
                 bs = next(b for b in self.base_stations if b.id == ue.associated_bs)
 
@@ -1703,7 +1711,8 @@ class NetworkEnvironment(MultiAgentEnv):
         for bs in self.base_stations:
             bs.rb_allocation = {ue_id: [] for ue_id in range(len(self.ues))}
             bs.allocated_resources.clear()
-        for ue in self.ues:
+        ue_iter = self.ues.values() if isinstance(self.ues, dict) else self.ues
+        for ue in ue_iter:
             ue.associated_bs = None
 
         # --- 4) Apply new associations ---
@@ -1716,14 +1725,49 @@ class NetworkEnvironment(MultiAgentEnv):
         # --- 5) Run PF scheduler on each BS ---
         for bs in self.base_stations:
             # Only schedule the UEs currently associated
-            active_ues = {ue.id: ue for ue in self.ues if ue.associated_bs == bs.id}
+            ue_iter = self.ues.values() if isinstance(self.ues, dict) else self.ues    
+            active_ues = {ue.id: ue for ue in ue_iter if ue.associated_bs == bs.id}
             bs.ues = active_ues
             bs.allocate_prbs()    # your PRB-by-PRB PF method
+            
+        # After apply_solution(solution) and allocate_prbs() have run:
+
+        # Build a map ue_id → { bs_id, prbs: [...], sinrs_per_prb: [...] }
+        alloc_details = {}
+
+        # We need a fast lookup of UE objects by id
+        ue_map = {ue.id: ue for ue in (self.ues.values() if isinstance(self.ues, dict) else self.ues)}
+
+        for bs in self.base_stations:
+            # bs.rb_allocation maps ue_id → list of PRB indices
+            for ue_id, prb_list in bs.rb_allocation.items():
+                if not prb_list:
+                    continue
+
+                # Compute the full SINR array for this UE
+                ue = ue_map[ue_id]
+                sinr_array = bs.snr_per_rb(ue)  # length = self.num_rbs
+
+                # Extract only the SINRs on the allocated PRBs
+                sinrs_on_prbs = sinr_array[prb_list]
+
+                alloc_details[ue_id] = {
+                    "bs_id": bs.id,
+                    "prbs": prb_list,
+                    "sinrs": sinrs_on_prbs.tolist()
+                }
+
+        # # Now you can inspect alloc_details, for example:
+        # for ue_id, info in alloc_details.items():
+        #     print(f"UE {ue_id} on BS {info['bs_id']},PRBs: {info['prbs']},SINRs (linear): {info['sinrs']}")
+            
 
         # --- 6) Track load history & handovers ---
         for bs in self.base_stations:
             self.load_history[bs.id].append(bs.load)
-        for ue in self.ues:
+        ue_iter = self.ues.values() if isinstance(self.ues, dict) else self.ues
+        for ue in ue_iter:
+        # for ue in self.ues:
             old = self.prev_associations[ue.id]
             new = ue.associated_bs
             if old is not None and new is not None and old != new:
@@ -1749,8 +1793,8 @@ class NetworkEnvironment(MultiAgentEnv):
         # 3) Ensure loads and SINRs are up-to-date
         for bs in self.base_stations:
             bs.calculate_load()
-
-        for ue in self.ues:
+        ue_iter = self.ues.values() if isinstance(self.ues, dict) else self.ues
+        for ue in ue_iter:
             if ue.associated_bs is not None:
                 # debug SINR for the first 3 UEs
                 sinr_vec = self._calculate_sinrs(ue) #, debug=(ue.id < 3))
@@ -1765,9 +1809,10 @@ class NetworkEnvironment(MultiAgentEnv):
                 throughputs[ue_id] = dr
 
         # Convert to GB/s for display and metrics
-        throughputs_Gbps = throughputs / 1e9  # bits/sec → bytes/sec → Gb/sec
-        avg_throughput_Gbps = throughputs_Gbps.mean()
-
+        throughputs_Mbps = throughputs / 1e6  # bits/sec → bytes/sec → Gb/sec
+        throughputs_Gbps = throughputs / 1e9
+        avg_throughput_Mbps = throughputs_Mbps.mean()
+        sum_throughputs=throughputs_Gbps.sum()
         # # Debug: print a few sample UE stats in GB/s
         # for ue_id in throughputs.argsort()[-5:]:
         #     ue = self.ues[ue_id]            
@@ -1776,10 +1821,11 @@ class NetworkEnvironment(MultiAgentEnv):
         #     r_gbps = throughputs_Gbps[ue_id]
         #     print(f" UE {ue_id}: assoc→BS{ue.associated_bs}, "
         #         f"SINR={snr_db:.2f} dB, Rate={r_gbps:.3f} Gb/s")        
-
+        ue_iter = self.ues.values() if isinstance(self.ues, dict) else self.ues
         # 5) Compute other metrics
         fitness     = self.calculate_reward()          # global reward
-        avg_sinr    = np.mean([ue.sinr for ue in self.ues])
+        avg_sinr    = np.mean([ue.sinr for ue in ue_iter])
+        avg_sinr_db = 10 * np.log10(avg_sinr)
         fairness    = (throughputs.sum()**2) / (len(throughputs) * np.sum(throughputs**2) + 1e-9)
         load_var    = np.var([bs.load for bs in self.base_stations])
         bs_loads    = [bs.load for bs in self.base_stations]
@@ -1800,8 +1846,9 @@ class NetworkEnvironment(MultiAgentEnv):
         # 7) Return detailed report (throughput in GB/s)
         return {
             "fitness": float(fitness),
-            "average_sinr": float(avg_sinr),
-            "throughput": float(avg_throughput_Gbps),
+            "average_sinr": float(avg_sinr_db),
+            "average_throughput": float(avg_throughput_Mbps),
+            "sum_throughput":float(sum_throughputs),
             "fairness": float(fairness),
             "load_variance": float(load_var),
             "bs_loads": bs_loads,
@@ -1820,3 +1867,11 @@ class NetworkEnvironment(MultiAgentEnv):
 # actions = {"ue_0": 1, "ue_1": 0, "ue_2": 1}  # Each UE selects a BS index
 # next_obs, rewards, dones, _ = env.step(actions)
 # print(next_obs, rewards, dones, _ )
+# env1 = NetworkEnvironment({"num_ue": 10, "num_bs": 3})
+# positions1 = [ue.position for ue in env1.ues]
+
+# env2 = NetworkEnvironment({"num_ue": 10, "num_bs": 3})
+# positions2 = [ue.position for ue in env2.ues]
+
+# assert np.allclose(positions1, positions2)  # ✅ Should pass now
+# print(np.allclose(positions1, positions2))  # Should print: True

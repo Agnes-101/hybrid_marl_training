@@ -2,7 +2,7 @@ import numpy as np
 from envs.custom_channel_env import NetworkEnvironment
 
 class CheetahOptimization:
-    def __init__(self, env: NetworkEnvironment,iterations=20, cheetahs = 30,sprint_prob = 0.6,rest_threshold = 0.3,
+    def __init__(self, env: NetworkEnvironment,iterations=20, cheetahs = 60,sprint_prob = 0.6,rest_threshold = 0.3,
                 acceleration = 1.2,energy_decay = 0.95, kpi_logger=None):
         """Cheetah Optimizer for 6G user association and load balancing"""
         self.env = env

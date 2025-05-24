@@ -22,7 +22,8 @@ class KPITracker:
         self.history = pd.DataFrame(columns=[            
             'timestamp', 'episode','connected_ratio','step_time', 'phase', 'algorithm',
     'episode_reward_mean', 'policy_entropy', 'fitness',"load_quantiles_Gbps","handover_rate",
-    'average_sinr', 'fairness', 'load_variance', 'diversity', 'throughput', "solution", "sinr_list"
+    'average_sinr', 'fairness', 'load_variance', 'diversity', 'average_throughput', "sum_throughput",
+    "solution", "sinr_list"
         ])
         self.logs = []  # Initialize logs storage
         self.data = []  # Initialize data storage
@@ -33,7 +34,7 @@ class KPITracker:
         if not self.enabled:
             return
         
-        # print(f"Logging metrics at episode {episode}: {metrics}", flush=True)
+        print(f"Logging metrics at episode {episode}: {metrics}", flush=True)
         
         self.history = pd.concat([
             self.history,
@@ -51,7 +52,8 @@ class KPITracker:
                 'fitness': metrics.get('fitness', 0),
                 'average_sinr': metrics.get('average_sinr', 0),
                 'fairness': metrics.get('fairness', 0),
-                'throughput':metrics.get('throughput',0),
+                'average_throughput':metrics.get('throughput',0),
+                "sum_throughput":metrics.get('sum_throughput',0),
                 'load_variance': metrics.get('load_variance', 0),
                 "handover_rate":metrics.get("handover_rate",0),
                 "load_quantiles_Gbps":metrics.get("load_quantiles_Gbps",0),
