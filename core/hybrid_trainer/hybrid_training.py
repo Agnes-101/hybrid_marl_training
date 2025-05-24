@@ -374,10 +374,14 @@ class HybridTraining:
         #     )
         #     for i in range(self.config["env_config"]["num_ue"])
         # }
+        # Get a single UE's observation space as the template
+        single_ue_obs_space = self.obs_space.spaces["ue_0"]  # This is gym.spaces.Box(shape=(obs_dim,))
+        single_ue_act_space = self.act_space.spaces["ue_0"]  # Same for action space
+
         policies = {
-            f"bs_{i}_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {})
+            f"bs_{i}_policy": (None, single_ue_obs_space, single_ue_act_space, {})
             for i in range(self.config["env_config"]["num_bs"])
-        }
+            }
         
         # Build PPO config with policy sharing
         marl_config = (
