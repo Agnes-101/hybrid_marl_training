@@ -43,7 +43,17 @@ class PolicyMappingManager:
             BS index (0 = macro, 1-3 = small cells)
         """
         # Wherever you're setting up ue_positions
+        # Extract the numeric part from "ue_0" -> 0
+        try:
+            ue_index = int(agent_id.split('_')[1])  # "ue_15" -> 15
+        except (IndexError, ValueError):
+            print(f"Warning: Invalid agent_id format {agent_id}, defaulting to macro")
+            return 0
         
+        # Check if this UE index exists
+        if ue_index >= len(self.ues):
+            print(f"Warning: {agent_id} index {ue_index} out of range, defaulting to macro")
+            return 0
             
         if agent_id not in self.ue_positions:
             print(f"Warning: {agent_id} position not found, defaulting to macro")
@@ -1099,10 +1109,10 @@ class NetworkEnvironment(MultiAgentEnv):
             for i in range(self.num_ue)
         ]
         print(f"Created {len(self.ues)} UEs")
-        self.ue_positions = {}
-        for ue in self.ues:
-            agent_id = f"ue_{ue.id}"  # Convert int ID to string format
-            self.ue_positions[agent_id] = ue.position
+        # self.ue_positions = {}
+        # for ue in self.ues:
+        #     agent_id = f"ue_{ue.id}"  # Convert int ID to string format
+        #     self.ue_positions[agent_id] = ue.position
         self.prev_associations = {ue.id: None for ue in self.ues}
         self.handover_counts  = {ue.id: 0    for ue in self.ues}
         self.load_history = {bs.id: [] for bs in self.base_stations}
