@@ -365,7 +365,15 @@ class HybridTraining:
             **self.config["env_config"],
             "initial_assoc": initial_policy
         }
-        
+        policies = {
+            f"bs_{i}_policy": (
+                None,               # default policy class
+                self.obs_space,     # the shared observation space
+                self.act_space,     # the shared action space
+                {}                  # (empty) custom config
+            )
+            for i in range(self.env.num_bs)
+        }
         # Build PPO config with policy sharing
         marl_config = (
             PPOConfig()
@@ -397,12 +405,12 @@ class HybridTraining:
                 clip_param=0.2
             )
             .multi_agent(
-                policies={
-                    "bs_0_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Macro
-                    "bs_1_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Small cell 1
-                    "bs_2_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Small cell 2
-                    "bs_3_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Small cell 3
-                },
+                policies=policies, # {
+                #     "bs_0_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Macro
+                #     "bs_1_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Small cell 1
+                #     "bs_2_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Small cell 2
+                #     "bs_3_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {}),  # Small cell 3
+                # },
                 policy_mapping_fn=self.policy_mapping_fn,
             )
         )
