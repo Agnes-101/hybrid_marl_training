@@ -1100,10 +1100,10 @@ class NetworkEnvironment(MultiAgentEnv):
             for i in range(self.num_ue)
         ]
         print(f"Created {len(self.ues)} UEs")
-        self.ue_positions = {}
-        for ue in self.ues:
-            agent_id = f"ue_{ue.id}"  # Convert int ID to string format
-            self.ue_positions[agent_id] = ue.position
+        # self.ue_positions = {}
+        # for ue in self.ues:
+        #     agent_id = f"ue_{ue.id}"  # Convert int ID to string format
+        #     self.ue_positions[agent_id] = ue.position
         self.prev_associations = {ue.id: None for ue in self.ues}
         self.handover_counts  = {ue.id: 0    for ue in self.ues}
         self.load_history = {bs.id: [] for bs in self.base_stations}
@@ -1141,7 +1141,7 @@ class NetworkEnvironment(MultiAgentEnv):
         # Extract initial UE positions
         initial_ue_positions = {}
         for ue in self.ues:
-            agent_id = f"ue{ue.id}"
+            agent_id = f"ue_{ue.id}"
             initial_ue_positions[agent_id] = np.array(ue.position)
         
         # Create policy manager
@@ -1234,7 +1234,7 @@ class NetworkEnvironment(MultiAgentEnv):
         
         # 3) Build and return the obs + infos dicts
         obs   = self._get_obs()  
-        infos = {i: {} for i in range(self.num_ue)}
+        infos = {f"ue_{i}": {} for i in range(self.num_ue)}
         return obs, infos
         # return self._get_obs()# , {}
 
@@ -1652,8 +1652,8 @@ class NetworkEnvironment(MultiAgentEnv):
                 np.array([global_jains], dtype=np.float32)  # (1,)
             ], axis=0)
 
-            #obs[f"ue_{ue.id}"] = obs_vector
-            obs[ue.id] = obs_vector
+            obs[f"ue_{ue.id}"] = obs_vector
+            # obs[ue.id] = obs_vector
 
         return obs
 
