@@ -44,16 +44,7 @@ class PolicyMappingManager:
         """
         # Wherever you're setting up ue_positions
         # Extract the numeric part from "ue_0" -> 0
-        try:
-            ue_index = int(agent_id.split('_')[1])  # "ue_15" -> 15
-        except (IndexError, ValueError):
-            print(f"Warning: Invalid agent_id format {agent_id}, defaulting to macro")
-            return 0
-        
-        # Check if this UE index exists
-        if ue_index >= len(self.ues):
-            print(f"Warning: {agent_id} index {ue_index} out of range, defaulting to macro")
-            return 0
+               
             
         if agent_id not in self.ue_positions:
             print(f"Warning: {agent_id} position not found, defaulting to macro")
@@ -1243,7 +1234,7 @@ class NetworkEnvironment(MultiAgentEnv):
         
         # 3) Build and return the obs + infos dicts
         obs   = self._get_obs()  
-        infos = {f"ue_{i}": {} for i in range(self.num_ue)}
+        infos = {i: {} for i in range(self.num_ue)}
         return obs, infos
         # return self._get_obs()# , {}
 
@@ -1661,7 +1652,8 @@ class NetworkEnvironment(MultiAgentEnv):
                 np.array([global_jains], dtype=np.float32)  # (1,)
             ], axis=0)
 
-            obs[f"ue_{ue.id}"] = obs_vector
+            #obs[f"ue_{ue.id}"] = obs_vector
+            obs[ue.id] = obs_vector
 
         return obs
 
