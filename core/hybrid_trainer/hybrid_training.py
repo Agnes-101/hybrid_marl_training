@@ -365,14 +365,18 @@ class HybridTraining:
             **self.config["env_config"],
             "initial_assoc": initial_policy
         }
+        # policies = {
+        #     f"ue_{i}": (
+        #         None,
+        #         self.obs_space[f"ue_{i}"],
+        #         self.act_space[f"ue_{i}"],
+        #         {}
+        #     )
+        #     for i in range(self.config["env_config"]["num_ue"])
+        # }
         policies = {
-            f"ue_{i}": (
-                None,
-                self.obs_space[f"ue_{i}"],
-                self.act_space[f"ue_{i}"],
-                {}
-            )
-            for i in range(self.config["env_config"]["num_ue"])
+            f"bs_{i}_policy": (None, self.obs_space, self.act_space, {})
+            for i in range(self.config["env_config"]["num_bs"])
         }
         
         # Build PPO config with policy sharing
