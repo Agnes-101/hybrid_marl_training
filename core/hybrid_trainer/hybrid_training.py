@@ -375,7 +375,7 @@ class HybridTraining:
         #     for i in range(self.config["env_config"]["num_ue"])
         # }
         policies = {
-            f"bs_{i}_policy": (None, self.obs_space, self.act_space, {})
+            f"bs_{i}_policy": (None, self.obs_space["ue0"], self.act_space["ue0"], {})
             for i in range(self.config["env_config"]["num_bs"])
         }
         
