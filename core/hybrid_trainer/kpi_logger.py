@@ -20,11 +20,19 @@ class KPITracker:
     def __init__(self, enabled=True):        
         self.enabled = enabled
         self.history = pd.DataFrame(columns=[            
-            'timestamp', 'episode','connected_ratio','step_time', 'phase', 'algorithm',
-    'episode_reward_mean', 'policy_entropy', 'fitness',"load_quantiles_Gbps","handover_rate",
+            'timestamp', 'episode','connected_ratio','step_time', 'phase',"epoch", 'algorithm',
+    'fitness',"load_quantiles_Gbps","handover_rate",
     'average_sinr', 'fairness', 'load_variance', 'diversity', 'average_throughput', "sum_throughput",
-    "solution", "sinr_list"
+    "solution", "sinr_list", 'episode_reward_mean', 'episode_len_mean', 'policy_loss', 'vf_loss',
+            'episodes_this_iter', 'timesteps_total'
         ])
+        # DataFrame for end-of-phase summaries
+        self.phase_summary = pd.DataFrame(columns=[
+            'timestamp', 'epoch', 'phase', 'iterations_completed',
+            'best_reward', 'final_reward', 'convergence_rate', 'total_timesteps'
+        ])
+        # List to store metaheuristic algorithm logs
+        self.algorithm_logs = []
         self.logs = []  # Initialize logs storage
         self.data = []  # Initialize data storage
         self.algorithm_logs = []  # New: Store algorithm performance data
@@ -61,13 +69,51 @@ class KPITracker:
             }])
         ], ignore_index=True)
         
-        # self.logs.append({
-        #         "episode": episode,
-        #         "reward": reward,
-        #         "sinr": sinr,
-        #         "fairness": fairness,
-        #         "load_variance": load_variance
-        #     })
+    def log_iteration(self, epoch: int, iteration: int, phase: str, metrics: dict):
+        """Log per-iteration MARL metrics."""
+        if not self.enabled:
+            return
+        row = {
+            'timestamp': time.time(),
+            'epoch': epoch,
+            'iteration': iteration,
+            'phase': phase,
+            'algorithm': 'marl',
+            'episode_reward_mean': metrics.get('episode_reward_mean', 0),
+            'episode_len_mean': metrics.get('episode_len_mean', 0),
+            'policy_loss': metrics.get('policy_loss', 0),
+            'vf_loss': metrics.get('vf_loss', 0),
+            'episodes_this_iter': metrics.get('episodes_this_iter', 0),
+            'timesteps_total': metrics.get('timesteps_total', 0)
+        }
+        # Add row without concat to avoid deprecation warnings
+        self.history.loc[len(self.history)] = row
+
+    def log_phase_summary(self, epoch: int, phase: str, summary: dict):
+        """Log summary at the end of a MARL phase."""
+        if not self.enabled:
+            return
+        row = {
+            'timestamp': time.time(),
+            'epoch': epoch,
+            'phase': phase,
+            'iterations_completed': summary.get('iterations_completed', 0),
+            'best_reward': summary.get('best_reward', 0),
+            'final_reward': summary.get('final_reward', 0),
+            'convergence_rate': summary.get('convergence_rate', 0),
+            'total_timesteps': summary.get('total_timesteps', 0)
+        }
+        # Add row without concat to avoid deprecation warnings
+        self.phase_summary.loc[len(self.phase_summary)] = row
+
+    def log_algorithm_performance(self, algorithm: str, metrics: dict):
+        """Log metaheuristic algorithm performance metrics."""
+        if self.enabled:
+            self.algorithm_logs.append({
+                'algorithm': algorithm,
+                'timestamp': time.time(),
+                **metrics
+            })
     
     
     
@@ -97,10 +143,15 @@ class KPITracker:
             'algorithms': recent['algorithm'].tolist()
         }
 
-    def save_to_csv(self, path: str = "results/kpis.csv"):
-        """Persist full history to disk"""
-        if self.enabled:
-            self.history.to_csv(path, index=False)
+    def save_to_csv(self, base_path: str = "results"):
+        """Persist KPI history and summaries to CSV files."""
+        if not self.enabled:
+            return
+        # Ensure directory exists
+        import os
+        os.makedirs(base_path, exist_ok=True)
+        self.history.to_csv(os.path.join(base_path, "marl_iterations.csv"), index=False)
+        self.phase_summary.to_csv(os.path.join(base_path, "marl_phase_summary.csv"), index=False)
 
     def get_algorithm_comparison(self) -> dict:
         """Aggregate metrics for algorithm comparison view"""
@@ -143,69 +194,7 @@ class KPITracker:
         df.to_csv("results/algorithm_performance.csv", index=False)
         
         
-class WebKPILogger(KPITracker):
-    """Web-enabled version that pushes updates to Celery task state"""
-    def __init__(self, celery_task: Optional[object] = None, **kwargs):
-        super().__init__(**kwargs)
-        self.celery_task = celery_task  # Reference to Celery task
-        # self.last_update = 0
-        # self.update_interval = 1.0 # update_interval  # Min seconds between updates
-    
-    def log_metrics(self, episode: int, phase: str, algorithm: str, metrics: dict):
-        # 1. Original logging behavior
-        super().log_metrics(episode, phase, algorithm, metrics)
-        
-        if self.celery_task and self.enabled:
-            def _convert(value):
-                
-                # Base case for tensors/arrays
-                if isinstance(value, torch.Tensor):
-                    return value.detach().cpu().numpy().tolist()
-                if isinstance(value, np.ndarray):
-                    return value.tolist()
-                
-                # Recursive cases
-                if isinstance(value, dict):
-                    return {k: _convert(v) for k, v in value.items()}
-                if isinstance(value, list):
-                    return [_convert(v) for v in value]
-                
-                # Filter out non-data types
-                if callable(value) or hasattr(value, '__call__'):
-                    return "<<METHOD>>"  # Placeholder for debugging
-                
-                # Final fallback
-                try:
-                    return float(value)
-                except:
-                    return str(value)
 
-
-            web_metrics = {
-                'episode': int(episode),
-                'phase': str(phase),
-                'algorithm': str(algorithm),
-                **{k: _convert(v) for k, v in metrics.items()}
-            }
-            # print(f"Current web Metrics : {web_metrics}")
-            # web_metrics = {
-            #     'episode': int(episode),
-            #     'phase': str(phase),
-            #     'algorithm': str(algorithm),
-            #     **{k: float(v) for k,v in metrics.items() if isinstance(v, (int, float, np.generic))}
-            #                 }
-            
-            
-            # Update task state for real-time frontend consumption
-            self.celery_task.update_state(
-                state='PROGRESS',
-                meta={
-                    'type': 'KPI_UPDATE',
-                    'data': web_metrics
-                }
-            )
-            
-            
             
 
 # import sys

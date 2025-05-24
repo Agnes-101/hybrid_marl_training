@@ -1205,7 +1205,7 @@ class NetworkEnvironment(MultiAgentEnv):
             caps     = np.array([bs.num_rbs for bs in self.base_stations], dtype=np.float32) + 1e-9
             util     = loads / caps
             jains    = (util.sum()**2) / (len(util) * (util**2).sum() + 1e-9) if util.sum() > 0 else 0.0
-
+            
             # 3) Assemble common (__all__) info
             common_info = {
                 "connected_ratio":      connected_count / self.num_ue,

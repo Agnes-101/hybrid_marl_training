@@ -16,6 +16,67 @@ import time
 import math
 import numpy as np
 
+class PolicyMappingManager:
+    def __init__(self, bs_positions: np.ndarray, initial_ue_positions: Dict[str, np.ndarray]):
+        """
+        Initialize policy mapping manager
+        
+        Args:
+            bs_positions: Array of shape (num_bs, 2) with BS positions
+            initial_ue_positions: Dict mapping agent_id to initial position
+        """
+        self.bs_positions = bs_positions
+        self.ue_positions = initial_ue_positions.copy()
+        
+    def update_ue_positions(self, new_positions: Dict[str, np.ndarray]):
+        """Update UE positions when they move"""
+        self.ue_positions.update(new_positions)
+        
+    def get_closest_bs(self, agent_id: str) -> int:
+        """
+        Find closest BS to a UE based on current tracked positions
+        
+        Args:
+            agent_id: UE identifier (e.g., "ue0")
+            
+        Returns:
+            BS index (0 = macro, 1-3 = small cells)
+        """
+        if agent_id not in self.ue_positions:
+            print(f"Warning: {agent_id} position not found, defaulting to macro")
+            return 0
+            
+        ue_pos = self.ue_positions[agent_id]
+        
+        # Calculate distances to all BSs
+        distances = [
+            np.linalg.norm(ue_pos - bs_pos) 
+            for bs_pos in self.bs_positions
+        ]
+        
+        return int(np.argmin(distances))
+    
+    def get_policy_distribution(self) -> Dict[str, int]:
+        """Get count of UEs assigned to each policy"""
+        distribution = {"bs_0_policy": 0, "bs_1_policy": 0, "bs_2_policy": 0, "bs_3_policy": 0}
+        
+        for agent_id in self.ue_positions.keys():
+            closest_bs = self.get_closest_bs(agent_id)
+            policy_name = f"bs_{closest_bs}_policy"
+            distribution[policy_name] += 1
+            
+        return distribution
+    
+    def log_policy_assignments(self):
+        """Log current policy assignments for debugging"""
+        assignments = {}
+        for agent_id in self.ue_positions.keys():
+            closest_bs = self.get_closest_bs(agent_id)
+            assignments[agent_id] = f"bs_{closest_bs}_policy"
+        
+        distribution = self.get_policy_distribution()
+        print(f"Policy distribution: {distribution}")
+        return assignments
 class UE:
     def __init__(self, id, position, demand,
                 v_min=0.5, v_max=1.5,
@@ -48,7 +109,7 @@ class UE:
         # uniformly anywhere in the 100×100 area
         return np.random.uniform(0, 100, size=2).astype(np.float32)
 
-    def update_position(self, delta_time=1.0):
+    def update_position(self, delta_time=0.1):
         """MRWP: if paused, count down; else move toward waypoint."""
         if self.pause_time > 0:
             # still in pause
@@ -1062,7 +1123,39 @@ class NetworkEnvironment(MultiAgentEnv):
             for i in range(self.num_ue)
         })
 
-
+        self._initialize_policy_manager()
+        
+    def _initialize_policy_manager(self):
+        """Initialize the policy mapping manager with current BS and UE positions"""
+        # Extract BS positions
+        bs_positions = np.array([bs.position for bs in self.base_stations])
+        
+        # Extract initial UE positions
+        initial_ue_positions = {}
+        for ue in self.ues:
+            agent_id = f"ue{ue.id}"
+            initial_ue_positions[agent_id] = np.array(ue.position)
+        
+        # Create policy manager
+        self.policy_manager = PolicyMappingManager(bs_positions, initial_ue_positions)
+        
+        print(f"Policy manager initialized with {len(bs_positions)} BSs and {len(initial_ue_positions)} UEs")
+        print("Initial policy distribution:")
+        self.policy_manager.log_policy_assignments()
+        
+    def get_policy_for_agent(self, agent_id: str) -> str:
+        """Get the policy name for a given agent based on current position"""
+        closest_bs = self.policy_manager.get_closest_bs(agent_id)
+        return f"bs_{closest_bs}_policy"
+    
+    def get_policy_distribution(self) -> Dict[str, int]:
+        """Get current policy distribution across all UEs"""
+        return self.policy_manager.get_policy_distribution()
+    
+    def log_policy_status(self):
+        """Log current policy assignments - useful for debugging"""
+        return self.policy_manager.log_policy_assignments()
+    
     def reward(self, agent):
         return self.calculate_individual_reward(agent)  # Implement per-BS reward
 
@@ -1128,7 +1221,9 @@ class NetworkEnvironment(MultiAgentEnv):
             self._has_warm_start = True
             # Optionally clear to free memory
             self.initial_assoc = None
-
+            # Reinitialize policy manager with reset positions
+        self._initialize_policy_manager()
+        
         # 3) Build and return the obs + infos dicts
         obs   = self._get_obs()  
         infos = {f"ue_{i}": {} for i in range(self.num_ue)}
@@ -1459,7 +1554,16 @@ class NetworkEnvironment(MultiAgentEnv):
             }
             info["__common__"] = common_info
             self.current_step += 1
-
+            # Update UE positions using MRWP mobility model
+            for ue in self.ues:
+                ue.update_position(delta_time=self.time_step)
+            
+            # Update policy manager with new positions
+            new_positions = {}
+            for ue in self.ues:
+                agent_id = f"ue{ue.id}"
+                new_positions[agent_id] = np.array(ue.position)
+            self.policy_manager.update_ue_positions(new_positions)
             return obs, rewards, terminated, truncated, info
         except Exception as e:        
             print(f"ERROR in step: {e}")
@@ -1784,6 +1888,10 @@ class NetworkEnvironment(MultiAgentEnv):
         Apply a candidate user-association solution, compute detailed performance metrics,
         then restore state. Returns metrics including average throughput in GB/s.
         """
+        # # Update UE positions using MRWP mobility model
+        # for ue in self.ues:
+        #     ue.update_position()
+        
         # 1) Snapshot current state
         original = self.get_state_snapshot()
 
@@ -1842,7 +1950,7 @@ class NetworkEnvironment(MultiAgentEnv):
 
         # 6) Restore original state
         self.set_state_snapshot(original)
-
+        
         # 7) Return detailed report (throughput in GB/s)
         return {
             "fitness": float(fitness),
